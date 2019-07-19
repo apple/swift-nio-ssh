@@ -98,6 +98,56 @@ final class ByteBufferSSHTests: XCTestCase {
         XCTAssertNil(buffer.readSSHString())
         XCTAssertEqual(buffer.readerIndex, previousReaderIndex)
     }
+
+    func testSettingSSHBoolInBuffer() {
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)  // forcing some resizes as we go
+
+        XCTAssertEqual(buffer.setSSHBoolean(false, at: 0), 1)
+        XCTAssertEqual(buffer.setSSHBoolean(true, at: 1), 1)
+        buffer.moveWriterIndex(forwardBy: 2)
+        XCTAssertEqual(buffer.array, [0, 1])
+
+        // Test we can overwrite safely.
+        XCTAssertEqual(buffer.setSSHBoolean(true, at: 0), 1)
+        XCTAssertEqual(buffer.setSSHBoolean(false, at: 1), 1)
+        XCTAssertEqual(buffer.array, [1, 0])
+
+        XCTAssertEqual(buffer.writeSSHBoolean(false), 1)
+        XCTAssertEqual(buffer.writeSSHBoolean(true), 1)
+        XCTAssertEqual(buffer.array, [1, 0, 0, 1])
+    }
+
+    func testSettingSSHStringInBufferWithCollection() {
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)  // forcing some resizes as we go
+
+        XCTAssertEqual(buffer.writeSSHString(Array<UInt8>()), 4)
+        XCTAssertEqual(buffer.array, [0, 0, 0, 0])
+
+        XCTAssertEqual(buffer.setSSHString(repeatElement(5, count: 3), at: 1), 7)
+        buffer.moveWriterIndex(forwardBy: 4)
+        XCTAssertEqual(buffer.array, [0, 0, 0, 0, 3, 5, 5, 5])
+
+        XCTAssertEqual(buffer.writeSSHString(CollectionOfOne(7)), 5)
+        XCTAssertEqual(buffer.array, [0, 0, 0, 0, 3, 5, 5, 5, 0, 0, 0, 1, 7])
+    }
+
+    func testSettingSSHStringInBufferWithByteBuffer() {
+        var sourceBuffer = ByteBufferAllocator().buffer(capacity: 12)
+        sourceBuffer.writeBytes([5, 5, 5])
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)  // forcing some resizes as we go
+
+        var zeroBuffer = ByteBufferAllocator().buffer(capacity: 100)
+        XCTAssertEqual(buffer.writeSSHString(&zeroBuffer), 4)
+        XCTAssertEqual(buffer.array, [0, 0, 0, 0])
+
+        XCTAssertEqual(buffer.setSSHString(sourceBuffer, at: 1), 7)
+        buffer.moveWriterIndex(forwardBy: 4)
+        XCTAssertEqual(buffer.array, [0, 0, 0, 0, 3, 5, 5, 5])
+
+        XCTAssertEqual(buffer.writeSSHString(&sourceBuffer), 7)
+        XCTAssertEqual(buffer.array, [0, 0, 0, 0, 3, 5, 5, 5, 0, 0, 0, 3, 5, 5, 5])
+        XCTAssertEqual(sourceBuffer.readableBytes, 0)
+    }
 }
 
 

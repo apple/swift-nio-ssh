@@ -30,6 +30,9 @@ extension ByteBufferSSHTests {
                 ("testReadingBoolFromByteBuffer", testReadingBoolFromByteBuffer),
                 ("testGettingSSHStringFromByteBuffer", testGettingSSHStringFromByteBuffer),
                 ("testReadingSSHStringFromByteBuffer", testReadingSSHStringFromByteBuffer),
+                ("testSettingSSHBoolInBuffer", testSettingSSHBoolInBuffer),
+                ("testSettingSSHStringInBufferWithCollection", testSettingSSHStringInBufferWithCollection),
+                ("testSettingSSHStringInBufferWithByteBuffer", testSettingSSHStringInBufferWithByteBuffer),
            ]
    }
 }
