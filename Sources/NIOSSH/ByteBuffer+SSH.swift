@@ -53,7 +53,7 @@ extension ByteBuffer {
         // > represents FALSE, and the value 1 represents TRUE.  All non-zero
         // > values MUST be interpreted as TRUE; however, applications MUST NOT
         // > store values other than 0 and 1.
-        var valueToWrite = value ? UInt8(1) : UInt8(0)
+        let valueToWrite = value ? UInt8(1) : UInt8(0)
         return self.setInteger(valueToWrite, at: index)
     }
 
