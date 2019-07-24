@@ -148,6 +148,19 @@ final class ByteBufferSSHTests: XCTestCase {
         XCTAssertEqual(buffer.array, [0, 0, 0, 0, 3, 5, 5, 5, 0, 0, 0, 3, 5, 5, 5])
         XCTAssertEqual(sourceBuffer.readableBytes, 0)
     }
+
+    func testWritingPaddingBytes() {
+        // This only really tests that we write some padding bytes. We can't really validate randomness, so we
+        // don't try.
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        var written = 0
+
+        for i in 0..<100 {
+            written += buffer.writeSSHPaddingBytes(count: i)
+            XCTAssertEqual(buffer.readerIndex, 0)
+            XCTAssertEqual(buffer.writerIndex, written)
+        }
+    }
 }
 
 
