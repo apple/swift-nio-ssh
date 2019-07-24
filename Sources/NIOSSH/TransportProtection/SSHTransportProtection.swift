@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import NIO
+
 /// A scheme that protects an SSH transport.
 ///
 /// SSH supports a number of encryption schemes. These can be negotiated as part of the SSH handshake, and
