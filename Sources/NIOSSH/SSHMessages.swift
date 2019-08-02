@@ -14,183 +14,7 @@
 
 import NIO
 
-struct DisconnectMessage {
-    static let id: UInt8 = 1
-
-    var reason: UInt32
-    var description: ByteBuffer
-    var tag: ByteBuffer
-
-    init?(bytes: inout ByteBuffer) {
-        guard let reason = bytes.readInteger(as: UInt32.self) else {
-            return nil
-        }
-        self.reason = reason
-
-        guard let description = bytes.readSSHString() else {
-            return nil
-        }
-        self.description = description
-
-        guard let tag = bytes.readSSHString() else {
-            return nil
-        }
-        self.tag = tag
-    }
-}
-
-struct ServiceRequestMessage {
-    static let id: UInt8 = 5
-
-    var service: ByteBuffer
-
-    init?(bytes: inout ByteBuffer) {
-        guard let service = bytes.readSSHString() else {
-            return nil
-        }
-        self.service = service
-    }
-}
-
-struct ServiceAcceptMessage {
-    static let id: UInt8 = 6
-
-    var service: ByteBuffer
-
-    init?(bytes: inout ByteBuffer) {
-        guard let service = bytes.readSSHString() else {
-            return nil
-        }
-        self.service = service
-    }
-}
-
-struct KeyExchangeMessage {
-    static let id: UInt8 = 20
-
-    var cookie: ByteBuffer
-
-    var keyExchangeAlgorithms: KeyExchangeAlgorithms
-    var serverHostKeyAlgorithms: KeyAuthenticationAlgorithms
-    var encryptionAlgorithmsClientToServer: EncryptionAlgorithms
-    var encryptionAlgorithmsServerToClient: EncryptionAlgorithms
-    var macAlgorithmsClientToServer: MACAlgorithms
-    var macAlgorithmsServerToClient: MACAlgorithms
-    var compressionAlgorithmsClientToServer: CompressionAlgorithms
-    var compressionAlgorithmsServerToClient: CompressionAlgorithms
-    var languagesClientToServer: Languages
-    var languagesServerToClient: Languages
-
-    init?(bytes: inout ByteBuffer) {
-        guard let cookie = bytes.readSlice(length: 16) else {
-            return nil
-        }
-        self.cookie = cookie
-
-        guard var keyExchangeAlgorithms = bytes.readSSHString() else {
-            return nil
-        }
-        self.keyExchangeAlgorithms = KeyExchangeAlgorithms.resolve(bytes: &keyExchangeAlgorithms)
-
-        guard var serverHostKeyAlgorithms = bytes.readSSHString() else {
-            return nil
-        }
-        self.serverHostKeyAlgorithms = KeyAuthenticationAlgorithms.resolve(bytes: &serverHostKeyAlgorithms)
-
-        guard var encryptionAlgorithmsClientToServer = bytes.readSSHString() else {
-            return nil
-        }
-        self.encryptionAlgorithmsClientToServer = EncryptionAlgorithms.resolve(bytes: &encryptionAlgorithmsClientToServer)
-
-        guard var encryptionAlgorithmsServerToClient = bytes.readSSHString() else {
-            return nil
-        }
-        self.encryptionAlgorithmsServerToClient = EncryptionAlgorithms.resolve(bytes: &encryptionAlgorithmsServerToClient)
-
-        guard var macAlgorithmsClientToServer = bytes.readSSHString() else {
-            return nil
-        }
-        self.macAlgorithmsClientToServer = MACAlgorithms.resolve(bytes: &macAlgorithmsClientToServer)
-
-        guard var macAlgorithmsServerToClient = bytes.readSSHString() else {
-            return nil
-        }
-        self.macAlgorithmsServerToClient = MACAlgorithms.resolve(bytes: &macAlgorithmsServerToClient)
-
-        guard var compressionAlgorithmsClientToServer = bytes.readSSHString() else {
-            return nil
-        }
-        self.compressionAlgorithmsClientToServer = CompressionAlgorithms.resolve(bytes: &compressionAlgorithmsClientToServer)
-
-        guard var compressionAlgorithmsServerToClient = bytes.readSSHString() else {
-            return nil
-        }
-        self.compressionAlgorithmsServerToClient = CompressionAlgorithms.resolve(bytes: &compressionAlgorithmsServerToClient)
-
-        guard var languagesClientToServer = bytes.readSSHString() else {
-            return nil
-        }
-        self.languagesClientToServer = Languages.resolve(bytes: &languagesClientToServer)
-
-        guard var languagesServerToClient = bytes.readSSHString() else {
-            return nil
-        }
-        self.languagesServerToClient = Languages.resolve(bytes: &languagesServerToClient)
-
-        // first_kex_packet_follows
-        _ = bytes.readInteger(as: UInt8.self)
-        // reserved
-        _ = bytes.readInteger(as: UInt32.self)
-    }
-}
-
-// RFC 5656 § 4
-struct KeyExchangeECDHInitMessage {
-    // SSH_MSG_KEX_ECDH_INIT
-    static let id: UInt8 = 30
-
-    // Q_C, client's ephemeral public key octet string
-    var publicKey: ByteBuffer
-
-    init?(bytes: inout ByteBuffer) {
-        guard let publicKey = bytes.readSSHString() else {
-            return nil
-        }
-        self.publicKey = publicKey
-    }
-}
-
-// RFC 5656 § 4
-struct KeyExchangeECDHReplyMessage {
-    // SSH_MSG_KEX_ECDH_REPLY
-    static let id: UInt8 = 31
-
-    // K_S, server's public host key
-    var hostKey: ByteBuffer
-    // Q_S, server's ephemeral public key octet string
-    var publicKey: ByteBuffer
-    // the signature on the exchange hash
-    var signature: ByteBuffer
-
-    init?(bytes: inout ByteBuffer) {
-        guard let hostKey = bytes.readSSHString() else {
-            return nil
-        }
-        self.hostKey = hostKey
-
-        guard let publicKey = bytes.readSSHString() else {
-            return nil
-        }
-        self.publicKey = publicKey
-
-        guard let signature = bytes.readSSHString() else {
-            return nil
-        }
-        self.signature = signature
-    }
-}
-
-enum Message {
+enum SSHMessage {
     enum ParsingError: Error {
         case unknownType
         case incorrectFormat
@@ -205,7 +29,7 @@ enum Message {
     case keyExchangeReply(KeyExchangeECDHReplyMessage)
     case newKeys
 
-    static func parse(length: UInt32, bytes: inout ByteBuffer) throws -> Message {
+    static func parse(length: UInt32, bytes: inout ByteBuffer) throws -> SSHMessage {
         guard let type = bytes.readInteger(as: UInt8.self) else {
             throw ParsingError.incorrectFormat
         }
@@ -243,6 +67,184 @@ enum Message {
             return .keyExchangeReply(message)
         default:
             throw ParsingError.unknownType
+        }
+    }
+}
+
+extension SSHMessage {
+    struct DisconnectMessage {
+        static let id: UInt8 = 1
+
+        var reason: UInt32
+        var description: ByteBuffer
+        var tag: ByteBuffer
+
+        init?(bytes: inout ByteBuffer) {
+            guard let reason = bytes.readInteger(as: UInt32.self) else {
+                return nil
+            }
+            self.reason = reason
+
+            guard let description = bytes.readSSHString() else {
+                return nil
+            }
+            self.description = description
+
+            guard let tag = bytes.readSSHString() else {
+                return nil
+            }
+            self.tag = tag
+        }
+    }
+
+    struct ServiceRequestMessage {
+        static let id: UInt8 = 5
+
+        var service: ByteBuffer
+
+        init?(bytes: inout ByteBuffer) {
+            guard let service = bytes.readSSHString() else {
+                return nil
+            }
+            self.service = service
+        }
+    }
+
+    struct ServiceAcceptMessage {
+        static let id: UInt8 = 6
+
+        var service: ByteBuffer
+
+        init?(bytes: inout ByteBuffer) {
+            guard let service = bytes.readSSHString() else {
+                return nil
+            }
+            self.service = service
+        }
+    }
+
+    struct KeyExchangeMessage {
+        static let id: UInt8 = 20
+
+        var cookie: ByteBuffer
+
+        var keyExchangeAlgorithms: KeyExchangeAlgorithms
+        var serverHostKeyAlgorithms: KeyAuthenticationAlgorithms
+        var encryptionAlgorithmsClientToServer: EncryptionAlgorithms
+        var encryptionAlgorithmsServerToClient: EncryptionAlgorithms
+        var macAlgorithmsClientToServer: MACAlgorithms
+        var macAlgorithmsServerToClient: MACAlgorithms
+        var compressionAlgorithmsClientToServer: CompressionAlgorithms
+        var compressionAlgorithmsServerToClient: CompressionAlgorithms
+        var languagesClientToServer: Languages
+        var languagesServerToClient: Languages
+
+        init?(bytes: inout ByteBuffer) {
+            guard let cookie = bytes.readSlice(length: 16) else {
+                return nil
+            }
+            self.cookie = cookie
+
+            guard var keyExchangeAlgorithms = bytes.readSSHString() else {
+                return nil
+            }
+            self.keyExchangeAlgorithms = KeyExchangeAlgorithms.resolve(bytes: &keyExchangeAlgorithms)
+
+            guard var serverHostKeyAlgorithms = bytes.readSSHString() else {
+                return nil
+            }
+            self.serverHostKeyAlgorithms = KeyAuthenticationAlgorithms.resolve(bytes: &serverHostKeyAlgorithms)
+
+            guard var encryptionAlgorithmsClientToServer = bytes.readSSHString() else {
+                return nil
+            }
+            self.encryptionAlgorithmsClientToServer = EncryptionAlgorithms.resolve(bytes: &encryptionAlgorithmsClientToServer)
+
+            guard var encryptionAlgorithmsServerToClient = bytes.readSSHString() else {
+                return nil
+            }
+            self.encryptionAlgorithmsServerToClient = EncryptionAlgorithms.resolve(bytes: &encryptionAlgorithmsServerToClient)
+
+            guard var macAlgorithmsClientToServer = bytes.readSSHString() else {
+                return nil
+            }
+            self.macAlgorithmsClientToServer = MACAlgorithms.resolve(bytes: &macAlgorithmsClientToServer)
+
+            guard var macAlgorithmsServerToClient = bytes.readSSHString() else {
+                return nil
+            }
+            self.macAlgorithmsServerToClient = MACAlgorithms.resolve(bytes: &macAlgorithmsServerToClient)
+
+            guard var compressionAlgorithmsClientToServer = bytes.readSSHString() else {
+                return nil
+            }
+            self.compressionAlgorithmsClientToServer = CompressionAlgorithms.resolve(bytes: &compressionAlgorithmsClientToServer)
+
+            guard var compressionAlgorithmsServerToClient = bytes.readSSHString() else {
+                return nil
+            }
+            self.compressionAlgorithmsServerToClient = CompressionAlgorithms.resolve(bytes: &compressionAlgorithmsServerToClient)
+
+            guard var languagesClientToServer = bytes.readSSHString() else {
+                return nil
+            }
+            self.languagesClientToServer = Languages.resolve(bytes: &languagesClientToServer)
+
+            guard var languagesServerToClient = bytes.readSSHString() else {
+                return nil
+            }
+            self.languagesServerToClient = Languages.resolve(bytes: &languagesServerToClient)
+
+            // first_kex_packet_follows
+            _ = bytes.readInteger(as: UInt8.self)
+            // reserved
+            _ = bytes.readInteger(as: UInt32.self)
+        }
+    }
+
+    // RFC 5656 § 4
+    struct KeyExchangeECDHInitMessage {
+        // SSH_MSG_KEX_ECDH_INIT
+        static let id: UInt8 = 30
+
+        // Q_C, client's ephemeral public key octet string
+        var publicKey: ByteBuffer
+
+        init?(bytes: inout ByteBuffer) {
+            guard let publicKey = bytes.readSSHString() else {
+                return nil
+            }
+            self.publicKey = publicKey
+        }
+    }
+
+    // RFC 5656 § 4
+    struct KeyExchangeECDHReplyMessage {
+        // SSH_MSG_KEX_ECDH_REPLY
+        static let id: UInt8 = 31
+
+        // K_S, server's public host key
+        var hostKey: ByteBuffer
+        // Q_S, server's ephemeral public key octet string
+        var publicKey: ByteBuffer
+        // the signature on the exchange hash
+        var signature: ByteBuffer
+
+        init?(bytes: inout ByteBuffer) {
+            guard let hostKey = bytes.readSSHString() else {
+                return nil
+            }
+            self.hostKey = hostKey
+
+            guard let publicKey = bytes.readSSHString() else {
+                return nil
+            }
+            self.publicKey = publicKey
+
+            guard let signature = bytes.readSSHString() else {
+                return nil
+            }
+            self.signature = signature
         }
     }
 }

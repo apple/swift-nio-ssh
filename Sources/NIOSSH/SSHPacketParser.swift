@@ -43,7 +43,7 @@ struct SSHPacketParser {
         self.buffer.writeBuffer(&bytes)
     }
 
-    mutating func nextPacket() throws -> Message? {
+    mutating func nextPacket() throws -> SSHMessage? {
         switch self.state {
         case .initialized:
             if let version = try self.readVersion() {
@@ -111,13 +111,13 @@ struct SSHPacketParser {
         preconditionFailure("Not implemented")
     }
 
-    private mutating func parse(length: UInt32) throws -> Message {
+    private mutating func parse(length: UInt32) throws -> SSHMessage {
         guard let padding = self.buffer.readInteger(as: UInt8.self) else {
             throw ProtocolError.paddingLength
         }
 
         let messageLength = length - UInt32(padding) - 1
-        let message = try Message.parse(length: messageLength, bytes: &self.buffer)
+        let message = try SSHMessage.parse(length: messageLength, bytes: &self.buffer)
 
         guard let randomPadding = buffer.readBytes(length: Int(padding)) else {
             throw ProtocolError.padding
