@@ -18,8 +18,8 @@ struct SSHPacketParser {
 
     enum State {
         case initialized
-        case binaryWaitingForLength
-        case binaryWaitingForBytes(UInt32)
+        case cleartextWaitingForLength
+        case cleartextWaitingForBytes(UInt32)
         case encryptedWaitingForLength
         case encryptedWaitingForBytes(UInt32)
     }
@@ -47,24 +47,24 @@ struct SSHPacketParser {
         switch self.state {
         case .initialized:
             if let version = try self.readVersion() {
-                self.state = .binaryWaitingForLength
+                self.state = .cleartextWaitingForLength
                 return .version(version)
             }
             return nil
-        case .binaryWaitingForLength:
+        case .cleartextWaitingForLength:
             if let length = self.buffer.readInteger(as: UInt32.self) {
                 if self.buffer.readableBytes >= length {
-                    self.state = .binaryWaitingForLength
+                    self.state = .cleartextWaitingForLength
                     return try parse(length: length)
                 } else {
-                    self.state = .binaryWaitingForBytes(length)
+                    self.state = .cleartextWaitingForBytes(length)
                     return nil
                 }
             }
             return nil
-        case .binaryWaitingForBytes(let length):
+        case .cleartextWaitingForBytes(let length):
             if self.buffer.readableBytes >= length {
-                self.state = .binaryWaitingForLength
+                self.state = .cleartextWaitingForLength
                 return try parse(length: length)
             }
             return nil
@@ -86,7 +86,7 @@ struct SSHPacketParser {
             }
         case .encryptedWaitingForBytes(let length):
             if self.buffer.readableBytes >= length {
-                self.state = .binaryWaitingForLength
+                self.state = .cleartextWaitingForLength
                 return try parse(length: length)
             }
             return nil

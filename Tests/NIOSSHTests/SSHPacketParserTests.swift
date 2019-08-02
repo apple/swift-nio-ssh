@@ -60,7 +60,7 @@ final class SSHPacketParserTests: XCTestCase {
 
         XCTAssertNil(try parser.nextPacket())
         switch parser.state {
-        case .binaryWaitingForBytes(let length):
+        case .cleartextWaitingForBytes(let length):
             XCTAssertEqual(length, 28)
         default:
             XCTFail("Expecting .binaryWaitingForBytes")
@@ -71,7 +71,7 @@ final class SSHPacketParserTests: XCTestCase {
 
         XCTAssertNil(try parser.nextPacket())
         switch parser.state {
-        case .binaryWaitingForBytes(let length):
+        case .cleartextWaitingForBytes(let length):
             XCTAssertEqual(length, 28)
         default:
             XCTFail("Expecting .binaryWaitingForBytes")
