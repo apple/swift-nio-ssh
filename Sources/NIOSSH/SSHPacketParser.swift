@@ -101,7 +101,7 @@ struct SSHPacketParser {
                 throw ProtocolError.cannotReadVersion
             }
             // read \r\n
-            _ = buffer.readBytes(length: 2)
+            buffer.moveReaderIndex(forwardBy: 2)
             return version
         }
         return nil
