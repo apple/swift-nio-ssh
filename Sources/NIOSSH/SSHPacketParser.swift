@@ -95,13 +95,11 @@ struct SSHPacketParser {
 
     private mutating func readVersion() throws -> String? {
         // Looking for a string ending with \r\n
-        if let cr = self.buffer.readableBytesView.firstIndex(of: 13), self.buffer.getInteger(at: cr.advanced(by: 1), as: UInt8.self) == 10 {
-            // read version
-            guard let version = self.buffer.readString(length: cr) else {
-                throw ProtocolError.cannotReadVersion
-            }
+        let slice = self.buffer.readableBytesView
+        if let cr = slice.firstIndex(of: 13), slice[cr.advanced(by: 1)] == 10 {
+            let version = String(decoding: slice[slice.startIndex ..< cr], as: UTF8.self)
             // read \r\n
-            buffer.moveReaderIndex(forwardBy: 2)
+            buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: cr).advanced(by: 2))
             return version
         }
         return nil
