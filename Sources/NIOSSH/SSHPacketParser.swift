@@ -55,7 +55,7 @@ struct SSHPacketParser {
             if let length = self.buffer.readInteger(as: UInt32.self) {
                 if self.buffer.readableBytes >= length {
                     self.state = .cleartextWaitingForLength
-                    return try parse(length: length)
+                    return try self.parse(length: length)
                 } else {
                     self.state = .cleartextWaitingForBytes(length)
                     return nil
@@ -65,7 +65,7 @@ struct SSHPacketParser {
         case .cleartextWaitingForBytes(let length):
             if self.buffer.readableBytes >= length {
                 self.state = .cleartextWaitingForLength
-                return try parse(length: length)
+                return try self.parse(length: length)
             }
             return nil
         case .encryptedWaitingForLength:
@@ -79,7 +79,7 @@ struct SSHPacketParser {
 
             if self.buffer.readableBytes >= length {
                 self.state = .encryptedWaitingForLength
-                return try parse(length: length)
+                return try self.parse(length: length)
             } else {
                 self.state = .encryptedWaitingForBytes(length)
                 return nil
@@ -87,7 +87,7 @@ struct SSHPacketParser {
         case .encryptedWaitingForBytes(let length):
             if self.buffer.readableBytes >= length {
                 self.state = .cleartextWaitingForLength
-                return try parse(length: length)
+                return try self.parse(length: length)
             }
             return nil
         }
