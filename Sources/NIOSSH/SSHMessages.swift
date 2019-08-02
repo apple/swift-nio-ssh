@@ -144,36 +144,44 @@ struct KeyExchangeMessage {
     }
 }
 
-struct KeyExchangeInitMessage {
+// RFC 5656 § 4
+struct KeyExchangeECDHInitMessage {
+    // SSH_MSG_KEX_ECDH_INIT
     static let id: UInt8 = 30
 
-    var QC: ByteBuffer
+    // Q_C, client's ephemeral public key octet string
+    var publicKey: ByteBuffer
 
     init?(bytes: inout ByteBuffer) {
-        guard let QC = bytes.readSSHString() else {
+        guard let publicKey = bytes.readSSHString() else {
             return nil
         }
-        self.QC = QC
+        self.publicKey = publicKey
     }
 }
 
-struct KeyExchangeReplyMessage {
+// RFC 5656 § 4
+struct KeyExchangeECDHReplyMessage {
+    // SSH_MSG_KEX_ECDH_REPLY
     static let id: UInt8 = 31
 
-    var KS: ByteBuffer
-    var QS: ByteBuffer
+    // K_S, server's public host key
+    var hostKey: ByteBuffer
+    // Q_S, server's ephemeral public key octet string
+    var publicKey: ByteBuffer
+    // the signature on the exchange hash
     var signature: ByteBuffer
 
     init?(bytes: inout ByteBuffer) {
-        guard let KS = bytes.readSSHString() else {
+        guard let hostKey = bytes.readSSHString() else {
             return nil
         }
-        self.KS = KS
+        self.hostKey = hostKey
 
-        guard let QS = bytes.readSSHString() else {
+        guard let publicKey = bytes.readSSHString() else {
             return nil
         }
-        self.QS = QS
+        self.publicKey = publicKey
 
         guard let signature = bytes.readSSHString() else {
             return nil
@@ -193,8 +201,8 @@ enum Message {
     case serviceRequest(ServiceRequestMessage)
     case serviceAccept(ServiceAcceptMessage)
     case keyExchange(KeyExchangeMessage)
-    case keyExchangeInit(KeyExchangeInitMessage)
-    case keyExchangeReply(KeyExchangeReplyMessage)
+    case keyExchangeInit(KeyExchangeECDHInitMessage)
+    case keyExchangeReply(KeyExchangeECDHReplyMessage)
     case newKeys
 
     static func parse(length: UInt32, bytes: inout ByteBuffer) throws -> Message {
@@ -223,13 +231,13 @@ enum Message {
                 throw ParsingError.incorrectFormat
             }
             return .keyExchange(message)
-        case KeyExchangeInitMessage.id:
-            guard let message = KeyExchangeInitMessage(bytes: &bytes) else {
+        case KeyExchangeECDHInitMessage.id:
+            guard let message = KeyExchangeECDHInitMessage(bytes: &bytes) else {
                 throw ParsingError.incorrectFormat
             }
             return .keyExchangeInit(message)
-        case KeyExchangeReplyMessage.id:
-            guard let message = KeyExchangeReplyMessage(bytes: &bytes) else {
+        case KeyExchangeECDHReplyMessage.id:
+            guard let message = KeyExchangeECDHReplyMessage(bytes: &bytes) else {
                 throw ParsingError.incorrectFormat
             }
             return .keyExchangeReply(message)
