@@ -115,7 +115,7 @@ struct SSHPacketParser {
         }
 
         let messageLength = length - UInt32(padding) - 1
-        let message = try SSHMessage.parse(length: messageLength, bytes: &self.buffer)
+        let message = try self.buffer.readSSHMessage(length: messageLength)
 
         guard let randomPadding = buffer.readBytes(length: Int(padding)) else {
             throw ProtocolError.padding
