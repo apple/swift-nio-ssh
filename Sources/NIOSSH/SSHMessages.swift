@@ -240,7 +240,7 @@ extension ByteBuffer {
     }
 
     mutating func readKeyExchangeECDHReplyMessage() -> SSHMessage.KeyExchangeECDHReplyMessage? {
-        let readerIndex = self.readerIndex
+        var readerIndex = self.readerIndex
         guard let hostKey = self.readSSHString() else {
             return nil
         }
