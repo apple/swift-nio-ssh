@@ -14,6 +14,7 @@
 
 import NIO
 
+
 /// A scheme that protects an SSH transport.
 ///
 /// SSH supports a number of encryption schemes. These can be negotiated as part of the SSH handshake, and
@@ -46,17 +47,17 @@ import NIO
 /// untrusted information.
 protocol NIOSSHTransportProtection: AnyObject {
     /// The name of the cipher portion of this transport protection scheme as negotiated on the wire.
-    var cipherName: String { get }
+    static var cipherName: String { get }
 
     /// The name of the MAC portion of this transport protection scheme as negotiated on the wire. May be nil, in which
     /// case this scheme does not care about the MAC field because it is an @openssh.org style AEAD construction.
-    var macName: String? { get }
+    static var macName: String? { get }
 
     /// The block size of the cipher in this protection scheme.
-    var cipherBlockSize: Int { get }
+    static var cipherBlockSize: Int { get }
 
     /// Create a new instance of this transport protection scheme with the given keys.
-    init(initialKeys: NIOSSHKeyExchangeResult) throws
+    init(initialKeys: NIOSSHKeyExchangeResult, allocator: ByteBufferAllocator) throws
 
     /// A rekey has occurred and the encryption keys need to be changed.
     func updateKeys(_ newKeys: NIOSSHKeyExchangeResult) throws
@@ -81,6 +82,6 @@ protocol NIOSSHTransportProtection: AnyObject {
     /// is required and throw if the integrity check fails.
     func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws
 
-    /// Encrypt an entire outbound packet, storing the result in the provided buffer.
-    func encryptPacket(_ packet: inout ByteBuffer) throws
+    /// Encrypt an entire outbound packet
+    func encryptPacket(_ packet: NIOSSHEncryptablePayload) throws -> ByteBuffer
 }

@@ -146,4 +146,51 @@ extension ByteBuffer {
         value.moveReaderIndex(to: value.writerIndex)
         return writtenBytes
     }
+
+    /// Writes a given number of SSH-acceptable padding bytes to this buffer.
+    @discardableResult
+    mutating func writeSSHPaddingBytes(count: Int) -> Int {
+        // Annoyingly, the system random number generator can only give bytes to us 8 bytes at a time.
+        precondition(count >= 0, "Cannot write negative number of padding bytes: \(count)")
+
+        var rng = CSPRNG()
+        var necessaryPaddingBytes = count
+
+        while necessaryPaddingBytes > 0 {
+            let writtenBytes: Int
+            switch necessaryPaddingBytes {
+            case 8...:
+                writtenBytes = self.writeInteger(rng.next(), as: UInt32.self)
+            case 4...7:
+                writtenBytes = self.writeInteger(rng.next(), as: UInt32.self)
+            case 2...3:
+                writtenBytes = self.writeInteger(rng.next(), as: UInt16.self)
+            case 1:
+                writtenBytes = self.writeInteger(rng.next(), as: UInt8.self)
+            default:
+                preconditionFailure("Attempted to write negative number of bytes: \(necessaryPaddingBytes)")
+            }
+
+            necessaryPaddingBytes -= writtenBytes
+        }
+
+        precondition(necessaryPaddingBytes == 0, "Math is wrong, remaining expected padding bytes is nonzero: \(necessaryPaddingBytes)")
+        return count
+    }
+
+    /// Removes the padding bytes from a buffer.
+    ///
+    /// This operation assumes that the padding length byte is at the reader index, and the padding bytes
+    /// are the bytes immediately before the writer index.
+    mutating func removePaddingBytes() throws {
+        guard let paddingLength = self.readInteger(as: UInt8.self), paddingLength > 4 else {
+            throw NIOSSHError.insufficientPadding
+        }
+
+        guard paddingLength <= self.readableBytes else {
+            throw NIOSSHError.excessPadding
+        }
+
+        self.moveWriterIndex(to: self.writerIndex - Int(paddingLength))
+    }
 }
