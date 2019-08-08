@@ -137,15 +137,21 @@ extension ByteBuffer {
     }
 
     mutating func readDisconnectMessage() -> SSHMessage.DisconnectMessage? {
+        var readerIndex = self.readerIndex
         guard let reason = self.readInteger(as: UInt32.self) else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
+        readerIndex = self.readerIndex
         guard let description = self.readSSHString() else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
+        readerIndex = self.readerIndex
         guard let tag = self.readSSHString() else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
@@ -153,7 +159,9 @@ extension ByteBuffer {
     }
 
     mutating func readServiceRequestMessage() -> SSHMessage.ServiceRequestMessage? {
+        let readerIndex = self.readerIndex
         guard let service = self.readSSHString() else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
@@ -161,7 +169,9 @@ extension ByteBuffer {
     }
 
     mutating func readServiceAcceptMessage() -> SSHMessage.ServiceAcceptMessage? {
+        let readerIndex = self.readerIndex
         guard let service = self.readSSHString() else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
@@ -169,12 +179,13 @@ extension ByteBuffer {
     }
 
     mutating func readKeyExchangeMessage() -> SSHMessage.KeyExchangeMessage? {
+        var readerIndex = self.readerIndex
         guard let cookie = self.readSlice(length: 16) else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
-        var readerIndex = self.readerIndex
-
+        readerIndex = self.readerIndex
         guard
             let keyExchangeAlgorithms = self.readAlgorithms(),
             let serverHostKeyAlgorithms = self.readAlgorithms(),
@@ -220,22 +231,29 @@ extension ByteBuffer {
     }
 
     mutating func readKeyExchangeECDHInitMessage() -> SSHMessage.KeyExchangeECDHInitMessage? {
+        let readerIndex = self.readerIndex
         guard let publicKey = self.readSSHString() else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
         return .init(publicKey: publicKey)
     }
 
     mutating func readKeyExchangeECDHReplyMessage() -> SSHMessage.KeyExchangeECDHReplyMessage? {
+        let readerIndex = self.readerIndex
         guard let hostKey = self.readSSHString() else {
             return nil
         }
 
+        readerIndex = self.readerIndex
         guard let publicKey = self.readSSHString() else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
+        readerIndex = self.readerIndex
         guard let signature = self.readSSHString() else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
@@ -243,7 +261,9 @@ extension ByteBuffer {
     }
 
     mutating func readAlgorithms() -> [Substring]? {
+        let readerIndex = self.readerIndex
         guard var string = self.readSSHString() else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
         // readSSHString guarantees that we will be able to read all string bytes
