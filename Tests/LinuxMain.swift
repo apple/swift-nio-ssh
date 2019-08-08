@@ -26,6 +26,7 @@ import XCTest
    @testable import NIOSSHTests
 
    XCTMain([
+         testCase(AESGCMTests.allTests),
          testCase(ByteBufferSSHTests.allTests),
     ])
 #endif

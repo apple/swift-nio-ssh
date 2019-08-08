@@ -30,8 +30,8 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.4.0"),
     ],
     targets: [
-        .target(name: "NIOSSH", dependencies: ["NIO"]),
-        .testTarget(name: "NIOSSHTests", dependencies: ["NIOSSH", "NIO"]),
+        .target(name: "NIOSSH", dependencies: ["NIO", "NIOFoundationCompat"]),
+        .testTarget(name: "NIOSSHTests", dependencies: ["NIOSSH", "NIO", "NIOFoundationCompat"]),
     ]
 )
 

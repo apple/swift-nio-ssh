@@ -33,6 +33,7 @@ extension ByteBufferSSHTests {
                 ("testSettingSSHBoolInBuffer", testSettingSSHBoolInBuffer),
                 ("testSettingSSHStringInBufferWithCollection", testSettingSSHStringInBufferWithCollection),
                 ("testSettingSSHStringInBufferWithByteBuffer", testSettingSSHStringInBufferWithByteBuffer),
+                ("testWritingPaddingBytes", testWritingPaddingBytes),
            ]
    }
 }

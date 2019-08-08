@@ -34,15 +34,15 @@ import CryptoKit
 /// we store them in the `SymmetricKey` types. The IVs do not need to be secret, and so are
 /// stored in regular heap buffers.
 struct NIOSSHKeyExchangeResult {
-    var initialClientToServerIV: [UInt8]
+    var initialInboundIV: [UInt8]
 
-    var initialServerToClientIV: [UInt8]
+    var initialOutboundIV: [UInt8]
 
-    var clientToServerEncryptionKey: SymmetricKey
+    var inboundEncryptionKey: SymmetricKey
 
-    var serverToClientEncryptionKey: SymmetricKey
+    var outboundEncryptionKey: SymmetricKey
 
-    var clientToServerMACKey: SymmetricKey
+    var inboundMACKey: SymmetricKey
 
-    var serverToClientMACKey: SymmetricKey
+    var outboundMACKey: SymmetricKey
 }
