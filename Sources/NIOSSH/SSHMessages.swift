@@ -28,6 +28,27 @@ enum SSHMessage {
     case keyExchangeInit(KeyExchangeECDHInitMessage)
     case keyExchangeReply(KeyExchangeECDHReplyMessage)
     case newKeys
+
+    var length: Int {
+        switch self {
+        case .version(let version):
+            return version.count
+        case .disconnect(let message):
+            return 1 + message.length
+        case .serviceRequest(let message):
+            return 1 + message.length
+        case .serviceAccept(let message):
+            return 1 + message.length
+        case .keyExchange(let message):
+            return 1 + message.length
+        case .keyExchangeInit(let message):
+            return 1 + message.length
+        case .keyExchangeReply(let message):
+            return 1 + message.length
+        case .newKeys:
+            return 1
+        }
+    }
 }
 
 extension SSHMessage {
@@ -37,18 +58,30 @@ extension SSHMessage {
         var reason: UInt32
         var description: ByteBuffer
         var tag: ByteBuffer
+
+        var length: Int {
+            return 0
+        }
     }
 
     struct ServiceRequestMessage {
         static let id: UInt8 = 5
 
         var service: ByteBuffer
+
+        var length: Int {
+            return 0
+        }
     }
 
     struct ServiceAcceptMessage {
         static let id: UInt8 = 6
 
         var service: ByteBuffer
+
+        var length: Int {
+            return 0
+        }
     }
 
     struct KeyExchangeMessage {
@@ -65,6 +98,10 @@ extension SSHMessage {
         var compressionAlgorithmsServerToClient: [Substring]
         var languagesClientToServer: [Substring]
         var languagesServerToClient: [Substring]
+
+        var length: Int {
+            return 0
+        }
     }
 
     // RFC 5656 § 4
@@ -74,6 +111,10 @@ extension SSHMessage {
 
         // Q_C, client's ephemeral public key octet string
         var publicKey: ByteBuffer
+
+        var length: Int {
+            return 0
+        }
     }
 
     // RFC 5656 § 4
@@ -87,6 +128,10 @@ extension SSHMessage {
         var publicKey: ByteBuffer
         // the signature on the exchange hash
         var signature: ByteBuffer
+
+        var length: Int {
+            return 0
+        }
     }
 }
 
