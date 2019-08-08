@@ -53,19 +53,18 @@ struct SSHPacketParser {
             return nil
         case .cleartextWaitingForLength:
             if let length = self.buffer.readInteger(as: UInt32.self) {
-                if self.buffer.readableBytes >= length {
+                if let message = try self.parse(length: length) {
                     self.state = .cleartextWaitingForLength
-                    return try self.parse(length: length)
-                } else {
-                    self.state = .cleartextWaitingForBytes(length)
-                    return nil
+                    return message
                 }
+                self.state = .cleartextWaitingForBytes(length)
+                return nil
             }
             return nil
         case .cleartextWaitingForBytes(let length):
-            if self.buffer.readableBytes >= length {
+            if let message = try self.parse(length: length) {
                 self.state = .cleartextWaitingForLength
-                return try self.parse(length: length)
+                return message
             }
             return nil
         case .encryptedWaitingForLength:
@@ -77,17 +76,16 @@ struct SSHPacketParser {
 
             let length = try decryptLength()
 
-            if self.buffer.readableBytes >= length {
+            if let message = try self.parse(length: length) {
                 self.state = .encryptedWaitingForLength
-                return try self.parse(length: length)
-            } else {
-                self.state = .encryptedWaitingForBytes(length)
-                return nil
+                return message
             }
+            self.state = .encryptedWaitingForBytes(length)
+            return nil
         case .encryptedWaitingForBytes(let length):
-            if self.buffer.readableBytes >= length {
+            if let message = try self.parse(length: length) {
                 self.state = .cleartextWaitingForLength
-                return try self.parse(length: length)
+                return message
             }
             return nil
         }
@@ -109,7 +107,11 @@ struct SSHPacketParser {
         preconditionFailure("Not implemented")
     }
 
-    private mutating func parse(length: UInt32) throws -> SSHMessage {
+    private mutating func parse(length: UInt32) throws -> SSHMessage? {
+        guard self.buffer.readableBytes >= length else {
+            return nil
+        }
+
         guard let padding = self.buffer.readInteger(as: UInt8.self) else {
             throw ProtocolError.paddingLength
         }
