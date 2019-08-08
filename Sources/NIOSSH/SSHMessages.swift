@@ -92,7 +92,9 @@ extension SSHMessage {
 
 extension ByteBuffer {
     mutating func readSSHMessage(length: UInt32) throws -> SSHMessage {
+        let readerIndex = self.readerIndex
         guard var message = self.readSlice(length: Int(length)) else {
+            self.moveReaderIndex(to: readerIndex)
             throw SSHMessage.ParsingError.incorrectFormat
         }
 
