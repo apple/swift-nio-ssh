@@ -44,7 +44,7 @@ internal class AESGCMTransportProtection {
     // The buffer we're writing outbound frames into.
     private var outboundBuffer: ByteBuffer
 
-    required init(initialKeys: NIOSSHKeyExchangeResult, allocator: ByteBufferAllocator) throws {
+    required init(initialKeys: NIOSSHSessionKeys, allocator: ByteBufferAllocator) throws {
         guard initialKeys.outboundEncryptionKey.bitCount == Self.keySize * 8 &&
               initialKeys.inboundEncryptionKey.bitCount == Self.keySize * 8 else {
                 throw NIOSSHError.invalidKeySize
@@ -64,7 +64,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         return 16
     }
 
-    func updateKeys(_ newKeys: NIOSSHKeyExchangeResult) throws {
+    func updateKeys(_ newKeys: NIOSSHSessionKeys) throws {
         guard newKeys.outboundEncryptionKey.bitCount == Self.keySize * 8 &&
               newKeys.inboundEncryptionKey.bitCount == Self.keySize * 8 else {
                 throw NIOSSHError.invalidKeySize

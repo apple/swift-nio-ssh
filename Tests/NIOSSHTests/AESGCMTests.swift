@@ -20,13 +20,13 @@ import NIOFoundationCompat
 
 
 final class AESGCMTests: XCTestCase {
-    private func generateKeys(keySize: SymmetricKeySize) -> NIOSSHKeyExchangeResult {
-        return NIOSSHKeyExchangeResult(initialInboundIV: .init(randomBytes: 12),
-                                       initialOutboundIV: .init(randomBytes: 12),
-                                       inboundEncryptionKey: SymmetricKey(size: keySize),
-                                       outboundEncryptionKey: SymmetricKey(size: keySize),
-                                       inboundMACKey: SymmetricKey(size: .bits128),
-                                       outboundMACKey: SymmetricKey(size: .bits128))
+    private func generateKeys(keySize: SymmetricKeySize) -> NIOSSHSessionKeys {
+        return NIOSSHSessionKeys(initialInboundIV: .init(randomBytes: 12),
+                                 initialOutboundIV: .init(randomBytes: 12),
+                                 inboundEncryptionKey: SymmetricKey(size: keySize),
+                                 outboundEncryptionKey: SymmetricKey(size: keySize),
+                                 inboundMACKey: SymmetricKey(size: .bits128),
+                                 outboundMACKey: SymmetricKey(size: .bits128))
     }
 
     func testSimpleAES128RoundTrip() throws {
@@ -86,13 +86,13 @@ final class AESGCMTests: XCTestCase {
         var initialKeys = initial128BitKeys
         initialKeys.inboundEncryptionKey = SymmetricKey(size: .bits256)
         XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidKeySize)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
 
         initialKeys = initial128BitKeys
         initialKeys.outboundEncryptionKey = SymmetricKey(size: .bits256)
         XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidKeySize)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
 
         let initial256BitKeys = self.generateKeys(keySize: .bits256)
@@ -101,13 +101,13 @@ final class AESGCMTests: XCTestCase {
         initialKeys = initial256BitKeys
         initialKeys.inboundEncryptionKey = SymmetricKey(size: .bits128)
         XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidKeySize)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
 
         initialKeys = initial256BitKeys
         initialKeys.outboundEncryptionKey = SymmetricKey(size: .bits128)
         XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidKeySize)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
     }
 
@@ -122,26 +122,26 @@ final class AESGCMTests: XCTestCase {
         var updatedKeys = initial128BitKeys
         updatedKeys.inboundEncryptionKey = SymmetricKey(size: .bits256)
         XCTAssertThrowsError(try aes128.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidKeySize)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
 
         updatedKeys = initial128BitKeys
         updatedKeys.outboundEncryptionKey = SymmetricKey(size: .bits256)
         XCTAssertThrowsError(try aes128.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidKeySize)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
 
         // We want to check that each key is rejected separately.
         updatedKeys = initial256BitKeys
         updatedKeys.inboundEncryptionKey = SymmetricKey(size: .bits128)
         XCTAssertThrowsError(try aes256.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidKeySize)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
 
         updatedKeys = initial256BitKeys
         updatedKeys.outboundEncryptionKey = SymmetricKey(size: .bits128)
         XCTAssertThrowsError(try aes256.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidKeySize)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
     }
 
@@ -153,50 +153,50 @@ final class AESGCMTests: XCTestCase {
         var initialKeys = initial128BitKeys
         initialKeys.initialInboundIV = Array(randomBytes: 11)
         XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial128BitKeys
         initialKeys.initialOutboundIV = Array(randomBytes: 11)
         XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial128BitKeys
         initialKeys.initialInboundIV = Array(randomBytes: 13)
         XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial128BitKeys
         initialKeys.initialOutboundIV = Array(randomBytes: 13)
         XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         // We want to check that each key is rejected separately.
         initialKeys = initial256BitKeys
         initialKeys.initialInboundIV = Array(randomBytes: 11)
         XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial256BitKeys
         initialKeys.initialOutboundIV = Array(randomBytes: 11)
         XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial256BitKeys
         initialKeys.initialInboundIV = Array(randomBytes: 13)
         XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial256BitKeys
         initialKeys.initialOutboundIV = Array(randomBytes: 13)
         XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
     }
 
@@ -211,49 +211,49 @@ final class AESGCMTests: XCTestCase {
         var updatedKeys = initial128BitKeys
         updatedKeys.initialInboundIV = Array(randomBytes: 11)
         XCTAssertThrowsError(try aes128.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         updatedKeys = initial128BitKeys
         updatedKeys.initialOutboundIV = Array(randomBytes: 11)
         XCTAssertThrowsError(try aes128.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         updatedKeys = initial128BitKeys
         updatedKeys.initialInboundIV = Array(randomBytes: 13)
         XCTAssertThrowsError(try aes128.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         updatedKeys = initial128BitKeys
         updatedKeys.initialOutboundIV = Array(randomBytes: 13)
         XCTAssertThrowsError(try aes128.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         updatedKeys = initial256BitKeys
         updatedKeys.initialInboundIV = Array(randomBytes: 11)
         XCTAssertThrowsError(try aes256.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         updatedKeys = initial256BitKeys
         updatedKeys.initialOutboundIV = Array(randomBytes: 11)
         XCTAssertThrowsError(try aes256.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         updatedKeys = initial256BitKeys
         updatedKeys.initialInboundIV = Array(randomBytes: 13)
         XCTAssertThrowsError(try aes256.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         updatedKeys = initial256BitKeys
         updatedKeys.initialOutboundIV = Array(randomBytes: 13)
         XCTAssertThrowsError(try aes256.updateKeys(updatedKeys)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidNonceLength)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
     }
 
@@ -273,7 +273,7 @@ final class AESGCMTests: XCTestCase {
             buffer.writeBytes(repeatElement(42, count: ciphertextSize))
 
             XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer)) { error in
-                XCTAssertEqual(error as? NIOSSHError, .invalidEncryptedPacketLength)
+                XCTAssertEqual((error as? NIOSSHError)?.type, .invalidEncryptedPacketLength)
             }
         }
     }
@@ -294,7 +294,7 @@ final class AESGCMTests: XCTestCase {
             buffer.writeBytes(repeatElement(42, count: ciphertextSize))
 
             XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer)) { error in
-                XCTAssertEqual(error as? NIOSSHError, .invalidEncryptedPacketLength)
+                XCTAssertEqual((error as? NIOSSHError)?.type, .invalidEncryptedPacketLength)
             }
         }
     }
@@ -325,7 +325,7 @@ final class AESGCMTests: XCTestCase {
         let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: keys,
                                                                                     allocator: ByteBufferAllocator()))
         XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .excessPadding)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .excessPadding)
         }
     }
 
@@ -355,7 +355,7 @@ final class AESGCMTests: XCTestCase {
         let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys,
                                                                                     allocator: ByteBufferAllocator()))
         XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .excessPadding)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .excessPadding)
         }
     }
 
@@ -385,7 +385,7 @@ final class AESGCMTests: XCTestCase {
         let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: keys,
                                                                                     allocator: ByteBufferAllocator()))
         XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .insufficientPadding)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .insufficientPadding)
         }
     }
 
@@ -415,7 +415,7 @@ final class AESGCMTests: XCTestCase {
         let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys,
                                                                                     allocator: ByteBufferAllocator()))
         XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer)) { error in
-            XCTAssertEqual(error as? NIOSSHError, .insufficientPadding)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .insufficientPadding)
         }
     }
 
@@ -456,13 +456,13 @@ extension Array where Element == UInt8 {
 }
 
 
-extension NIOSSHKeyExchangeResult {
-    var inverted: NIOSSHKeyExchangeResult {
-        return NIOSSHKeyExchangeResult(initialInboundIV: self.initialOutboundIV,
-                                       initialOutboundIV: self.initialInboundIV,
-                                       inboundEncryptionKey: self.outboundEncryptionKey,
-                                       outboundEncryptionKey: self.inboundEncryptionKey,
-                                       inboundMACKey: self.outboundMACKey,
-                                       outboundMACKey: self.inboundMACKey)
+extension NIOSSHSessionKeys {
+    var inverted: NIOSSHSessionKeys {
+        return NIOSSHSessionKeys(initialInboundIV: self.initialOutboundIV,
+                                 initialOutboundIV: self.initialInboundIV,
+                                 inboundEncryptionKey: self.outboundEncryptionKey,
+                                 outboundEncryptionKey: self.inboundEncryptionKey,
+                                 inboundMACKey: self.outboundMACKey,
+                                 outboundMACKey: self.inboundMACKey)
     }
 }

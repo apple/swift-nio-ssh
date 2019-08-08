@@ -57,10 +57,10 @@ protocol NIOSSHTransportProtection: AnyObject {
     static var cipherBlockSize: Int { get }
 
     /// Create a new instance of this transport protection scheme with the given keys.
-    init(initialKeys: NIOSSHKeyExchangeResult, allocator: ByteBufferAllocator) throws
+    init(initialKeys: NIOSSHSessionKeys, allocator: ByteBufferAllocator) throws
 
     /// A rekey has occurred and the encryption keys need to be changed.
-    func updateKeys(_ newKeys: NIOSSHKeyExchangeResult) throws
+    func updateKeys(_ newKeys: NIOSSHSessionKeys) throws
 
     /// Given the first cipher block size, decrypt the length field.
     ///
