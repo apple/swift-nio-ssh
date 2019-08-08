@@ -173,6 +173,8 @@ extension ByteBuffer {
             return nil
         }
 
+        var readerIndex = self.readerIndex
+
         guard
             let keyExchangeAlgorithms = self.readAlgorithms(),
             let serverHostKeyAlgorithms = self.readAlgorithms(),
@@ -185,16 +187,21 @@ extension ByteBuffer {
             let languagesClientToServer = self.readAlgorithms(),
             let languagesServerToClient = self.readAlgorithms()
         else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
         // first_kex_packet_follows
+        readerIndex = self.readerIndex
         guard self.readInteger(as: UInt8.self) != nil else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
         // reserved
+        readerIndex = self.readerIndex
         guard self.readInteger(as: UInt32.self) == 0 else {
+            self.moveReaderIndex(to: readerIndex)
             return nil
         }
 
