@@ -147,6 +147,27 @@ extension ByteBuffer {
         return writtenBytes
     }
 
+    @discardableResult
+    mutating func writePositiveMPInt<Buffer: Collection>(_ value: Buffer) -> Int where Buffer.Element == UInt8 {
+        // A positive MPInt must have its high bit set to zero, and not have leading zero bytes unless it needs that
+        // high bit set to zero. We address this by dropping all the leading zero bytes in the collection first.
+        let trimmed = value.drop(while: { $0 == 0 })
+        let needsLeadingZero = ((trimmed.first ?? 0) & 0x80) == 0x80
+
+        // Now we write the length.
+        var writtenBytes: Int
+
+        if needsLeadingZero {
+            writtenBytes = self.writeInteger(UInt32(trimmed.count + 1))
+            writtenBytes += self.writeInteger(UInt8(0))
+        } else {
+            writtenBytes = self.writeInteger(UInt32(trimmed.count))
+        }
+
+        writtenBytes += self.writeBytes(trimmed)
+        return writtenBytes
+    }
+
     /// Writes a given number of SSH-acceptable padding bytes to this buffer.
     @discardableResult
     mutating func writeSSHPaddingBytes(count: Int) -> Int {
@@ -176,6 +197,29 @@ extension ByteBuffer {
 
         precondition(necessaryPaddingBytes == 0, "Math is wrong, remaining expected padding bytes is nonzero: \(necessaryPaddingBytes)")
         return count
+    }
+
+    /// Many functions in SSH write composite data structures into an SSH string. This is a tricky thing to express
+    /// without confining all of those functions to writing strings directly, which is pretty uncool. Instead, we can
+    /// wrap the body into this function, which will take the returned total length and use that as the string length.
+    @discardableResult
+    mutating func writeCompositeSSHString(_ compositeFunction: (inout ByteBuffer) throws -> Int) rethrows -> Int {
+        // Reserve 4 bytes for the length.
+        let originalWriterIndex = self.writerIndex
+        self.moveWriterIndex(forwardBy: 4)
+
+        var writtenLength: Int
+        do {
+            writtenLength = try compositeFunction(&self)
+        } catch {
+            // Oops, it all went wrong, put the writer index back.
+            self.moveWriterIndex(to: originalWriterIndex)
+            throw error
+        }
+
+        // Ok, now we're going to write the length.
+        writtenLength += self.setInteger(UInt32(writtenLength), at: originalWriterIndex)
+        return writtenLength
     }
 
     /// Removes the padding bytes from a buffer.

@@ -34,6 +34,12 @@ extension ByteBufferSSHTests {
                 ("testSettingSSHStringInBufferWithCollection", testSettingSSHStringInBufferWithCollection),
                 ("testSettingSSHStringInBufferWithByteBuffer", testSettingSSHStringInBufferWithByteBuffer),
                 ("testWritingPaddingBytes", testWritingPaddingBytes),
+                ("testWritePositiveMPInt", testWritePositiveMPInt),
+                ("testWritingCompositeSSHString", testWritingCompositeSSHString),
+                ("testReadingEd25519SignaturesFromBuffers", testReadingEd25519SignaturesFromBuffers),
+                ("testReadingECDSAP256SignaturesFromBuffers", testReadingECDSAP256SignaturesFromBuffers),
+                ("testReadingEd25519PublicKeysFromBuffers", testReadingEd25519PublicKeysFromBuffers),
+                ("testReadingECDASAP256PublicKeysFromBuffers", testReadingECDASAP256PublicKeysFromBuffers),
            ]
    }
 }
