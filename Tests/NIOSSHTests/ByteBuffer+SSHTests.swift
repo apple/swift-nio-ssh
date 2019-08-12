@@ -14,6 +14,7 @@
 
 import XCTest
 import NIO
+import CryptoKit
 @testable import NIOSSH
 
 
@@ -160,6 +161,132 @@ final class ByteBufferSSHTests: XCTestCase {
             XCTAssertEqual(buffer.readerIndex, 0)
             XCTAssertEqual(buffer.writerIndex, written)
         }
+    }
+
+    func testWritePositiveMPInt() {
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+
+        // Test writing zero.
+        XCTAssertEqual(buffer.writePositiveMPInt([]), 4)
+        XCTAssertEqual(Array(buffer.readableBytesView), [0, 0, 0, 0])
+
+        // Test writing with no leading zeros and top bit not set.
+        buffer.clear()
+        XCTAssertEqual(buffer.writePositiveMPInt([0x01, 0x02, 0x03, 0x04]), 8)
+        XCTAssertEqual(Array(buffer.readableBytesView), [0, 0, 0, 4, 0x01, 0x02, 0x03, 0x04])
+
+        // Test writing with no leading zeros and top bit set.
+        buffer.clear()
+        XCTAssertEqual(buffer.writePositiveMPInt([0x81, 0x02, 0x03, 0x04]), 9)
+        XCTAssertEqual(Array(buffer.readableBytesView), [0, 0, 0, 5, 0, 0x81, 0x02, 0x03, 0x04])
+
+        // Test writing with leading zeros and top bit not set.
+        buffer.clear()
+        XCTAssertEqual(buffer.writePositiveMPInt([0, 0, 0, 0, 1, 2, 3, 4]), 8)
+        XCTAssertEqual(Array(buffer.readableBytesView), [0, 0, 0, 4, 1, 2, 3, 4])
+
+        // Test writing with leading zeros and top bit set.
+        buffer.clear()
+        XCTAssertEqual(buffer.writePositiveMPInt([0, 0, 0, 0, 0x81, 0x02, 0x03, 0x04]), 9)
+        XCTAssertEqual(Array(buffer.readableBytesView), [0, 0, 0, 5, 0, 0x81, 0x02, 0x03, 0x04])
+    }
+
+    func testWritingCompositeSSHString() {
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+
+        let written = buffer.writeCompositeSSHString { buffer in
+            var written = buffer.writeSSHString(Array("hello, world".utf8))
+            written += buffer.writeSSHString(Array("goodbye, world".utf8))
+            return written
+        }
+
+        XCTAssertEqual(written, 4 + 4 + 12 + 4 + 14)
+        XCTAssertEqual(buffer.getInteger(at: buffer.readerIndex, as: UInt32.self), UInt32(written - 4))
+
+        var stringPart = buffer.readSSHString()!
+        let firstString = stringPart.readSSHString()
+        let secondString = stringPart.readSSHString()
+
+        // Check that everythign is empty.
+        XCTAssertEqual(buffer.readableBytes, 0)
+        XCTAssertEqual(stringPart.readableBytes, 0)
+
+        XCTAssertEqual(firstString.map { Array($0.readableBytesView) }, Array("hello, world".utf8))
+        XCTAssertEqual(secondString.map { Array($0.readableBytesView) }, Array("goodbye, world".utf8))
+    }
+
+    func testReadingEd25519SignaturesFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let signature = try assertNoThrowWithValue(key.sign(digest: SHA256.hash(data: Array("hello, world!".utf8))))
+
+        // Write a signature in.
+        buffer.writeSSHSignature(signature)
+
+        // Try reading short. This should always return nil, and never move the indices.
+        for sliceLength in 0..<buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHSignature()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHSignature()))
+    }
+
+    func testReadingECDSAP256SignaturesFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHHostPrivateKey(p256Key: .init())
+        let signature = try assertNoThrowWithValue(key.sign(digest: SHA256.hash(data: Array("hello, world!".utf8))))
+
+        // Write a signature in.
+        buffer.writeSSHSignature(signature)
+
+        // Try reading short. This should always return nil, and never move the indices.
+        for sliceLength in 0..<buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHSignature()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHSignature()))
+    }
+
+    func testReadingEd25519PublicKeysFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHHostPrivateKey(ed25519Key: .init())
+
+        // Write a signature in.
+        buffer.writeSSHHostKey(key.publicKey)
+
+        // Try reading short. This should always return nil, and never move the indices.
+        for sliceLength in 0..<buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHHostKey()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHHostKey()))
+    }
+
+    func testReadingECDASAP256PublicKeysFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHHostPrivateKey(p256Key: .init())
+
+        // Write a signature in.
+        buffer.writeSSHHostKey(key.publicKey)
+
+        // Try reading short. This should always return nil, and never move the indices.
+        for sliceLength in 0..<buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHHostKey()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHHostKey()))
     }
 }
 

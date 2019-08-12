@@ -26,6 +26,9 @@ extension NIOSSHError {
         case invalidKeySize
         case insufficientPadding
         case excessPadding
+        case unknownPublicKey
+        case unknownSignature
+        case invalidDomainParametersForKey
     }
 }
 
@@ -47,6 +50,15 @@ extension NIOSSHError {
 
     /// More padding bytes were supposed to be present than actually are present in a packet.
     public static let excessPadding = NIOSSHError(baseError: .excessPadding)
+
+    /// The public key type provided is not recognised.
+    public static let unknownPublicKey = NIOSSHError(baseError: .unknownPublicKey)
+
+    /// The signature type provided is not recognised.
+    public static let unknownSignature = NIOSSHError(baseError: .unknownSignature)
+
+    /// A public key was parsed that has invalid domain parameters for the given key type.
+    public static let invalidDomainParametersForKey = NIOSSHError(baseError: .invalidDomainParametersForKey)
 }
 
 extension NIOSSHError: Hashable { }
