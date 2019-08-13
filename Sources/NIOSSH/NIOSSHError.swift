@@ -63,6 +63,8 @@ extension NIOSSHError {
     internal static func invalidDomainParametersForKey(parameters: String) -> NIOSSHError {
         return NIOSSHError(type: .invalidDomainParametersForKey, diagnostics: parameters)
     }
+
+    internal static let invalidExchangeHashSignature = NIOSSHError(type: .invalidExchangeHashSignature, diagnostics: "")
 }
 
 
@@ -90,6 +92,7 @@ extension NIOSSHError {
             case unknownPublicKey
             case unknownSignature
             case invalidDomainParametersForKey
+            case invalidExchangeHashSignature
         }
 
         private var base: Base
@@ -130,6 +133,9 @@ extension NIOSSHError {
 
         /// A public key was parsed that has invalid domain parameters for the given key type.
         public static let invalidDomainParametersForKey: ErrorType = .init(.invalidDomainParametersForKey)
+
+        /// The signature over the exchange hash could not be validated.
+        public static let invalidExchangeHashSignature: ErrorType = .init(.invalidExchangeHashSignature)
     }
 }
 
