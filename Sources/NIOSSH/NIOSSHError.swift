@@ -26,7 +26,7 @@
 public struct NIOSSHError: Error {
     public var type: ErrorType
 
-    private var diagnostics: String
+    private var diagnostics: String?
 }
 
 
@@ -40,17 +40,17 @@ extension NIOSSHError {
         return NIOSSHError(type: .weakSharedSecret, diagnostics: exchangeAlgorithm)
     }
 
-    internal static let invalidNonceLength = NIOSSHError(type: .invalidNonceLength, diagnostics: "")
+    internal static let invalidNonceLength = NIOSSHError(type: .invalidNonceLength, diagnostics: nil)
 
-    internal static let invalidEncryptedPacketLength = NIOSSHError(type: .invalidEncryptedPacketLength, diagnostics: "")
+    internal static let invalidEncryptedPacketLength = NIOSSHError(type: .invalidEncryptedPacketLength, diagnostics: nil)
 
-    internal static let invalidDecryptedPlaintextLength = NIOSSHError(type: .invalidDecryptedPlaintextLength, diagnostics: "")
+    internal static let invalidDecryptedPlaintextLength = NIOSSHError(type: .invalidDecryptedPlaintextLength, diagnostics: nil)
 
-    internal static let invalidKeySize = NIOSSHError(type: .invalidKeySize, diagnostics: "")
+    internal static let invalidKeySize = NIOSSHError(type: .invalidKeySize, diagnostics: nil)
 
-    internal static let insufficientPadding = NIOSSHError(type: .insufficientPadding, diagnostics: "")
+    internal static let insufficientPadding = NIOSSHError(type: .insufficientPadding, diagnostics: nil)
 
-    internal static let excessPadding = NIOSSHError(type: .excessPadding, diagnostics: "")
+    internal static let excessPadding = NIOSSHError(type: .excessPadding, diagnostics: nil)
 
     internal static func unknownPublicKey(algorithm: String) -> NIOSSHError {
         return NIOSSHError(type: .unknownPublicKey, diagnostics: algorithm)
@@ -63,13 +63,15 @@ extension NIOSSHError {
     internal static func invalidDomainParametersForKey(parameters: String) -> NIOSSHError {
         return NIOSSHError(type: .invalidDomainParametersForKey, diagnostics: parameters)
     }
+
+    internal static let invalidExchangeHashSignature = NIOSSHError(type: .invalidExchangeHashSignature, diagnostics: nil)
 }
 
 
 // MARK:- NIOSSHError CustomStringConvertible conformance.
 extension NIOSSHError: CustomStringConvertible {
     public var description: String {
-        return "NIOSSHError.\(self.type.description): \(self.diagnostics)"
+        return "NIOSSHError.\(self.type.description)\(self.diagnostics.map { ": \($0)" } ?? "")"
     }
 }
 
@@ -90,6 +92,7 @@ extension NIOSSHError {
             case unknownPublicKey
             case unknownSignature
             case invalidDomainParametersForKey
+            case invalidExchangeHashSignature
         }
 
         private var base: Base
@@ -130,6 +133,9 @@ extension NIOSSHError {
 
         /// A public key was parsed that has invalid domain parameters for the given key type.
         public static let invalidDomainParametersForKey: ErrorType = .init(.invalidDomainParametersForKey)
+
+        /// The signature over the exchange hash could not be validated.
+        public static let invalidExchangeHashSignature: ErrorType = .init(.invalidExchangeHashSignature)
     }
 }
 

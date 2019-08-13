@@ -56,6 +56,9 @@ protocol NIOSSHTransportProtection: AnyObject {
     /// The block size of the cipher in this protection scheme.
     static var cipherBlockSize: Int { get }
 
+    /// The key sizes required for this protection scheme.
+    static var keySizes: ExpectedKeySizes { get }
+
     /// Create a new instance of this transport protection scheme with the given keys.
     init(initialKeys: NIOSSHSessionKeys, allocator: ByteBufferAllocator) throws
 

@@ -17,7 +17,7 @@ import NIOFoundationCompat
 import CryptoKit
 
 
-final class Curve25519KeyExchange {
+struct Curve25519KeyExchange {
     private var previousSessionIdentifier: ByteBuffer?
     private var ourKey: Curve25519.KeyAgreement.PrivateKey
     private var theirKey: Curve25519.KeyAgreement.PublicKey?
@@ -31,17 +31,19 @@ final class Curve25519KeyExchange {
     }
 }
 
+
 extension Curve25519KeyExchange {
     /// Initiates key exchange by producing an SSH message.
     ///
     /// For now, we just return the ByteBuffer containing the SSH string.
-    func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> ByteBuffer {
+    func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage {
         precondition(self.ourRole == .client, "Only clients may initiate the client side key exchange!")
 
         // The Curve25519 public key string size is 32 bytes.
         var buffer = allocator.buffer(capacity: 32)
-        buffer.writeSSHString(self.ourKey.publicKey.rawRepresentation)
-        return buffer
+        buffer.writeBytes(self.ourKey.publicKey.rawRepresentation)
+
+        return .init(publicKey: buffer)
     }
 
     /// Handles receiving the client key exchange payload on the server side.
@@ -52,25 +54,34 @@ extension Curve25519KeyExchange {
     ///     - initialExchangeBytes: The initial bytes of the exchange, suitable for writing into the exchange hash.
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
-    func completeKeyExchangeServerSide(clientKeyExchangeMessage message: ByteBuffer,
-                                       serverHostKey: NIOSSHHostPrivateKey,
-                                       initialExchangeBytes: inout ByteBuffer,
-                                       allocator: ByteBufferAllocator,
-                                       expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult {
+    mutating func completeKeyExchangeServerSide(clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
+                                                serverHostKey: NIOSSHHostPrivateKey,
+                                                initialExchangeBytes: inout ByteBuffer,
+                                                allocator: ByteBufferAllocator,
+                                                expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage) {
         precondition(self.ourRole == .server, "Only servers may receive a client key exchange packet!")
 
-        // The ECDH payload sent by the client is just the raw bytes of the public key as an SSH string.
-        var message = message
-        guard let keyBytes = message.readSSHString() else {
-            throw NIOSSHError.invalidSSHMessage(reason: "Client Key Exchange with invalid internal length field")
-        }
+        // With that, we have enough to finalize the key exchange.
+        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: message.publicKey,
+                                                     initialExchangeBytes: &initialExchangeBytes,
+                                                     serverHostKey: serverHostKey.publicKey,
+                                                     allocator: allocator,
+                                                     expectedKeySizes: expectedKeySizes)
 
-        // TODO: Build response message!
-        return try self.finalizeKeyExchange(theirKeyBytes: keyBytes,
-                                            initialExchangeBytes: &initialExchangeBytes,
-                                            serverHostKey: serverHostKey.publicKey,
-                                            allocator: allocator,
-                                            expectedKeySizes: expectedKeySizes)
+        // We should now sign the exchange hash.
+        let exchangeHashSignature = try serverHostKey.sign(digest: kexResult.exchangeHash)
+
+        // Ok, time to write the final message. We need to write our public key into it.
+        // The Curve25519 public key string size is 32 bytes.
+        var publicKeyBytes = allocator.buffer(capacity: 32)
+        publicKeyBytes.writeBytes(self.ourKey.publicKey.rawRepresentation)
+
+        // Now we have all we need.
+        let responseMessage = SSHMessage.KeyExchangeECDHReplyMessage(hostKey: serverHostKey.publicKey,
+                                                                     publicKey: publicKeyBytes,
+                                                                     signature: exchangeHashSignature)
+
+        return (KeyExchangeResult(kexResult), responseMessage)
     }
 
     /// Handles receiving the server key exchange payload on the client side.
@@ -82,51 +93,42 @@ extension Curve25519KeyExchange {
     ///     - initialExchangeBytes: The initial bytes of the exchange, suitable for writing into the exchange hash.
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
-    func receiveServerKeyExchangePayload(serverKeyExchangeMessage message: ByteBuffer,
-                                         initialExchangeBytes: inout ByteBuffer,
-                                         allocator: ByteBufferAllocator,
-                                         expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult {
+    mutating func receiveServerKeyExchangePayload(serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
+                                                  initialExchangeBytes: inout ByteBuffer,
+                                                  allocator: ByteBufferAllocator,
+                                                  expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult {
         precondition(self.ourRole == .client, "Only clients may receive a server key exchange packet!")
 
-        // Ok, we have a few steps here. Firstly, we need to parse the server key exchange message, extract the server's
-        // public key, and generate our shared secret. Then we need to validate that we didn't generate a weak shared secret
-        // (possible under some cases), as this must fail the key exchange process.
+        // Ok, we have a few steps here. Firstly, we need to extract the server's public key and generate our shared
+        // secret. Then we need to validate that we didn't generate a weak shared secret (possible under some cases),
+        // as this must fail the key exchange process.
         //
         // With that done, we need to compute the exchange hash by appending the extra information we received from the
         // key exchange machinery. We then verify this hash using the server host key.
         //
         // Finally, we return our generated keys to the state machine.
 
-        // The ECDH payload sent by the server is:
-        //
-        // > string   K_S, server's public host key
-        // > string   Q_S, server's ephemeral public key octet string
-        // > string   the signature on the exchange hash
-        //
-        // We need to parse these out.
-        var message = message
-        guard var serverHostKeyBytes = message.readSSHString(),
-              let serverEphemeralKeyBytes = message.readSSHString(),
-              var exchangeHashSignatureBytes = message.readSSHString(),
-              let serverHostKey = try serverHostKeyBytes.readSSHHostKey(),
-              let exchangeHashSignature = try exchangeHashSignatureBytes.readSSHSignature() else {
-            throw NIOSSHError.invalidSSHMessage(reason: "Server Key Exchange with invalid internal length field")
+        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: message.publicKey,
+                                                     initialExchangeBytes: &initialExchangeBytes,
+                                                     serverHostKey: message.hostKey,
+                                                     allocator: allocator,
+                                                     expectedKeySizes: expectedKeySizes)
+
+        // We can now verify signature over the exchange hash.
+        guard message.hostKey.isValidSignature(message.signature, for: kexResult.exchangeHash) else {
+            throw NIOSSHError.invalidExchangeHashSignature
         }
 
-        // TODO: Verify signature on exchange hash.
-        return try self.finalizeKeyExchange(theirKeyBytes: serverEphemeralKeyBytes,
-                                            initialExchangeBytes: &initialExchangeBytes,
-                                            serverHostKey: serverHostKey,
-                                            allocator: allocator,
-                                            expectedKeySizes: expectedKeySizes)
+        // Great, all done here.
+        return KeyExchangeResult(kexResult)
     }
 
 
-    private func finalizeKeyExchange(theirKeyBytes: ByteBuffer,
-                                     initialExchangeBytes: inout ByteBuffer,
-                                     serverHostKey: NIOSSHHostPublicKey,
-                                     allocator: ByteBufferAllocator,
-                                     expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult {
+    private mutating func finalizeKeyExchange(theirKeyBytes: ByteBuffer,
+                                              initialExchangeBytes: inout ByteBuffer,
+                                              serverHostKey: NIOSSHHostPublicKey,
+                                              allocator: ByteBufferAllocator,
+                                              expectedKeySizes: ExpectedKeySizes) throws -> Curve25519KeyExchangeResult {
         self.theirKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: theirKeyBytes.readableBytesView)
         self.sharedSecret = try self.ourKey.sharedSecretFromKeyAgreement(with: self.theirKey!)
         guard self.sharedSecret!.isStrongSecret else {
@@ -136,11 +138,13 @@ extension Curve25519KeyExchange {
         // Ok, we have a nice shared secret. Now we want to generate the exchange hash. We were given the initial
         // portion from the state machine: here we just need to append the Curve25519 parts. That is:
         //
-        // - the public host key bytes
+        // - the public host key bytes, as an SSH string
         // - the client public key octet string
         // - the server public key octet string
         // - the shared secret, as an mpint.
-        initialExchangeBytes.writeSSHHostKey(serverHostKey)
+        initialExchangeBytes.writeCompositeSSHString {
+            $0.writeSSHHostKey(serverHostKey)
+        }
 
         switch self.ourRole {
         case .client:
@@ -162,18 +166,25 @@ extension Curve25519KeyExchange {
 
         // Ok, now finalize the exchange hash. If we don't have a previous session identifier at this stage, we do now!
         let exchangeHash = hasher.finalize()
-        var hashBytes = allocator.buffer(capacity: SHA256Digest.byteCount)
-        hashBytes.writeBytes(exchangeHash)
-        let sessionID = self.previousSessionIdentifier ?? hashBytes
+
+        let sessionID: ByteBuffer
+        if let previousSessionIdentifier = self.previousSessionIdentifier {
+            sessionID = previousSessionIdentifier
+        } else {
+            var hashBytes = allocator.buffer(capacity: SHA256Digest.byteCount)
+            hashBytes.writeBytes(exchangeHash)
+            sessionID = hashBytes
+        }
 
         // Now we can generate the keys.
-        let keys = self.generateKeys(sharedSecret: self.sharedSecret!, exchangeHash: hashBytes, sessionID: sessionID, expectedKeySizes: expectedKeySizes)
+        let keys = self.generateKeys(sharedSecret: self.sharedSecret!, exchangeHash: exchangeHash, sessionID: sessionID, expectedKeySizes: expectedKeySizes)
 
-        return KeyExchangeResult(exchangeHash: hashBytes, keys: keys)
+        // All done!
+        return Curve25519KeyExchangeResult(sessionID: sessionID, exchangeHash: exchangeHash, keys: keys)
     }
 
 
-    private func generateKeys(sharedSecret: SharedSecret, exchangeHash: ByteBuffer, sessionID: ByteBuffer, expectedKeySizes: ExpectedKeySizes) -> NIOSSHSessionKeys {
+    private func generateKeys(sharedSecret: SharedSecret, exchangeHash: SHA256Digest, sessionID: ByteBuffer, expectedKeySizes: ExpectedKeySizes) -> NIOSSHSessionKeys {
         // Cool, now it's time to generate the keys. In my ideal world I'd have a mechanism to handle this digest securely, but this is
         // not available in CryptoKit so we're going to spill these keys all over the heap and the stack. This isn't ideal, but I don't
         // think the risk is too bad.
@@ -193,7 +204,9 @@ extension Curve25519KeyExchange {
         // using the value semantics of the hasher.
         var baseHasher = SHA256()
         baseHasher.updateAsMPInt(sharedSecret: sharedSecret)
-        baseHasher.update(data: exchangeHash.readableBytesView)
+        exchangeHash.withUnsafeBytes { hashPtr in
+            baseHasher.update(bufferPointer: hashPtr)
+        }
 
         switch self.ourRole {
         case .client:
@@ -249,6 +262,28 @@ extension Curve25519KeyExchange {
         localHasher.update(byte: discriminatorByte)
         localHasher.update(data: sessionID.readableBytesView)
         return localHasher.finalize()
+    }
+}
+
+
+extension Curve25519KeyExchange {
+    /// The internal result of a key exchange operation.
+    ///
+    /// This is like `KeyExchangeResult`, but includes the exchange hash for signing purposes.
+    fileprivate struct Curve25519KeyExchangeResult {
+        var sessionID: ByteBuffer
+
+        var exchangeHash: SHA256Digest
+
+        var keys: NIOSSHSessionKeys
+    }
+}
+
+
+extension KeyExchangeResult {
+    fileprivate init(_ innerResult: Curve25519KeyExchange.Curve25519KeyExchangeResult) {
+        self.keys = innerResult.keys
+        self.sessionID = innerResult.sessionID
     }
 }
 
@@ -377,7 +412,7 @@ extension SHA256 {
             withUnsafeBytes(of: self.backingBytes) { bytesPtr in
                 precondition(bytesPtr.count == 5)
 
-                var bytesToHash: UnsafeRawBufferPointer
+                let bytesToHash: UnsafeRawBufferPointer
                 if self.useExtraZeroByte {
                     bytesToHash = bytesPtr
                 } else {

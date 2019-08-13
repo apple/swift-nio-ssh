@@ -37,7 +37,7 @@ internal class AESGCMTransportProtection {
         fatalError("Must override MAC name")
     }
 
-    class var keySize: Int {
+    class var keySizes: ExpectedKeySizes {
         fatalError("Must override key size")
     }
 
@@ -45,8 +45,8 @@ internal class AESGCMTransportProtection {
     private var outboundBuffer: ByteBuffer
 
     required init(initialKeys: NIOSSHSessionKeys, allocator: ByteBufferAllocator) throws {
-        guard initialKeys.outboundEncryptionKey.bitCount == Self.keySize * 8 &&
-              initialKeys.inboundEncryptionKey.bitCount == Self.keySize * 8 else {
+        guard initialKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 &&
+              initialKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
                 throw NIOSSHError.invalidKeySize
         }
 
@@ -65,8 +65,8 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
     }
 
     func updateKeys(_ newKeys: NIOSSHSessionKeys) throws {
-        guard newKeys.outboundEncryptionKey.bitCount == Self.keySize * 8 &&
-              newKeys.inboundEncryptionKey.bitCount == Self.keySize * 8 else {
+        guard newKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 &&
+              newKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
                 throw NIOSSHError.invalidKeySize
         }
 
@@ -194,8 +194,8 @@ final class AES128GCMOpenSSHTransportProtection: AESGCMTransportProtection {
         return nil
     }
 
-    static override var keySize: Int {
-        return 16
+    static override var keySizes: ExpectedKeySizes {
+        return .init(ivSize: 12, encryptionKeySize: 16, macKeySize: 16)
     }
 }
 
@@ -215,8 +215,8 @@ final class AES256GCMOpenSSHTransportProtection: AESGCMTransportProtection {
         return nil
     }
 
-    static override var keySize: Int {
-        return 32
+    static override var keySizes: ExpectedKeySizes {
+        return .init(ivSize: 12, encryptionKeySize: 32, macKeySize: 16)
     }
 }
 

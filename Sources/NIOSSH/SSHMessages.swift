@@ -82,11 +82,11 @@ extension SSHMessage {
         static let id: UInt8 = 31
 
         // K_S, server's public host key
-        var hostKey: ByteBuffer
+        var hostKey: NIOSSHHostPublicKey
         // Q_S, server's ephemeral public key octet string
         var publicKey: ByteBuffer
         // the signature on the exchange hash
-        var signature: ByteBuffer
+        var signature: SSHSignature
     }
 }
 
@@ -129,7 +129,7 @@ extension ByteBuffer {
             }
             return .keyExchangeInit(message)
         case SSHMessage.KeyExchangeECDHReplyMessage.id:
-            guard let message = message.readKeyExchangeECDHReplyMessage() else {
+            guard let message = try message.readKeyExchangeECDHReplyMessage() else {
                 throw SSHMessage.ParsingError.incorrectFormat
             }
             return .keyExchangeReply(message)
@@ -241,9 +241,10 @@ extension ByteBuffer {
         return .init(publicKey: publicKey)
     }
 
-    mutating func readKeyExchangeECDHReplyMessage() -> SSHMessage.KeyExchangeECDHReplyMessage? {
+    mutating func readKeyExchangeECDHReplyMessage() throws -> SSHMessage.KeyExchangeECDHReplyMessage? {
         var readerIndex = self.readerIndex
-        guard let hostKey = self.readSSHString() else {
+        guard var hostKeyBytes = self.readSSHString(),
+              let hostKey = try hostKeyBytes.readSSHHostKey() else {
             return nil
         }
 
@@ -254,7 +255,8 @@ extension ByteBuffer {
         }
 
         readerIndex = self.readerIndex
-        guard let signature = self.readSSHString() else {
+        guard var signatureBytes = self.readSSHString(),
+              let signature = try signatureBytes.readSSHSignature() else {
             self.moveReaderIndex(to: readerIndex)
             return nil
         }

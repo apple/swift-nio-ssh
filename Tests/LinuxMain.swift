@@ -28,6 +28,7 @@ import XCTest
    XCTMain([
          testCase(AESGCMTests.allTests),
          testCase(ByteBufferSSHTests.allTests),
+         testCase(Curve25519KeyExchangeTests.allTests),
          testCase(HostKeyTests.allTests),
          testCase(SSHPacketParserTests.allTests),
     ])

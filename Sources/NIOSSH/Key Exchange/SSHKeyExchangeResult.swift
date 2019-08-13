@@ -21,10 +21,14 @@ import CryptoKit
 /// A round of key exchange generates a number of keys and also generates an exchange hash.
 /// This exchange hash is used for a number of purposes.
 struct KeyExchangeResult {
-    var exchangeHash: ByteBuffer
+    /// The session ID to use for this connection. Will be static across the lifetime of a connection.
+    var sessionID: ByteBuffer
 
     var keys: NIOSSHSessionKeys
 }
+
+
+extension KeyExchangeResult: Equatable { }
 
 
 /// The session keys generated as a result of a round of key exchange.
@@ -58,6 +62,9 @@ struct NIOSSHSessionKeys {
 
     var outboundMACKey: SymmetricKey
 }
+
+
+extension NIOSSHSessionKeys: Equatable { }
 
 
 /// A helper structure that stores the expected key sizes for a key negotiation.
