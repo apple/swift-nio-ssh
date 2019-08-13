@@ -96,7 +96,7 @@ extension ByteBuffer {
     mutating func readSSHSignature() throws -> SSHSignature? {
         return try self.rewindOnNilOrError { buffer in
             // The wire format always begins with an SSH string containing the signature format identifier. Let's grab that.
-            guard let signatureIdentifierBytes = buffer.readSSHString() else {
+            guard var signatureIdentifierBytes = buffer.readSSHString() else {
                 return nil
             }
 
@@ -108,7 +108,8 @@ extension ByteBuffer {
                 return try buffer.readECDSAP256Signature()
             } else {
                 // We don't know this signature type.
-                throw NIOSSHError.unknownSignature
+                let signature = signatureIdentifierBytes.readString(length: signatureIdentifierBytes.readableBytes) ?? "<unknown signature>"
+                throw NIOSSHError.unknownSignature(algorithm: signature)
             }
         }
     }

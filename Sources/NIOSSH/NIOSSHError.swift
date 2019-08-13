@@ -51,6 +51,18 @@ extension NIOSSHError {
     internal static let insufficientPadding = NIOSSHError(type: .insufficientPadding, diagnostics: "")
 
     internal static let excessPadding = NIOSSHError(type: .excessPadding, diagnostics: "")
+
+    internal static func unknownPublicKey(algorithm: String) -> NIOSSHError {
+        return NIOSSHError(type: .unknownPublicKey, diagnostics: algorithm)
+    }
+
+    internal static func unknownSignature(algorithm: String) -> NIOSSHError {
+        return NIOSSHError(type: .unknownSignature, diagnostics: algorithm)
+    }
+
+    internal static func invalidDomainParametersForKey(parameters: String) -> NIOSSHError {
+        return NIOSSHError(type: .invalidDomainParametersForKey, diagnostics: parameters)
+    }
 }
 
 
@@ -75,6 +87,9 @@ extension NIOSSHError {
             case invalidKeySize
             case insufficientPadding
             case excessPadding
+            case unknownPublicKey
+            case unknownSignature
+            case invalidDomainParametersForKey
         }
 
         private var base: Base
@@ -106,6 +121,15 @@ extension NIOSSHError {
 
         /// More padding bytes were supposed to be present than actually are present in a packet.
         public static let excessPadding: ErrorType = .init(.excessPadding)
+
+        /// The public key type provided is not recognised.
+        public static let unknownPublicKey: ErrorType = .init(.unknownPublicKey)
+
+        /// The signature type provided is not recognised.
+        public static let unknownSignature: ErrorType = .init(.unknownSignature)
+
+        /// A public key was parsed that has invalid domain parameters for the given key type.
+        public static let invalidDomainParametersForKey: ErrorType = .init(.invalidDomainParametersForKey)
     }
 }
 

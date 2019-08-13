@@ -140,7 +140,7 @@ final class HostKeyTests: XCTestCase {
         buffer.writeSSHString("ssh-rsa".utf8)
 
         XCTAssertThrowsError(try buffer.readSSHHostKey()) { error in
-            XCTAssertEqual(error as? NIOSSHError, .unknownPublicKey)
+            XCTAssertEqual((error as? NIOSSHError).map { $0.type }, .unknownPublicKey)
         }
     }
 
@@ -150,7 +150,7 @@ final class HostKeyTests: XCTestCase {
         buffer.writeSSHString("nistp384".utf8) // Surprise!
 
         XCTAssertThrowsError(try buffer.readSSHHostKey()) { error in
-            XCTAssertEqual(error as? NIOSSHError, .invalidDomainParametersForKey)
+            XCTAssertEqual((error as? NIOSSHError).map { $0.type }, .invalidDomainParametersForKey)
         }
     }
 
@@ -159,7 +159,7 @@ final class HostKeyTests: XCTestCase {
         buffer.writeSSHString("ssh-rsa".utf8)
 
         XCTAssertThrowsError(try buffer.readSSHSignature()) { error in
-            XCTAssertEqual(error as? NIOSSHError, .unknownSignature)
+            XCTAssertEqual((error as? NIOSSHError).map { $0.type }, .unknownSignature)
         }
     }
 }
