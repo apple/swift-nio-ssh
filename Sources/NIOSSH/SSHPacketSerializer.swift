@@ -15,7 +15,6 @@
 import NIO
 
 struct SSHPacketSerializer {
-
     enum State {
         case initialized
         case cleartext
@@ -25,25 +24,40 @@ struct SSHPacketSerializer {
     var state: State = .initialized
     var padding: Int = 8
 
-    func serialize(context: ChannelHandlerContext, message: SSHMessage) -> ByteBuffer {
+    func serialize(message: SSHMessage, to buffer: inout ByteBuffer) {
         switch self.state {
         case .initialized:
             switch message {
-            case .version(let version):
-                var buffer = context.channel.allocator.buffer(capacity: version.count)
-                buffer.writeString(version)
-                return buffer
+            case .version:
+                buffer.writeSSHMessage(message)
             default:
                 preconditionFailure("only .version message is allowed at this point")
             }
-        default:
-            let messageLength = message.length
-            let packetLength = messageLength + 4 + 1
+        case .cleartext:
+            let index = buffer.writerIndex
 
-            var buffer = context.channel.allocator.buffer(capacity: 1)
+            /// payload
+            buffer.moveWriterIndex(forwardBy: 5)
+            let messageLength = buffer.writeSSHMessage(message)
 
-            return buffer
+            /// RFC 4253 § 6:
+            /// random padding
+            ///   Arbitrary-length padding, such that the total length of (packet_length || padding_length || payload || random padding)
+            ///   is a multiple of the cipher block size or 8, whichever is larger.  There MUST be at least four bytes of padding.  The
+            ///   padding SHOULD consist of random bytes.  The maximum amount of padding is 255 bytes.
+            let lengthToPad = 4 + 1 + messageLength + 4
+            let blockSize = 8
+            let paddingLength = ((lengthToPad / blockSize) + 1) * blockSize - lengthToPad
+
+            /// packet_length
+            ///   The length of the packet in bytes, not including 'mac' or the 'packet_length' field itself.
+            buffer.setInteger(UInt32(1 + messageLength + paddingLength), at: index)
+            /// padding_length
+            buffer.setInteger(UInt8(paddingLength), at: index + 4)
+            /// random padding
+            buffer.writeSSHPaddingBytes(count: paddingLength)
+        case .encrypted:
+            preconditionFailure("Not implemented")
         }
     }
-    
 }
