@@ -339,8 +339,7 @@ extension ByteBuffer {
         writtenBytes += self.writeAlgorithms(message.languagesClientToServer)
         writtenBytes += self.writeAlgorithms(message.languagesServerToClient)
         // first_kex_packet_follows
-        self.moveWriterIndex(forwardBy: 1)
-        writtenBytes += 1
+        writtenBytes += self.writeInteger(0 as UInt8)
         // reserved
         writtenBytes += self.writeInteger(0 as UInt32)
         return writtenBytes
