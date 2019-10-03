@@ -133,6 +133,8 @@ extension ByteBuffer {
                 throw SSHMessage.ParsingError.incorrectFormat
             }
             return .keyExchangeReply(message)
+        case 21:
+            return .newKeys
         default:
             throw SSHMessage.ParsingError.unknownType
         }
@@ -270,5 +272,94 @@ extension ByteBuffer {
         }
         // readSSHString guarantees that we will be able to read all string bytes
         return string.readString(length: string.readableBytes)!.split(separator: ",")
+    }
+
+    @discardableResult
+    mutating func writeSSHMessage(_ message: SSHMessage) -> Int {
+        var writtenBytes = 0
+        switch message {
+        case .version(let version):
+            writtenBytes += self.writeString(version)
+            writtenBytes += self.writeString("\r\n")
+        case .disconnect(let message):
+            writtenBytes += self.writeInteger(SSHMessage.DisconnectMessage.id)
+            writtenBytes += self.writeDisconnectMessage(message)
+        case .serviceRequest(let message):
+            writtenBytes += self.writeInteger(SSHMessage.ServiceRequestMessage.id)
+            writtenBytes += self.writeServiceRequestMessage(message)
+        case .serviceAccept(let message):
+            writtenBytes += self.writeInteger(SSHMessage.ServiceAcceptMessage.id)
+            writtenBytes += self.writeServiceAcceptMessage(message)
+        case .keyExchange(let message):
+            writtenBytes += self.writeInteger(SSHMessage.KeyExchangeMessage.id)
+            writtenBytes += self.writeKeyExchangeMessage(message)
+        case .keyExchangeInit(let message):
+            writtenBytes += self.writeInteger(SSHMessage.KeyExchangeECDHInitMessage.id)
+            writtenBytes += self.writeKeyExchangeECDHInitMessage(message)
+        case .keyExchangeReply(let message):
+            writtenBytes += self.writeInteger(SSHMessage.KeyExchangeECDHReplyMessage.id)
+            writtenBytes += self.writeKeyExchangeECDHReplyMessage(message)
+        case .newKeys:
+            writtenBytes += self.writeInteger(21 as UInt8)
+        }
+        return writtenBytes
+    }
+
+    mutating func writeDisconnectMessage(_ message: SSHMessage.DisconnectMessage) -> Int {
+        var message = message
+        var writtenBytes = 0
+        writtenBytes += self.writeInteger(message.reason)
+        writtenBytes += self.writeSSHString(&message.description)
+        writtenBytes += self.writeSSHString(&message.tag)
+        return writtenBytes
+    }
+
+    mutating func writeServiceRequestMessage(_ message: SSHMessage.ServiceRequestMessage) -> Int {
+        var message = message
+        return self.writeSSHString(&message.service)
+    }
+
+    mutating func writeServiceAcceptMessage(_ message: SSHMessage.ServiceAcceptMessage) -> Int {
+        var message = message
+        return self.writeSSHString(&message.service)
+    }
+
+    mutating func writeKeyExchangeMessage(_ message: SSHMessage.KeyExchangeMessage) -> Int {
+        var message = message
+        var writtenBytes = 0
+        writtenBytes += self.writeBuffer(&message.cookie)
+        writtenBytes += self.writeAlgorithms(message.keyExchangeAlgorithms)
+        writtenBytes += self.writeAlgorithms(message.serverHostKeyAlgorithms)
+        writtenBytes += self.writeAlgorithms(message.encryptionAlgorithmsClientToServer)
+        writtenBytes += self.writeAlgorithms(message.encryptionAlgorithmsServerToClient)
+        writtenBytes += self.writeAlgorithms(message.macAlgorithmsClientToServer)
+        writtenBytes += self.writeAlgorithms(message.macAlgorithmsServerToClient)
+        writtenBytes += self.writeAlgorithms(message.compressionAlgorithmsClientToServer)
+        writtenBytes += self.writeAlgorithms(message.compressionAlgorithmsServerToClient)
+        writtenBytes += self.writeAlgorithms(message.languagesClientToServer)
+        writtenBytes += self.writeAlgorithms(message.languagesServerToClient)
+        // first_kex_packet_follows
+        writtenBytes += self.writeInteger(0 as UInt8)
+        // reserved
+        writtenBytes += self.writeInteger(0 as UInt32)
+        return writtenBytes
+    }
+
+    mutating func writeKeyExchangeECDHInitMessage(_ message: SSHMessage.KeyExchangeECDHInitMessage) -> Int {
+        var message = message
+        return self.writeSSHString(&message.publicKey)
+    }
+
+    mutating func writeKeyExchangeECDHReplyMessage(_ message: SSHMessage.KeyExchangeECDHReplyMessage) -> Int {
+        var message = message
+        var writtenBytes = 0
+        writtenBytes += self.writeSSHString(&message.hostKey)
+        writtenBytes += self.writeSSHString(&message.publicKey)
+        writtenBytes += self.writeSSHString(&message.signature)
+        return writtenBytes
+    }
+
+    mutating func writeAlgorithms(_ algorithms: [Substring]) -> Int {
+        return self.writeSSHString(algorithms.joined(separator: ",").utf8)
     }
 }
