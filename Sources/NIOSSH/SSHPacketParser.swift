@@ -53,7 +53,7 @@ struct SSHPacketParser {
             return nil
         case .cleartextWaitingForLength:
             if let length = self.buffer.readInteger(as: UInt32.self) {
-                if let message = try self.parse(length: length) {
+                if let message = try self.parse(length: length, macLength: 0) {
                     self.state = .cleartextWaitingForLength
                     return message
                 }
@@ -62,7 +62,7 @@ struct SSHPacketParser {
             }
             return nil
         case .cleartextWaitingForBytes(let length):
-            if let message = try self.parse(length: length) {
+            if let message = try self.parse(length: length, macLength: 0) {
                 self.state = .cleartextWaitingForLength
                 return message
             }
@@ -76,14 +76,14 @@ struct SSHPacketParser {
 
             let length = try decryptLength()
 
-            if let message = try self.parse(length: length) {
+            if let message = try self.parse(length: length, macLength: 0) {
                 self.state = .encryptedWaitingForLength
                 return message
             }
             self.state = .encryptedWaitingForBytes(length)
             return nil
         case .encryptedWaitingForBytes(let length):
-            if let message = try self.parse(length: length) {
+            if let message = try self.parse(length: length, macLength: 0) {
                 self.state = .cleartextWaitingForLength
                 return message
             }
@@ -107,7 +107,7 @@ struct SSHPacketParser {
         preconditionFailure("Not implemented")
     }
 
-    private mutating func parse(length: UInt32) throws -> SSHMessage? {
+    private mutating func parse(length: UInt32, macLength: Int) throws -> SSHMessage? {
         guard self.buffer.readableBytes >= length else {
             return nil
         }
@@ -123,7 +123,7 @@ struct SSHPacketParser {
             throw ProtocolError.padding
         }
 
-        guard let mac = self.buffer.readBytes(length: buffer.readableBytes) else {
+        guard let mac = self.buffer.readBytes(length: macLength) else {
             throw ProtocolError.mac
         }
 

@@ -45,9 +45,8 @@ struct SSHPacketSerializer {
             ///   Arbitrary-length padding, such that the total length of (packet_length || padding_length || payload || random padding)
             ///   is a multiple of the cipher block size or 8, whichever is larger.  There MUST be at least four bytes of padding.  The
             ///   padding SHOULD consist of random bytes.  The maximum amount of padding is 255 bytes.
-            let lengthToPad = 4 + 1 + messageLength + 4
             let blockSize = 8
-            let paddingLength = ((lengthToPad / blockSize) + 1) * blockSize - lengthToPad
+            let paddingLength = 3 + blockSize - ((messageLength + blockSize) % blockSize)
 
             /// packet_length
             ///   The length of the packet in bytes, not including 'mac' or the 'packet_length' field itself.

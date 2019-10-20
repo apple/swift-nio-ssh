@@ -111,6 +111,28 @@ final class SSHPacketParserTests: XCTestCase {
             XCTFail("Expecting .serviceRequest")
         }
     }
+
+    func testBinaryTwoMessages() throws {
+        var parser = SSHPacketParser(allocator: ByteBufferAllocator())
+
+        parser.state = .cleartextWaitingForLength
+
+        var part = ByteBuffer.of(bytes: [0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207, 0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207])
+        parser.append(bytes: &part)
+
+        switch try parser.nextPacket() {
+        case .serviceRequest(let message):
+            XCTAssertEqual(message.service, ByteBuffer.of(string: "ssh-userauth"))
+        default:
+            XCTFail("Expecting .serviceRequest")
+        }
+        switch try parser.nextPacket() {
+        case .serviceRequest(let message):
+            XCTAssertEqual(message.service, ByteBuffer.of(string: "ssh-userauth"))
+        default:
+            XCTFail("Expecting .serviceRequest")
+        }
+    }
 }
 
 extension ByteBuffer {

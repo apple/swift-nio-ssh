@@ -73,7 +73,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         var buffer = allocator.buffer(capacity: 20)
         serializer.serialize(message: message, to: &buffer)
 
-        XCTAssertEqual([0, 0, 0, 24,  6, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
+        XCTAssertEqual([0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -101,7 +101,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         var buffer = allocator.buffer(capacity: 20)
         serializer.serialize(message: message, to: &buffer)
 
-        XCTAssertEqual([0, 0, 0, 24,  6, 6, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
+        XCTAssertEqual([0, 0, 0, 28, 10, 6, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
