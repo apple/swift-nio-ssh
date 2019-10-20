@@ -355,9 +355,9 @@ extension ByteBuffer {
     mutating func writeKeyExchangeECDHReplyMessage(_ message: SSHMessage.KeyExchangeECDHReplyMessage) -> Int {
         var message = message
         var writtenBytes = 0
-        writtenBytes += self.writeSSHString(&message.hostKey)
+        writtenBytes += self.writeSSHHostKey(message.hostKey)
         writtenBytes += self.writeSSHString(&message.publicKey)
-        writtenBytes += self.writeSSHString(&message.signature)
+        writtenBytes += self.writeSSHSignature(message.signature)
         return writtenBytes
     }
 

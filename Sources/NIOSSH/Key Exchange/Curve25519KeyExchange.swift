@@ -141,7 +141,9 @@ extension Curve25519KeyExchange {
         // - the client public key octet string
         // - the server public key octet string
         // - the shared secret, as an mpint.
-        initialExchangeBytes.writeSSHHostKey(serverHostKey)
+        var serverHostKeyBytes = allocator.buffer(capacity: 51)
+        serverHostKeyBytes.writeSSHHostKey(serverHostKey)
+        initialExchangeBytes.writeSSHString(&serverHostKeyBytes)
 
         switch self.ourRole {
         case .client:
