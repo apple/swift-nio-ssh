@@ -41,8 +41,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testBasicSuccessfulKeyExchangeNoPreviousSession() throws {
-        let server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
-        let client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
+        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -73,8 +73,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
         var previousSessionIdentifier = ByteBufferAllocator().buffer(capacity: 1024)
         previousSessionIdentifier.writeBytes(0...255)
 
-        let server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: previousSessionIdentifier)
-        let client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: previousSessionIdentifier)
+        var server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: previousSessionIdentifier)
+        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: previousSessionIdentifier)
         let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -102,8 +102,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testKeyExchangeWithECDSASignatures() throws {
-        let server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
-        let client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
+        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHHostPrivateKey(p256Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -131,8 +131,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testBasicSuccessfulKeyExchangeWithWiderKeys() throws {
-        let server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
-        let client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
+        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -160,8 +160,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testDisagreeingOnInitialExchangeBytesLeadsToFailedKeyExchange() throws {
-        let server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
-        let client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
+        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
 
         var serverInitialBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -190,8 +190,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testWeValidateTheExchangeHash() throws {
-        let server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
-        let client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = Curve25519KeyExchange(ourRole: .server, previousSessionIdentifier: nil)
+        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)

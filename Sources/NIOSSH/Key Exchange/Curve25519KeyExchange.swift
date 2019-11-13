@@ -17,7 +17,7 @@ import NIOFoundationCompat
 import CryptoKit
 
 
-final class Curve25519KeyExchange {
+struct Curve25519KeyExchange {
     private var previousSessionIdentifier: ByteBuffer?
     private var ourKey: Curve25519.KeyAgreement.PrivateKey
     private var theirKey: Curve25519.KeyAgreement.PublicKey?
@@ -30,6 +30,7 @@ final class Curve25519KeyExchange {
         self.previousSessionIdentifier = previousSessionIdentifier
     }
 }
+
 
 extension Curve25519KeyExchange {
     /// Initiates key exchange by producing an SSH message.
@@ -53,11 +54,11 @@ extension Curve25519KeyExchange {
     ///     - initialExchangeBytes: The initial bytes of the exchange, suitable for writing into the exchange hash.
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
-    func completeKeyExchangeServerSide(clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
-                                       serverHostKey: NIOSSHHostPrivateKey,
-                                       initialExchangeBytes: inout ByteBuffer,
-                                       allocator: ByteBufferAllocator,
-                                       expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage) {
+    mutating func completeKeyExchangeServerSide(clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
+                                                serverHostKey: NIOSSHHostPrivateKey,
+                                                initialExchangeBytes: inout ByteBuffer,
+                                                allocator: ByteBufferAllocator,
+                                                expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage) {
         precondition(self.ourRole == .server, "Only servers may receive a client key exchange packet!")
 
         // With that, we have enough to finalize the key exchange.
@@ -92,10 +93,10 @@ extension Curve25519KeyExchange {
     ///     - initialExchangeBytes: The initial bytes of the exchange, suitable for writing into the exchange hash.
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
-    func receiveServerKeyExchangePayload(serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
-                                         initialExchangeBytes: inout ByteBuffer,
-                                         allocator: ByteBufferAllocator,
-                                         expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult {
+    mutating func receiveServerKeyExchangePayload(serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
+                                                  initialExchangeBytes: inout ByteBuffer,
+                                                  allocator: ByteBufferAllocator,
+                                                  expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult {
         precondition(self.ourRole == .client, "Only clients may receive a server key exchange packet!")
 
         // Ok, we have a few steps here. Firstly, we need to extract the server's public key and generate our shared
@@ -123,11 +124,11 @@ extension Curve25519KeyExchange {
     }
 
 
-    private func finalizeKeyExchange(theirKeyBytes: ByteBuffer,
-                                     initialExchangeBytes: inout ByteBuffer,
-                                     serverHostKey: NIOSSHHostPublicKey,
-                                     allocator: ByteBufferAllocator,
-                                     expectedKeySizes: ExpectedKeySizes) throws -> Curve25519KeyExchangeResult {
+    private mutating func finalizeKeyExchange(theirKeyBytes: ByteBuffer,
+                                              initialExchangeBytes: inout ByteBuffer,
+                                              serverHostKey: NIOSSHHostPublicKey,
+                                              allocator: ByteBufferAllocator,
+                                              expectedKeySizes: ExpectedKeySizes) throws -> Curve25519KeyExchangeResult {
         self.theirKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: theirKeyBytes.readableBytesView)
         self.sharedSecret = try self.ourKey.sharedSecretFromKeyAgreement(with: self.theirKey!)
         guard self.sharedSecret!.isStrongSecret else {
@@ -137,13 +138,13 @@ extension Curve25519KeyExchange {
         // Ok, we have a nice shared secret. Now we want to generate the exchange hash. We were given the initial
         // portion from the state machine: here we just need to append the Curve25519 parts. That is:
         //
-        // - the public host key bytes
+        // - the public host key bytes, as an SSH string
         // - the client public key octet string
         // - the server public key octet string
         // - the shared secret, as an mpint.
-        var serverHostKeyBytes = allocator.buffer(capacity: 51)
-        serverHostKeyBytes.writeSSHHostKey(serverHostKey)
-        initialExchangeBytes.writeSSHString(&serverHostKeyBytes)
+        initialExchangeBytes.writeCompositeSSHString {
+            $0.writeSSHHostKey(serverHostKey)
+        }
 
         switch self.ourRole {
         case .client:
@@ -411,7 +412,7 @@ extension SHA256 {
             withUnsafeBytes(of: self.backingBytes) { bytesPtr in
                 precondition(bytesPtr.count == 5)
 
-                var bytesToHash: UnsafeRawBufferPointer
+                let bytesToHash: UnsafeRawBufferPointer
                 if self.useExtraZeroByte {
                     bytesToHash = bytesPtr
                 } else {
