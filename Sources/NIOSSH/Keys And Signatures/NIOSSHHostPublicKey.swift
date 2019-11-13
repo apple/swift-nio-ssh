@@ -84,7 +84,7 @@ extension ByteBuffer {
     mutating func readSSHHostKey() throws -> NIOSSHHostPublicKey? {
         return try self.rewindOnNilOrError { buffer in
             // The wire format always begins with an SSH string containing the key format identifier. Let's grab that.
-            guard let keyIdentifierBytes = buffer.readSSHString() else {
+            guard var keyIdentifierBytes = buffer.readSSHString() else {
                 return nil
             }
 
@@ -96,7 +96,8 @@ extension ByteBuffer {
                 return try buffer.readECDSAP256PublicKey()
             } else {
                 // We don't know this public key type.
-                throw NIOSSHError.unknownPublicKey
+                let unexpectedAlgorithm = keyIdentifierBytes.readString(length: keyIdentifierBytes.readableBytes) ?? "<unknown algorithm>"
+                throw NIOSSHError.unknownPublicKey(algorithm: unexpectedAlgorithm)
             }
         }
     }
@@ -138,11 +139,12 @@ extension ByteBuffer {
     private mutating func readECDSAP256PublicKey() throws -> NIOSSHHostPublicKey? {
         // For ECDSA-P256, the key format is the string "nistp256" followed by the
         // the public point Q.
-        guard let domainParameter = self.readSSHString() else {
+        guard var domainParameter = self.readSSHString() else {
             return nil
         }
         guard domainParameter.readableBytesView.elementsEqual("nistp256".utf8) else {
-            throw NIOSSHError.invalidDomainParametersForKey
+            let unexpectedParameter = domainParameter.readString(length: domainParameter.readableBytes) ?? "<unknown domain parameter>"
+            throw NIOSSHError.invalidDomainParametersForKey(parameters: unexpectedParameter)
         }
 
         guard let qBytes = self.readSSHString() else {
