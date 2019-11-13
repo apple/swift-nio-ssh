@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import CryptoKit
 import NIO
 @testable import NIOSSH
 import XCTest
@@ -188,11 +189,12 @@ final class SSHPacketSerializerTests: XCTestCase {
     }
 
     func testKeyExchangeReply() throws {
-        do {
-        let message = try SSHMessage.keyExchangeReply(.init(
-            hostKey: NIOSSHHostPublicKey(backingKey: .ed25519(.init(rawRepresentation: [182, 37, 100, 183, 198, 201, 188, 148, 70, 200, 201, 225, 14, 66, 236, 124, 45, 246, 72, 46, 242, 24, 149, 170, 135, 58, 10, 18, 208, 163, 106, 118]))),
+        let key = try Curve25519.Signing.PublicKey(rawRepresentation: [182, 37, 100, 183, 198, 201, 188, 148, 70, 200, 201, 225, 14, 66, 236, 124, 45, 246, 72, 46, 242, 24, 149, 170, 135, 58, 10, 18, 208, 163, 106, 118])
+        let signature = Data([18, 95, 167, 169, 241, 132, 161, 143, 58, 35, 228, 10, 66, 187, 185, 176, 60, 95, 53, 188, 238, 226, 202, 75, 45, 226, 101, 39, 51, 168, 2, 92, 211, 28, 235, 229, 200, 249, 234, 71, 231, 245, 198, 167, 222, 207, 11, 151, 144, 218, 148, 205, 15, 77, 69, 72, 201, 37, 125, 94, 227, 173, 194, 10])
+        let message = SSHMessage.keyExchangeReply(.init(
+            hostKey: NIOSSHHostPublicKey(backingKey: .ed25519(key)),
             publicKey: ByteBuffer.of(bytes: [42, 42]),
-            signature: SSHSignature(backingSignature: .ed25519(.data(Data([18, 95, 167, 169, 241, 132, 161, 143, 58, 35, 228, 10, 66, 187, 185, 176, 60, 95, 53, 188, 238, 226, 202, 75, 45, 226, 101, 39, 51, 168, 2, 92, 211, 28, 235, 229, 200, 249, 234, 71, 231, 245, 198, 167, 222, 207, 11, 151, 144, 218, 148, 205, 15, 77, 69, 72, 201, 37, 125, 94, 227, 173, 194, 10]))))
+            signature: SSHSignature(backingSignature: .ed25519(.data(signature)))
         ))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
@@ -212,14 +214,21 @@ final class SSHPacketSerializerTests: XCTestCase {
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
         case .keyExchangeReply(let message):
-            //XCTAssertEqual(ByteBuffer.of(bytes: [11, 101]), message.hostKey)
+            switch message.hostKey.backingKey {
+            case .ed25519(let bytes):
+                XCTAssertEqual(key.rawRepresentation, bytes.rawRepresentation)
+            default:
+                XCTFail("Key is incorrect")
+            }
             XCTAssertEqual(ByteBuffer.of(bytes: [42, 42]), message.publicKey)
-            //XCTAssertEqual(ByteBuffer.of(bytes: [100, 101, 102]), message.signature)
+            switch message.signature.backingSignature {
+            case .ed25519(.byteBuffer(let bytes)):
+                XCTAssertEqual(signature, Data(bytes.readableBytesView))
+            default:
+                XCTFail("Signature is incorrect")
+            }
         default:
             XCTFail("Expecting .keyExchangeReply")
-        }
-        } catch {
-            print(error)
         }
     }
 
