@@ -237,4 +237,28 @@ extension ByteBuffer {
 
         self.moveWriterIndex(to: self.writerIndex - Int(paddingLength))
     }
+
+    /// A helper block that will rewind the reader index when an error is encountered.
+    mutating func rewindReaderOnError<T>(_ body: (inout ByteBuffer) throws -> T) rethrows -> T {
+        let oldReaderIndex = self.readerIndex
+
+        do {
+            return try body(&self)
+        } catch {
+            self.moveReaderIndex(to: oldReaderIndex)
+            throw error
+        }
+    }
+
+    /// A helper function that will rewind the reader index when nil is returned.
+    mutating func rewindReaderOnNil<T>(_ body: (inout ByteBuffer) -> Optional<T>) -> Optional<T> {
+        let oldReaderIndex = self.readerIndex
+
+        guard let result = body(&self) else {
+            self.moveReaderIndex(to: oldReaderIndex)
+            return nil
+        }
+
+        return result
+    }
 }

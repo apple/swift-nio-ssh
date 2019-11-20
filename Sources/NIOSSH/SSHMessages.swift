@@ -92,186 +92,158 @@ extension SSHMessage {
 
 extension ByteBuffer {
     mutating func readSSHMessage(length: UInt32) throws -> SSHMessage {
-        let readerIndex = self.readerIndex
-        guard var message = self.readSlice(length: Int(length)) else {
-            self.moveReaderIndex(to: readerIndex)
-            throw SSHMessage.ParsingError.incorrectFormat
-        }
+        return try self.rewindReaderOnError { `self` in
+            guard var message = self.readSlice(length: Int(length)) else {
+                throw SSHMessage.ParsingError.incorrectFormat
+            }
 
-        guard let type = message.readInteger(as: UInt8.self) else {
-            throw SSHMessage.ParsingError.incorrectFormat
-        }
+            guard let type = message.readInteger(as: UInt8.self) else {
+                throw SSHMessage.ParsingError.incorrectFormat
+            }
 
-        switch type {
-        case SSHMessage.DisconnectMessage.id:
-            guard let message = message.readDisconnectMessage() else {
-                throw SSHMessage.ParsingError.incorrectFormat
+            switch type {
+            case SSHMessage.DisconnectMessage.id:
+                guard let message = message.readDisconnectMessage() else {
+                    throw SSHMessage.ParsingError.incorrectFormat
+                }
+                return .disconnect(message)
+            case SSHMessage.ServiceRequestMessage.id:
+                guard let message = message.readServiceRequestMessage() else {
+                    throw SSHMessage.ParsingError.incorrectFormat
+                }
+                return .serviceRequest(message)
+            case SSHMessage.ServiceAcceptMessage.id:
+                guard let message = message.readServiceAcceptMessage() else {
+                    throw SSHMessage.ParsingError.incorrectFormat
+                }
+                return .serviceAccept(message)
+            case SSHMessage.KeyExchangeMessage.id:
+                guard let message = message.readKeyExchangeMessage() else {
+                    throw SSHMessage.ParsingError.incorrectFormat
+                }
+                return .keyExchange(message)
+            case SSHMessage.KeyExchangeECDHInitMessage.id:
+                guard let message = message.readKeyExchangeECDHInitMessage() else {
+                    throw SSHMessage.ParsingError.incorrectFormat
+                }
+                return .keyExchangeInit(message)
+            case SSHMessage.KeyExchangeECDHReplyMessage.id:
+                guard let message = try message.readKeyExchangeECDHReplyMessage() else {
+                    throw SSHMessage.ParsingError.incorrectFormat
+                }
+                return .keyExchangeReply(message)
+            case 21:
+                return .newKeys
+            default:
+                throw SSHMessage.ParsingError.unknownType
             }
-            return .disconnect(message)
-        case SSHMessage.ServiceRequestMessage.id:
-            guard let message = message.readServiceRequestMessage() else {
-                throw SSHMessage.ParsingError.incorrectFormat
-            }
-            return .serviceRequest(message)
-        case SSHMessage.ServiceAcceptMessage.id:
-            guard let message = message.readServiceAcceptMessage() else {
-                throw SSHMessage.ParsingError.incorrectFormat
-            }
-            return .serviceAccept(message)
-        case SSHMessage.KeyExchangeMessage.id:
-            guard let message = message.readKeyExchangeMessage() else {
-                throw SSHMessage.ParsingError.incorrectFormat
-            }
-            return .keyExchange(message)
-        case SSHMessage.KeyExchangeECDHInitMessage.id:
-            guard let message = message.readKeyExchangeECDHInitMessage() else {
-                throw SSHMessage.ParsingError.incorrectFormat
-            }
-            return .keyExchangeInit(message)
-        case SSHMessage.KeyExchangeECDHReplyMessage.id:
-            guard let message = try message.readKeyExchangeECDHReplyMessage() else {
-                throw SSHMessage.ParsingError.incorrectFormat
-            }
-            return .keyExchangeReply(message)
-        case 21:
-            return .newKeys
-        default:
-            throw SSHMessage.ParsingError.unknownType
         }
     }
 
     mutating func readDisconnectMessage() -> SSHMessage.DisconnectMessage? {
-        var readerIndex = self.readerIndex
-        guard let reason = self.readInteger(as: UInt32.self) else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
-        }
+        return self.rewindReaderOnNil { `self` in
+            guard let reason = self.readInteger(as: UInt32.self),
+                  let description = self.readSSHString(),
+                  let tag = self.readSSHString() else {
+                return nil
+            }
 
-        readerIndex = self.readerIndex
-        guard let description = self.readSSHString() else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
+            return SSHMessage.DisconnectMessage(reason: reason, description: description, tag: tag)
         }
-
-        readerIndex = self.readerIndex
-        guard let tag = self.readSSHString() else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
-        }
-
-        return .init(reason: reason, description: description, tag: tag)
     }
 
     mutating func readServiceRequestMessage() -> SSHMessage.ServiceRequestMessage? {
-        let readerIndex = self.readerIndex
-        guard let service = self.readSSHString() else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
+        return self.rewindReaderOnNil { `self` in
+            guard let service = self.readSSHString() else {
+                return nil
+            }
+            return SSHMessage.ServiceRequestMessage(service: service)
         }
-
-        return .init(service: service)
     }
 
     mutating func readServiceAcceptMessage() -> SSHMessage.ServiceAcceptMessage? {
-        let readerIndex = self.readerIndex
-        guard let service = self.readSSHString() else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
+        return self.rewindReaderOnNil { `self` in
+            guard let service = self.readSSHString() else {
+                return nil
+            }
+            return SSHMessage.ServiceAcceptMessage(service: service)
         }
-
-        return .init(service: service)
     }
 
     mutating func readKeyExchangeMessage() -> SSHMessage.KeyExchangeMessage? {
-        var readerIndex = self.readerIndex
-        guard let cookie = self.readSlice(length: 16) else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
-        }
+        return self.rewindReaderOnNil { `self` in
+            guard
+                let cookie = self.readSlice(length: 16),
+                let keyExchangeAlgorithms = self.readAlgorithms(),
+                let serverHostKeyAlgorithms = self.readAlgorithms(),
+                let encryptionAlgorithmsClientToServer = self.readAlgorithms(),
+                let encryptionAlgorithmsServerToClient = self.readAlgorithms(),
+                let macAlgorithmsClientToServer = self.readAlgorithms(),
+                let macAlgorithmsServerToClient = self.readAlgorithms(),
+                let compressionAlgorithmsClientToServer = self.readAlgorithms(),
+                let compressionAlgorithmsServerToClient = self.readAlgorithms(),
+                let languagesClientToServer = self.readAlgorithms(),
+                let languagesServerToClient = self.readAlgorithms()
+            else {
+                return nil
+            }
 
-        readerIndex = self.readerIndex
-        guard
-            let keyExchangeAlgorithms = self.readAlgorithms(),
-            let serverHostKeyAlgorithms = self.readAlgorithms(),
-            let encryptionAlgorithmsClientToServer = self.readAlgorithms(),
-            let encryptionAlgorithmsServerToClient = self.readAlgorithms(),
-            let macAlgorithmsClientToServer = self.readAlgorithms(),
-            let macAlgorithmsServerToClient = self.readAlgorithms(),
-            let compressionAlgorithmsClientToServer = self.readAlgorithms(),
-            let compressionAlgorithmsServerToClient = self.readAlgorithms(),
-            let languagesClientToServer = self.readAlgorithms(),
-            let languagesServerToClient = self.readAlgorithms()
-        else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
-        }
+            // first_kex_packet_follows
+            guard self.readInteger(as: UInt8.self) != nil else {
+                return nil
+            }
 
-        // first_kex_packet_follows
-        readerIndex = self.readerIndex
-        guard self.readInteger(as: UInt8.self) != nil else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
-        }
+            // reserved
+            guard self.readInteger(as: UInt32.self) == 0 else {
+                return nil
+            }
 
-        // reserved
-        readerIndex = self.readerIndex
-        guard self.readInteger(as: UInt32.self) == 0 else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
+            return .init(cookie: cookie,
+                         keyExchangeAlgorithms: keyExchangeAlgorithms,
+                         serverHostKeyAlgorithms: serverHostKeyAlgorithms,
+                         encryptionAlgorithmsClientToServer: encryptionAlgorithmsClientToServer,
+                         encryptionAlgorithmsServerToClient: encryptionAlgorithmsServerToClient,
+                         macAlgorithmsClientToServer: macAlgorithmsClientToServer,
+                         macAlgorithmsServerToClient: macAlgorithmsServerToClient,
+                         compressionAlgorithmsClientToServer: compressionAlgorithmsClientToServer,
+                         compressionAlgorithmsServerToClient: compressionAlgorithmsServerToClient,
+                         languagesClientToServer: languagesClientToServer,
+                         languagesServerToClient: languagesServerToClient
+            )
         }
-
-        return .init(cookie: cookie,
-                     keyExchangeAlgorithms: keyExchangeAlgorithms,
-                     serverHostKeyAlgorithms: serverHostKeyAlgorithms,
-                     encryptionAlgorithmsClientToServer: encryptionAlgorithmsClientToServer,
-                     encryptionAlgorithmsServerToClient: encryptionAlgorithmsServerToClient,
-                     macAlgorithmsClientToServer: macAlgorithmsClientToServer,
-                     macAlgorithmsServerToClient: macAlgorithmsServerToClient,
-                     compressionAlgorithmsClientToServer: compressionAlgorithmsClientToServer,
-                     compressionAlgorithmsServerToClient: compressionAlgorithmsServerToClient,
-                     languagesClientToServer: languagesClientToServer,
-                     languagesServerToClient: languagesServerToClient
-        )
     }
 
     mutating func readKeyExchangeECDHInitMessage() -> SSHMessage.KeyExchangeECDHInitMessage? {
-        let readerIndex = self.readerIndex
-        guard let publicKey = self.readSSHString() else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
+        return self.rewindReaderOnNil { `self` in
+            guard let publicKey = self.readSSHString() else {
+                return nil
+            }
+            return SSHMessage.KeyExchangeECDHInitMessage(publicKey: publicKey)
         }
-        return .init(publicKey: publicKey)
     }
 
     mutating func readKeyExchangeECDHReplyMessage() throws -> SSHMessage.KeyExchangeECDHReplyMessage? {
-        var readerIndex = self.readerIndex
-        guard let hostKey = try self.readSSHHostKey() else {
-            return nil
-        }
+        return try self.rewindOnNilOrError { `self` in
+            guard
+                let hostKey = try self.readSSHHostKey(),
+                let publicKey = self.readSSHString(),
+                let signature = try self.readSSHSignature()
+            else {
+                return nil
+            }
 
-        readerIndex = self.readerIndex
-        guard let publicKey = self.readSSHString() else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
+            return SSHMessage.KeyExchangeECDHReplyMessage(hostKey: hostKey, publicKey: publicKey, signature: signature)
         }
-
-        readerIndex = self.readerIndex
-        guard let signature = try self.readSSHSignature() else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
-        }
-
-        return .init(hostKey: hostKey, publicKey: publicKey, signature: signature)
     }
 
     mutating func readAlgorithms() -> [Substring]? {
-        let readerIndex = self.readerIndex
-        guard var string = self.readSSHString() else {
-            self.moveReaderIndex(to: readerIndex)
-            return nil
+        return self.rewindReaderOnNil { `self` in
+            guard var string = self.readSSHString() else {
+                return nil
+            }
+            // readSSHString guarantees that we will be able to read all string bytes
+            return string.readString(length: string.readableBytes)!.split(separator: ",")
         }
-        // readSSHString guarantees that we will be able to read all string bytes
-        return string.readString(length: string.readableBytes)!.split(separator: ",")
     }
 
     @discardableResult

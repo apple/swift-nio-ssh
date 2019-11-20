@@ -29,6 +29,7 @@ extension SSHPacketParserTests {
                 ("testReadVersion", testReadVersion),
                 ("testBinaryInParts", testBinaryInParts),
                 ("testBinaryFull", testBinaryFull),
+                ("testBinaryTwoMessages", testBinaryTwoMessages),
            ]
    }
 }
