@@ -112,25 +112,27 @@ struct SSHPacketParser {
             return nil
         }
 
-        guard let padding = self.buffer.readInteger(as: UInt8.self) else {
-            throw ProtocolError.paddingLength
+        return try self.buffer.rewindReaderOnError { buffer in
+            guard let padding = buffer.readInteger(as: UInt8.self) else {
+                throw ProtocolError.paddingLength
+            }
+
+            let messageLength = length - UInt32(padding) - 1
+            let message = try buffer.readSSHMessage(length: messageLength)
+
+            guard let randomPadding = buffer.readBytes(length: Int(padding)) else {
+                throw ProtocolError.padding
+            }
+            // mute warning for now
+            precondition(randomPadding.count == padding)
+
+            guard let mac = buffer.readBytes(length: macLength) else {
+                throw ProtocolError.mac
+            }
+            // mute warning for now
+            precondition(mac.count == macLength)
+
+            return message
         }
-
-        let messageLength = length - UInt32(padding) - 1
-        let message = try self.buffer.readSSHMessage(length: messageLength)
-
-        guard let randomPadding = buffer.readBytes(length: Int(padding)) else {
-            throw ProtocolError.padding
-        }
-        // mute warning for now
-        precondition(randomPadding.count == padding)
-
-        guard let mac = self.buffer.readBytes(length: macLength) else {
-            throw ProtocolError.mac
-        }
-        // mute warning for now
-        precondition(mac.count == macLength)
-
-        return message
     }
 }
