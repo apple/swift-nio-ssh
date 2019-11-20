@@ -31,7 +31,7 @@ struct SSHKeyExchangeStateMachine {
     private let allocator: ByteBufferAllocator
     private var exhange: Curve25519KeyExchange
     private var state: State = .idle
-    private var initialExchangeBytes: ByteBuffer!
+    private var initialExchangeBytes: ByteBuffer
 
     init(allocator: ByteBufferAllocator) {
         self.allocator = allocator
@@ -74,13 +74,11 @@ struct SSHKeyExchangeStateMachine {
             ))
 
             // TODO: this should be somwthing like self.initialExchangeBytes.writeSSHString(bytes of message as payload)
-            let original = self.initialExchangeBytes.writerIndex
-            self.initialExchangeBytes.moveWriterIndex(forwardBy: 4)
-            let length = self.initialExchangeBytes.writeSSHMessage(message)
-            self.initialExchangeBytes.setInteger(UInt32(length), at: original)
+            self.initialExchangeBytes.writeCompositeSSHString { buffer in
+                buffer.writeSSHMessage(message)
+            }
 
             self.state = .keyExchange
-
             return message
         case .keyExchange, .keyExchangeInit, .newKeys:
             throw SSHKeyExchangeError.unexpectedMessage
@@ -91,10 +89,9 @@ struct SSHKeyExchangeStateMachine {
         switch self.state {
         case .keyExchange:
             // TODO: this is a dirty hack, we re-serialize received response instead of copying the real bytes...
-            let original = self.initialExchangeBytes.writerIndex
-            self.initialExchangeBytes.moveWriterIndex(forwardBy: 4)
-            let length = self.initialExchangeBytes.writeSSHMessage(SSHMessage.keyExchange(message))
-            self.initialExchangeBytes.setInteger(UInt32(length), at: original)
+            self.initialExchangeBytes.writeCompositeSSHString { buffer in
+                buffer.writeSSHMessage(SSHMessage.keyExchange(message))
+            }
 
             // verify algorithms
             let message = SSHMessage.keyExchangeInit(self.exhange.initiateKeyExchangeClientSide(allocator: allocator))
