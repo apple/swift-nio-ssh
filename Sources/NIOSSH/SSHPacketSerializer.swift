@@ -18,7 +18,7 @@ struct SSHPacketSerializer {
     enum State {
         case initialized
         case cleartext
-        case encrypted
+        case encrypted(NIOSSHTransportProtection)
     }
 
     var state: State = .initialized
@@ -35,6 +35,14 @@ struct SSHPacketSerializer {
             }
         case .cleartext:
             let index = buffer.writerIndex
+
+            /// Each packet is in the following format:
+            ///
+            ///   uint32        packet_length
+            ///   byte           padding_length
+            ///   byte[n1]  payload; n1 = packet_length - padding_length - 1
+            ///   byte[n2]  random padding; n2 = padding_length
+            ///   byte[m]   mac (Message Authentication Code - MAC); m = mac_length
 
             /// payload
             buffer.moveWriterIndex(forwardBy: 5)
@@ -55,7 +63,8 @@ struct SSHPacketSerializer {
             buffer.setInteger(UInt8(paddingLength), at: index + 4)
             /// random padding
             buffer.writeSSHPaddingBytes(count: paddingLength)
-        case .encrypted:
+        case .encrypted(let protection):
+            //protection.encryptPacket()
             preconditionFailure("Not implemented")
         }
     }

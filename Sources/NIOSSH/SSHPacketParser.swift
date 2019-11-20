@@ -122,10 +122,14 @@ struct SSHPacketParser {
         guard let randomPadding = buffer.readBytes(length: Int(padding)) else {
             throw ProtocolError.padding
         }
+        // mute warning for now
+        precondition(randomPadding.count == padding)
 
         guard let mac = self.buffer.readBytes(length: macLength) else {
             throw ProtocolError.mac
         }
+        // mute warning for now
+        precondition(mac.count == macLength)
 
         return message
     }
