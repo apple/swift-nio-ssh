@@ -83,6 +83,7 @@ extension ByteBuffer {
 
     mutating func readSSHHostKey() throws -> NIOSSHHostPublicKey? {
         return try self.rewindOnNilOrError { buffer in
+            // Key is encoded as
             // The wire format always begins with an SSH string containing the key format identifier. Let's grab that.
             guard var keyIdentifierBytes = buffer.readSSHString() else {
                 return nil
