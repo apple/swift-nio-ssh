@@ -22,12 +22,18 @@ import NIO
 /// exposing too many of the internals of swift-nio-ssh to these types.
 ///
 /// This type is entirely opaque to the user: all it can do is be serialized.
-public struct NIOSSHEncryptablePayload { }
+public struct NIOSSHEncryptablePayload {
+    fileprivate var message: SSHMessage
+
+    internal init(message: SSHMessage) {
+        self.message = message
+    }
+}
 
 
 extension ByteBuffer {
     /// Write an encryptable payload to this `ByteBuffer`.
     public mutating func writeEncryptablePayload(_ payload: NIOSSHEncryptablePayload) -> Int {
-        return 0
+        return self.writeSSHMessage(payload.message)
     }
 }

@@ -60,7 +60,7 @@ protocol NIOSSHTransportProtection: AnyObject {
     static var keySizes: ExpectedKeySizes { get }
 
     /// Create a new instance of this transport protection scheme with the given keys.
-    init(initialKeys: NIOSSHSessionKeys, allocator: ByteBufferAllocator) throws
+    init(initialKeys: NIOSSHSessionKeys) throws
 
     /// A rekey has occurred and the encryption keys need to be changed.
     func updateKeys(_ newKeys: NIOSSHSessionKeys) throws
@@ -86,5 +86,5 @@ protocol NIOSSHTransportProtection: AnyObject {
     func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws
 
     /// Encrypt an entire outbound packet
-    func encryptPacket(_ packet: NIOSSHEncryptablePayload) throws -> ByteBuffer
+    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws
 }

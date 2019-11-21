@@ -41,10 +41,7 @@ internal class AESGCMTransportProtection {
         fatalError("Must override key size")
     }
 
-    // The buffer we're writing outbound frames into.
-    private var outboundBuffer: ByteBuffer
-
-    required init(initialKeys: NIOSSHSessionKeys, allocator: ByteBufferAllocator) throws {
+    required init(initialKeys: NIOSSHSessionKeys) throws {
         guard initialKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 &&
               initialKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
                 throw NIOSSHError.invalidKeySize
@@ -52,7 +49,6 @@ internal class AESGCMTransportProtection {
 
         self.outboundEncryptionKey = initialKeys.outboundEncryptionKey
         self.inboundEncryptionKey = initialKeys.inboundEncryptionKey
-        self.outboundBuffer = allocator.buffer(capacity: 2048)
         self.outboundNonce = try SSHAESGCMNonce(keyExchangeResult: initialKeys.initialOutboundIV)
         self.inboundNonce = try SSHAESGCMNonce(keyExchangeResult: initialKeys.initialInboundIV)
     }
@@ -114,16 +110,17 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         try source.removePaddingBytes()
     }
 
-    func encryptPacket(_ packet: NIOSSHEncryptablePayload) throws -> ByteBuffer {
-        self.outboundBuffer.clear()
+    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws {
+        // Keep track of where the length is going to be written.
+        let packetLengthIndex = outboundBuffer.readerIndex
+        let packetLengthLength = MemoryLayout<UInt32>.size
+        let packetPaddingIndex = outboundBuffer.readerIndex + packetLengthLength
+        let packetPaddingLength = MemoryLayout<UInt8>.size
 
-        // We're going to reserve ourselves 5 bytes of space. This will be used for the
-        // frame header when we know the lengths.
-        self.outboundBuffer.moveWriterIndex(forwardBy: 5)
-        self.outboundBuffer.moveReaderIndex(forwardBy: 5)
+        outboundBuffer.moveWriterIndex(forwardBy: packetLengthLength + packetPaddingLength)
 
         // First, we write the packet.
-        let payloadBytes = self.outboundBuffer.writeEncryptablePayload(packet)
+        let payloadBytes = outboundBuffer.writeEncryptablePayload(packet)
 
         // Ok, now we need to pad. The rules for padding for AES GCM are:
         //
@@ -138,7 +135,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         // So we check how many bytes we've already written, use modular arithmetic to work out
         // how many more bytes we need, and then if that's fewer than 4 we add a block size to it
         // to fill it out.
-        var encryptedBufferSize = payloadBytes + 1
+        var encryptedBufferSize = payloadBytes + packetPaddingLength
         var necessaryPaddingBytes = Self.cipherBlockSize - (encryptedBufferSize % Self.cipherBlockSize)
         if necessaryPaddingBytes < 4 {
             necessaryPaddingBytes += Self.cipherBlockSize
@@ -146,36 +143,32 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
 
         // We now want to write that many padding bytes to the end of the buffer. These are supposed to be
         // random bytes. We're going to get those from the system random number generator.
-        encryptedBufferSize += self.outboundBuffer.writeSSHPaddingBytes(count: necessaryPaddingBytes)
+        encryptedBufferSize += outboundBuffer.writeSSHPaddingBytes(count: necessaryPaddingBytes)
         precondition(encryptedBufferSize % Self.cipherBlockSize == 0, "Incorrectly counted buffer size; got \(encryptedBufferSize)")
 
         // We now know the length: it's going to be "encrypted buffer size" + the size of the tag, which in this case must be 16 bytes.
         // Let's write that in. We also need to write the number of padding bytes in.
-        self.outboundBuffer.setInteger(UInt32(encryptedBufferSize + 16), at: 0)
-        self.outboundBuffer.setInteger(UInt8(necessaryPaddingBytes), at: 4)
-        self.outboundBuffer.moveReaderIndex(to: 0)
+        outboundBuffer.setInteger(UInt32(encryptedBufferSize + 16), at: packetLengthIndex)
+        outboundBuffer.setInteger(UInt8(necessaryPaddingBytes), at: packetPaddingIndex)
 
         // Ok, nice! Now we need to encrypt the data. We pass the length field as additional authenticated data, and the encrypted
         // payload portion as the data to encrypt. We know these views will be valid, so we forcibly unwrap them: if they're invalid,
         // our math was wrong and we cannot recover.
-        let sealedBox = try AES.GCM.seal(self.outboundBuffer.viewBytes(at: 4, length: encryptedBufferSize)!,
+        let sealedBox = try AES.GCM.seal(outboundBuffer.viewBytes(at: packetPaddingIndex, length: encryptedBufferSize)!,
                                          using: self.outboundEncryptionKey,
                                          nonce: try AES.GCM.Nonce(data: self.outboundNonce),
-                                         authenticating: self.outboundBuffer.viewBytes(at: 0, length: 4)!)
+                                         authenticating: outboundBuffer.viewBytes(at: packetLengthIndex, length: packetLengthLength)!)
 
         assert(sealedBox.ciphertext.count == encryptedBufferSize)
 
         // We now want to overwrite the portion of the bytebuffer that contains the plaintext with the ciphertext, and then append the
         // tag.
-        self.outboundBuffer.setBytes(sealedBox.ciphertext, at: 4)
-        let tagLength = self.outboundBuffer.writeBytes(sealedBox.tag)
+        outboundBuffer.setBytes(sealedBox.ciphertext, at: packetPaddingIndex)
+        let tagLength = outboundBuffer.writeBytes(sealedBox.tag)
         precondition(tagLength == 16, "Unexpected short tag")
 
-        // Now we increment the Nonce for the next use.
+        // Now we increment the Nonce for the next use, and then we're done!
         self.outboundNonce.increment()
-
-        // We're done!
-        return self.outboundBuffer
     }
 }
 

@@ -29,54 +29,80 @@ final class AESGCMTests: XCTestCase {
                                  outboundMACKey: SymmetricKey(size: .bits128))
     }
 
+    private var buffer: ByteBuffer!
+
+    override func setUp() {
+        self.buffer = ByteBufferAllocator().buffer(capacity: 1024)
+    }
+
+    override func tearDown() {
+        self.buffer = nil
+    }
+
     func testSimpleAES128RoundTrip() throws {
         let initialKeys = self.generateKeys(keySize: .bits128)
 
-        let aes128Encryptor = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator()))
-        let result = try assertNoThrowWithValue(aes128Encryptor.encryptPacket(NIOSSHEncryptablePayload()))
+        let aes128Encryptor = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys))
+        XCTAssertNoThrow(try aes128Encryptor.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), to: &self.buffer))
 
-        // This will change when we properly implement encryptable payload, but for now encryptable payload is a zero length string. Because of that,
-        // we expect that we will need 15 padding bytes: one byte for the padding length, then 15 more to get out to one block size. Thus, the total
+        // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
+        // 14 padding bytes: one byte for the padding length, then 14 more to get out to one block size. Thus, the total
         // length of the result buffer should be 36 bytes: 4 bytes of length, 16 bytes of ciphertext, 16 bytes of tag.
-        XCTAssertEqual(result.getInteger(at: 0, as: UInt32.self), 32)
-        XCTAssertEqual(result.readableBytes, 36)
+        XCTAssertEqual(self.buffer.getInteger(at: 0, as: UInt32.self), 32)
+        XCTAssertEqual(self.buffer.readableBytes, 36)
 
         // We should be able to decrypt this now.
-        let aes128Decryptor = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys.inverted, allocator: ByteBufferAllocator()))
+        let aes128Decryptor = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys.inverted))
 
-        var resultCopy = result
-        XCTAssertNoThrow(try aes128Decryptor.decryptFirstBlock(&resultCopy))
-        XCTAssertEqual(resultCopy, result)
+        var bufferCopy = self.buffer!
+        XCTAssertNoThrow(try aes128Decryptor.decryptFirstBlock(&bufferCopy))
+        XCTAssertEqual(bufferCopy, self.buffer)
 
-        /// After decryption the plaintext should be empty, as there was no payload.
-        XCTAssertNoThrow(try aes128Decryptor.decryptAndVerifyRemainingPacket(&resultCopy))
-        XCTAssertNotEqual(resultCopy, result)
-        XCTAssertEqual(resultCopy.readableBytes, 0)
+        /// After decryption the plaintext should be a newKeys message.
+        XCTAssertNoThrow(try aes128Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy))
+        XCTAssertNotEqual(bufferCopy, self.buffer)
+        XCTAssertEqual(bufferCopy.readableBytes, 1)
+
+        switch try assertNoThrowWithValue(bufferCopy.readSSHMessage(length: UInt32(bufferCopy.readableBytes))) {
+        case .newKeys:
+            // good
+            break
+        case let result:
+            XCTFail("Unexpected result of decryption: \(result)")
+        }
     }
 
     func testSimpleAES256RoundTrip() throws {
         let initialKeys = self.generateKeys(keySize: .bits256)
 
-        let aes256Encryptor = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator()))
-        let result = try assertNoThrowWithValue(aes256Encryptor.encryptPacket(NIOSSHEncryptablePayload()))
+        let aes256Encryptor = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys))
+        XCTAssertNoThrow(try aes256Encryptor.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), to: &self.buffer))
 
-        // This will change when we properly implement encryptable payload, but for now encryptable payload is a zero length string. Because of that,
-        // we expect that we will need 15 padding bytes: one byte for the padding length, then 15 more to get out to one block size. Thus, the total
+        // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
+        // 14 padding bytes: one byte for the padding length, then 14 more to get out to one block size. Thus, the total
         // length of the result buffer should be 36 bytes: 4 bytes of length, 16 bytes of ciphertext, 16 bytes of tag.
-        XCTAssertEqual(result.getInteger(at: 0, as: UInt32.self), 32)
-        XCTAssertEqual(result.readableBytes, 36)
+        XCTAssertEqual(self.buffer.getInteger(at: 0, as: UInt32.self), 32)
+        XCTAssertEqual(self.buffer.readableBytes, 36)
 
         // We should be able to decrypt this now.
-        let aes256Decryptor = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys.inverted, allocator: ByteBufferAllocator()))
+        let aes256Decryptor = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys.inverted))
 
-        var resultCopy = result
-        XCTAssertNoThrow(try aes256Decryptor.decryptFirstBlock(&resultCopy))
-        XCTAssertEqual(resultCopy, result)
+        var bufferCopy = self.buffer!
+        XCTAssertNoThrow(try aes256Decryptor.decryptFirstBlock(&bufferCopy))
+        XCTAssertEqual(bufferCopy, self.buffer)
 
-        /// After decryption the plaintext should be empty, as there was no payload.
-        XCTAssertNoThrow(try aes256Decryptor.decryptAndVerifyRemainingPacket(&resultCopy))
-        XCTAssertNotEqual(resultCopy, result)
-        XCTAssertEqual(resultCopy.readableBytes, 0)
+        /// After decryption the plaintext should be a newKeys message.
+        XCTAssertNoThrow(try aes256Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy))
+        XCTAssertNotEqual(bufferCopy, self.buffer)
+        XCTAssertEqual(bufferCopy.readableBytes, 1)
+
+        switch try assertNoThrowWithValue(bufferCopy.readSSHMessage(length: UInt32(bufferCopy.readableBytes))) {
+        case .newKeys:
+            // good
+            break
+        case let result:
+            XCTFail("Unexpected result of decryption: \(result)")
+        }
     }
 
     func testCannotCreateWithIncorrectKeySize() throws {
@@ -85,13 +111,13 @@ final class AESGCMTests: XCTestCase {
         // We want to check that each key is rejected separately.
         var initialKeys = initial128BitKeys
         initialKeys.inboundEncryptionKey = SymmetricKey(size: .bits256)
-        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
 
         initialKeys = initial128BitKeys
         initialKeys.outboundEncryptionKey = SymmetricKey(size: .bits256)
-        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
 
@@ -100,13 +126,13 @@ final class AESGCMTests: XCTestCase {
         // We want to check that each key is rejected separately.
         initialKeys = initial256BitKeys
         initialKeys.inboundEncryptionKey = SymmetricKey(size: .bits128)
-        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
 
         initialKeys = initial256BitKeys
         initialKeys.outboundEncryptionKey = SymmetricKey(size: .bits128)
-        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidKeySize)
         }
     }
@@ -115,8 +141,8 @@ final class AESGCMTests: XCTestCase {
         let initial128BitKeys = self.generateKeys(keySize: .bits128)
         let initial256BitKeys = self.generateKeys(keySize: .bits256)
 
-        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initial128BitKeys, allocator: ByteBufferAllocator()))
-        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initial256BitKeys, allocator: ByteBufferAllocator()))
+        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initial128BitKeys))
+        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initial256BitKeys))
 
         // We want to check that each key is rejected separately.
         var updatedKeys = initial128BitKeys
@@ -152,50 +178,50 @@ final class AESGCMTests: XCTestCase {
         // We want to check that each nonce is rejected separately.
         var initialKeys = initial128BitKeys
         initialKeys.initialInboundIV = Array(randomBytes: 11)
-        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial128BitKeys
         initialKeys.initialOutboundIV = Array(randomBytes: 11)
-        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial128BitKeys
         initialKeys.initialInboundIV = Array(randomBytes: 13)
-        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial128BitKeys
         initialKeys.initialOutboundIV = Array(randomBytes: 13)
-        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         // We want to check that each key is rejected separately.
         initialKeys = initial256BitKeys
         initialKeys.initialInboundIV = Array(randomBytes: 11)
-        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial256BitKeys
         initialKeys.initialOutboundIV = Array(randomBytes: 11)
-        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial256BitKeys
         initialKeys.initialInboundIV = Array(randomBytes: 13)
-        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
 
         initialKeys = initial256BitKeys
         initialKeys.initialOutboundIV = Array(randomBytes: 13)
-        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys, allocator: ByteBufferAllocator())) { error in
+        XCTAssertThrowsError(try AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidNonceLength)
         }
     }
@@ -204,8 +230,8 @@ final class AESGCMTests: XCTestCase {
         let initial128BitKeys = self.generateKeys(keySize: .bits128)
         let initial256BitKeys = self.generateKeys(keySize: .bits256)
 
-        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initial128BitKeys, allocator: ByteBufferAllocator()))
-        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initial256BitKeys, allocator: ByteBufferAllocator()))
+        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initial128BitKeys))
+        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initial256BitKeys))
 
         // We want to check that each nonce is rejected separately.
         var updatedKeys = initial128BitKeys
@@ -264,8 +290,7 @@ final class AESGCMTests: XCTestCase {
         // up to the next multiple of the block size (52 bytes).
         let invalidSizes = Array(0..<36) + Array(37..<52)
 
-        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits128),
-                                                                                    allocator: ByteBufferAllocator()))
+        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits128)))
         var buffer = ByteBufferAllocator().buffer(capacity: 52)
 
         for ciphertextSize in invalidSizes {
@@ -285,8 +310,7 @@ final class AESGCMTests: XCTestCase {
         // up to the next multiple of the block size (52 bytes).
         let invalidSizes = Array(0..<36) + Array(37..<52)
 
-        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits256),
-                                                                                    allocator: ByteBufferAllocator()))
+        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits256)))
         var buffer = ByteBufferAllocator().buffer(capacity: 52)
 
         for ciphertextSize in invalidSizes {
@@ -322,8 +346,7 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(buffer.readableBytes, 36)
 
         // We can now attempt to decrypt this packet.
-        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: keys,
-                                                                                    allocator: ByteBufferAllocator()))
+        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: keys))
         XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .excessPadding)
         }
@@ -352,8 +375,7 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(buffer.readableBytes, 36)
 
         // We can now attempt to decrypt this packet.
-        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys,
-                                                                                    allocator: ByteBufferAllocator()))
+        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys))
         XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .excessPadding)
         }
@@ -382,8 +404,7 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(buffer.readableBytes, 36)
 
         // We can now attempt to decrypt this packet.
-        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: keys,
-                                                                                    allocator: ByteBufferAllocator()))
+        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: keys))
         XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .insufficientPadding)
         }
@@ -412,8 +433,7 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(buffer.readableBytes, 36)
 
         // We can now attempt to decrypt this packet.
-        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys,
-                                                                                    allocator: ByteBufferAllocator()))
+        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys))
         XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .insufficientPadding)
         }
