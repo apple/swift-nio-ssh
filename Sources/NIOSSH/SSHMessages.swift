@@ -225,9 +225,11 @@ extension ByteBuffer {
     mutating func readKeyExchangeECDHReplyMessage() throws -> SSHMessage.KeyExchangeECDHReplyMessage? {
         return try self.rewindOnNilOrError { `self` in
             guard
-                let hostKey = try self.readSSHHostKey(),
+                var hostKeyBytes = self.readSSHString(),
+                let hostKey = try hostKeyBytes.readSSHHostKey(),
                 let publicKey = self.readSSHString(),
-                let signature = try self.readSSHSignature()
+                var signatureBytes = self.readSSHString(),
+                let signature = try signatureBytes.readSSHSignature()
             else {
                 return nil
             }
@@ -325,9 +327,13 @@ extension ByteBuffer {
     mutating func writeKeyExchangeECDHReplyMessage(_ message: SSHMessage.KeyExchangeECDHReplyMessage) -> Int {
         var message = message
         var writtenBytes = 0
-        writtenBytes += self.writeSSHHostKey(message.hostKey)
+        writtenBytes += self.writeCompositeSSHString { buffer in
+            buffer.writeSSHHostKey(message.hostKey)
+        }
         writtenBytes += self.writeSSHString(&message.publicKey)
-        writtenBytes += self.writeSSHSignature(message.signature)
+        writtenBytes += self.writeCompositeSSHString { buffer in
+            buffer.writeSSHSignature(message.signature)
+        }
         return writtenBytes
     }
 
