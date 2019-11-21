@@ -24,7 +24,7 @@ struct SSHPacketSerializer {
     var state: State = .initialized
     var padding: Int = 8
 
-    func serialize(message: SSHMessage, to buffer: inout ByteBuffer) {
+    func serialize(message: SSHMessage, to buffer: inout ByteBuffer) throws {
         switch self.state {
         case .initialized:
             switch message {
@@ -64,8 +64,8 @@ struct SSHPacketSerializer {
             /// random padding
             buffer.writeSSHPaddingBytes(count: paddingLength)
         case .encrypted(let protection):
-            //protection.encryptPacket()
-            preconditionFailure("Not implemented")
+            let payload = NIOSSHEncryptablePayload(message: message)
+            try protection.encryptPacket(payload, to: &buffer)
         }
     }
 }

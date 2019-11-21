@@ -24,7 +24,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         let serializer = SSHPacketSerializer()
         let allocator = ByteBufferAllocator()
         var buffer = allocator.buffer(capacity: 22)
-        serializer.serialize(message: message, to: &buffer)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         XCTAssertEqual("SSH-2.0-SwiftSSH_1.0\r\n", buffer.readString(length: buffer.readableBytes))
     }
@@ -37,14 +37,14 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         do {
             var buffer = allocator.buffer(capacity: 22)
-            serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer)
+            XCTAssertNoThrow(try serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer))
             parser.append(bytes: &buffer)
             _ = try parser.nextPacket()
             serializer.state = .cleartext
         }
 
         var buffer = allocator.buffer(capacity: 20)
-        serializer.serialize(message: message, to: &buffer)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
         parser.append(bytes: &buffer)
 
         switch try parser.nextPacket() {
@@ -65,14 +65,14 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         do {
             var buffer = allocator.buffer(capacity: 22)
-            serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer)
+            XCTAssertNoThrow(try serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer))
             parser.append(bytes: &buffer)
             _ = try parser.nextPacket()
             serializer.state = .cleartext
         }
 
         var buffer = allocator.buffer(capacity: 20)
-        serializer.serialize(message: message, to: &buffer)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         XCTAssertEqual([0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
 
@@ -93,14 +93,14 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         do {
             var buffer = allocator.buffer(capacity: 22)
-            serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer)
+            XCTAssertNoThrow(try serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer))
             parser.append(bytes: &buffer)
             _ = try parser.nextPacket()
             serializer.state = .cleartext
         }
 
         var buffer = allocator.buffer(capacity: 20)
-        serializer.serialize(message: message, to: &buffer)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         XCTAssertEqual([0, 0, 0, 28, 10, 6, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
 
@@ -133,14 +133,14 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         do {
             var buffer = allocator.buffer(capacity: 22)
-            serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer)
+            XCTAssertNoThrow(try serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer))
             parser.append(bytes: &buffer)
             _ = try parser.nextPacket()
             serializer.state = .cleartext
         }
 
         var buffer = allocator.buffer(capacity: 20)
-        serializer.serialize(message: message, to: &buffer)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -169,14 +169,14 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         do {
             var buffer = allocator.buffer(capacity: 22)
-            serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer)
+            XCTAssertNoThrow(try serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer))
             parser.append(bytes: &buffer)
             _ = try parser.nextPacket()
             serializer.state = .cleartext
         }
 
         var buffer = allocator.buffer(capacity: 20)
-        serializer.serialize(message: message, to: &buffer)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -202,14 +202,14 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         do {
             var buffer = allocator.buffer(capacity: 22)
-            serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer)
+            XCTAssertNoThrow(try serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer))
             parser.append(bytes: &buffer)
             _ = try parser.nextPacket()
             serializer.state = .cleartext
         }
 
         var buffer = allocator.buffer(capacity: 20)
-        serializer.serialize(message: message, to: &buffer)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -240,14 +240,14 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         do {
             var buffer = allocator.buffer(capacity: 22)
-            serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer)
+            XCTAssertNoThrow(try serializer.serialize(message: .version("SSH-2.0-SwiftSSH_1.0"), to: &buffer))
             parser.append(bytes: &buffer)
             _ = try parser.nextPacket()
             serializer.state = .cleartext
         }
 
         var buffer = allocator.buffer(capacity: 5)
-        serializer.serialize(message: message, to: &buffer)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
