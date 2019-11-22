@@ -88,3 +88,12 @@ protocol NIOSSHTransportProtection: AnyObject {
     /// Encrypt an entire outbound packet
     func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws
 }
+
+
+extension NIOSSHTransportProtection {
+    /// Obtains the block size for this specific instantiated cipher.
+    var cipherBlockSize: Int {
+        // We just delegate to the static.
+        return Self.cipherBlockSize
+    }
+}

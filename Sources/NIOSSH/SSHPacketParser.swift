@@ -20,8 +20,8 @@ struct SSHPacketParser {
         case initialized
         case cleartextWaitingForLength
         case cleartextWaitingForBytes(UInt32)
-        case encryptedWaitingForLength
-        case encryptedWaitingForBytes(UInt32)
+        case encryptedWaitingForLength(NIOSSHTransportProtection)
+        case encryptedWaitingForBytes(UInt32, NIOSSHTransportProtection)
     }
 
     enum ProtocolError: Error {
@@ -44,6 +44,9 @@ struct SSHPacketParser {
     }
 
     mutating func nextPacket() throws -> SSHMessage? {
+        // This parser has a slightly strange strategy: we leave the packet length field in the buffer until we're done.
+        // This is necessary because some transport protection schemes need the length field for MACing purposes, and can
+        // benefit from us maintaining the state instead of having to do it themselves.
         switch self.state {
         case .initialized:
             if let version = try self.readVersion() {
@@ -52,7 +55,7 @@ struct SSHPacketParser {
             }
             return nil
         case .cleartextWaitingForLength:
-            if let length = self.buffer.readInteger(as: UInt32.self) {
+            if let length = self.buffer.getInteger(at: self.buffer.readerIndex, as: UInt32.self) {
                 if let message = try self.parse(length: length, macLength: 0) {
                     self.state = .cleartextWaitingForLength
                     return message
@@ -67,22 +70,18 @@ struct SSHPacketParser {
                 return message
             }
             return nil
-        case .encryptedWaitingForLength:
-            // TODO: Replace with real block size
-            let blockSize = 16
-            if self.buffer.readableBytes < blockSize {
+        case .encryptedWaitingForLength(let protection):
+            guard let length = try self.decryptLength(protection: protection) else {
                 return nil
             }
 
-            let length = try decryptLength()
-
             if let message = try self.parse(length: length, macLength: 0) {
-                self.state = .encryptedWaitingForLength
+                self.state = .encryptedWaitingForLength(protection)
                 return message
             }
-            self.state = .encryptedWaitingForBytes(length)
+            self.state = .encryptedWaitingForBytes(length, protection)
             return nil
-        case .encryptedWaitingForBytes(let length):
+        case .encryptedWaitingForBytes(let length, let protection):
             if let message = try self.parse(length: length, macLength: 0) {
                 self.state = .cleartextWaitingForLength
                 return message
@@ -103,16 +102,25 @@ struct SSHPacketParser {
         return nil
     }
 
-    private func decryptLength() throws -> UInt32 {
-        preconditionFailure("Not implemented")
+    private mutating func decryptLength(protection: NIOSSHTransportProtection) throws -> UInt32? {
+        let blockSize = protection.cipherBlockSize
+        guard self.buffer.readableBytes >= blockSize else {
+            return nil
+        }
+
+        try protection.decryptFirstBlock(&self.buffer)
+        return self.buffer.getInteger(at: self.buffer.readerIndex)
     }
 
     private mutating func parse(length: UInt32, macLength: Int) throws -> SSHMessage? {
-        guard self.buffer.readableBytes >= length else {
+        guard self.buffer.readableBytes >= Int(length) + MemoryLayout<UInt32>.size else {
             return nil
         }
 
         return try self.buffer.rewindReaderOnError { buffer in
+            // We have enough length. Skip over the frame length now.
+            buffer.moveReaderIndex(forwardBy: MemoryLayout<UInt32>.size)
+
             guard let padding = buffer.readInteger(as: UInt8.self) else {
                 throw ProtocolError.paddingLength
             }
