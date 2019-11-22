@@ -59,11 +59,12 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(bufferCopy, self.buffer)
 
         /// After decryption the plaintext should be a newKeys message.
-        XCTAssertNoThrow(try aes128Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy))
-        XCTAssertNotEqual(bufferCopy, self.buffer)
-        XCTAssertEqual(bufferCopy.readableBytes, 1)
+        var plaintext = try assertNoThrowWithValue(aes128Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy))
+        XCTAssertEqual(bufferCopy.readableBytes, 0)
+        XCTAssertNotEqual(plaintext, self.buffer)
+        XCTAssertEqual(plaintext.readableBytes, 1)
 
-        switch try assertNoThrowWithValue(bufferCopy.readSSHMessage(length: UInt32(bufferCopy.readableBytes))) {
+        switch try assertNoThrowWithValue(plaintext.readSSHMessage(length: UInt32(plaintext.readableBytes))) {
         case .newKeys:
             // good
             break
@@ -92,11 +93,12 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(bufferCopy, self.buffer)
 
         /// After decryption the plaintext should be a newKeys message.
-        XCTAssertNoThrow(try aes256Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy))
-        XCTAssertNotEqual(bufferCopy, self.buffer)
-        XCTAssertEqual(bufferCopy.readableBytes, 1)
+        var plaintext = try assertNoThrowWithValue(aes256Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy))
+        XCTAssertEqual(bufferCopy.readableBytes, 0)
+        XCTAssertNotEqual(plaintext, self.buffer)
+        XCTAssertEqual(plaintext.readableBytes, 1)
 
-        switch try assertNoThrowWithValue(bufferCopy.readSSHMessage(length: UInt32(bufferCopy.readableBytes))) {
+        switch try assertNoThrowWithValue(plaintext.readSSHMessage(length: UInt32(plaintext.readableBytes))) {
         case .newKeys:
             // good
             break

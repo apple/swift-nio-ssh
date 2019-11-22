@@ -81,9 +81,11 @@ protocol NIOSSHTransportProtection: AnyObject {
     ///
     /// This function will only be called once per call to `decryptFirstBlock`, and may not be
     /// called without a call to that. It is expected that this will decrypt the remaining data,
-    /// placing the result inline in `source`. It must also perform any integrity checking that
+    /// return the packet body (i.e. the part of the packet that is not the length, the padding
+    /// length, the padding, or the MAC), and update source to indicate the consumed bytes.
+    /// It must also perform any integrity checking that
     /// is required and throw if the integrity check fails.
-    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws
+    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws -> ByteBuffer
 
     /// Encrypt an entire outbound packet
     func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws

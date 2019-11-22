@@ -78,8 +78,8 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         return
     }
 
-    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws {
-        let plaintext: Data
+    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws -> ByteBuffer {
+        var plaintext: Data
 
         // Establish a nested scope here to avoid the byte buffer views causing an accidental CoW.
         do {
@@ -104,10 +104,13 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         }
 
         // Ok, we want to write the plaintext back into the buffer. This contains the padding length byte and the padding
-        // bytes, so we want to strip those.
-        source.clear()
-        source.writeBytes(plaintext)
-        try source.removePaddingBytes()
+        // bytes, so we want to strip those. We write back into the buffer and then slice the return value out because
+        // it's highly likely that the source buffer is held uniquely, which means we can avoid an allocation.
+        try plaintext.removePaddingBytes()
+        source.prependData(plaintext)
+
+        // This slice read must succeed, as we just wrote in that many bytes.
+        return source.readSlice(length: plaintext.count)!
     }
 
     func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws {
@@ -336,5 +339,35 @@ extension SSHAESGCMNonce: ContiguousBytes {
 extension SSHAESGCMNonce: DataProtocol {
     var regions: CollectionOfOne<SSHAESGCMNonce> {
         return .init(self)
+    }
+}
+
+
+extension ByteBuffer {
+    /// Prepends the given Data to this ByteBuffer.
+    ///
+    /// Will crash if there isn't space in the front of this buffer, so please ensure there is!
+    fileprivate mutating func prependData(_ data: Data) {
+        self.moveReaderIndex(to: self.readerIndex - data.count)
+        self.setBytes(data, at: self.readerIndex)
+    }
+}
+
+
+extension Data {
+    /// Removes the padding bytes from a Data object.
+    fileprivate mutating func removePaddingBytes() throws {
+        guard let paddingLength = self.first, paddingLength >= 4 else {
+            throw NIOSSHError.insufficientPadding
+        }
+
+        // We're going to slice out the content bytes. To do that, can simply find the end index of the content, and confirm it's
+        // not walked off the front of the buffer. If it has, there's too much padding and an error has occurred.
+        let contentStartIndex = self.index(after: self.startIndex)
+        guard let contentEndIndex = self.index(self.endIndex, offsetBy: -Int(paddingLength), limitedBy: contentStartIndex) else {
+            throw NIOSSHError.excessPadding
+        }
+
+        self = self[contentStartIndex..<contentEndIndex]
     }
 }

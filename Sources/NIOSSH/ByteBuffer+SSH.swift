@@ -222,22 +222,6 @@ extension ByteBuffer {
         return writtenLength
     }
 
-    /// Removes the padding bytes from a buffer.
-    ///
-    /// This operation assumes that the padding length byte is at the reader index, and the padding bytes
-    /// are the bytes immediately before the writer index.
-    mutating func removePaddingBytes() throws {
-        guard let paddingLength = self.readInteger(as: UInt8.self), paddingLength > 4 else {
-            throw NIOSSHError.insufficientPadding
-        }
-
-        guard paddingLength <= self.readableBytes else {
-            throw NIOSSHError.excessPadding
-        }
-
-        self.moveWriterIndex(to: self.writerIndex - Int(paddingLength))
-    }
-
     /// A helper block that will rewind the reader index when an error is encountered.
     mutating func rewindReaderOnError<T>(_ body: (inout ByteBuffer) throws -> T) rethrows -> T {
         let oldReaderIndex = self.readerIndex
