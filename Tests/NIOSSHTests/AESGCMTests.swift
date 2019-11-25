@@ -64,12 +64,12 @@ final class AESGCMTests: XCTestCase {
         XCTAssertNotEqual(plaintext, self.buffer)
         XCTAssertEqual(plaintext.readableBytes, 1)
 
-        switch try assertNoThrowWithValue(plaintext.readSSHMessage(length: UInt32(plaintext.readableBytes))) {
-        case .newKeys:
+        switch try assertNoThrowWithValue(plaintext.readSSHMessage()) {
+        case .some(.newKeys):
             // good
             break
         case let result:
-            XCTFail("Unexpected result of decryption: \(result)")
+            XCTFail("Unexpected result of decryption: \(String(describing: result))")
         }
     }
 
@@ -98,12 +98,12 @@ final class AESGCMTests: XCTestCase {
         XCTAssertNotEqual(plaintext, self.buffer)
         XCTAssertEqual(plaintext.readableBytes, 1)
 
-        switch try assertNoThrowWithValue(plaintext.readSSHMessage(length: UInt32(plaintext.readableBytes))) {
-        case .newKeys:
+        switch try assertNoThrowWithValue(plaintext.readSSHMessage()) {
+        case .some(.newKeys):
             // good
             break
         case let result:
-            XCTFail("Unexpected result of decryption: \(result)")
+            XCTFail("Unexpected result of decryption: \(String(describing: result))")
         }
     }
 

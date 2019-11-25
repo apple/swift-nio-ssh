@@ -56,7 +56,7 @@ struct SSHPacketParser {
             return nil
         case .cleartextWaitingForLength:
             if let length = self.buffer.getInteger(at: self.buffer.readerIndex, as: UInt32.self) {
-                if let message = try self.parse(length: length, macLength: 0) {
+                if let message = try self.parsePlaintext(length: length) {
                     self.state = .cleartextWaitingForLength
                     return message
                 }
@@ -65,7 +65,7 @@ struct SSHPacketParser {
             }
             return nil
         case .cleartextWaitingForBytes(let length):
-            if let message = try self.parse(length: length, macLength: 0) {
+            if let message = try self.parsePlaintext(length: length) {
                 self.state = .cleartextWaitingForLength
                 return message
             }
@@ -75,14 +75,14 @@ struct SSHPacketParser {
                 return nil
             }
 
-            if let message = try self.parse(length: length, macLength: 0) {
+            if let message = try self.parseCiphertext(length: length, protection: protection) {
                 self.state = .encryptedWaitingForLength(protection)
                 return message
             }
             self.state = .encryptedWaitingForBytes(length, protection)
             return nil
         case .encryptedWaitingForBytes(let length, let protection):
-            if let message = try self.parse(length: length, macLength: 0) {
+            if let message = try self.parseCiphertext(length: length, protection: protection) {
                 self.state = .cleartextWaitingForLength
                 return message
             }
@@ -112,35 +112,62 @@ struct SSHPacketParser {
         return self.buffer.getInteger(at: self.buffer.readerIndex)
     }
 
-    private mutating func parse(length: UInt32, macLength: Int) throws -> SSHMessage? {
-        guard self.buffer.readableBytes >= Int(length) + MemoryLayout<UInt32>.size else {
-            return nil
-        }
+    private mutating func parsePlaintext(length: UInt32) throws -> SSHMessage? {
+        return try buffer.rewindReaderOnError { buffer in
+            guard var buffer = buffer.readSlice(length: Int(length) + MemoryLayout<UInt32>.size) else {
+                return nil
+            }
 
-        return try self.buffer.rewindReaderOnError { buffer in
             // We have enough length. Skip over the frame length now.
             buffer.moveReaderIndex(forwardBy: MemoryLayout<UInt32>.size)
 
-            guard let padding = buffer.readInteger(as: UInt8.self) else {
-                throw ProtocolError.paddingLength
+            var content = try buffer.sliceContentFromPadding()
+            guard let message = try content.readSSHMessage(), content.readableBytes == 0, buffer.readableBytes == 0 else {
+                // Throw this error if the content wasn't exactly the right length for the message.
+                throw NIOSSHError.invalidPacketFormat
             }
-
-            let messageLength = length - UInt32(padding) - 1
-            let message = try buffer.readSSHMessage(length: messageLength)
-
-            guard let randomPadding = buffer.readBytes(length: Int(padding)) else {
-                throw ProtocolError.padding
-            }
-            // mute warning for now
-            precondition(randomPadding.count == padding)
-
-            guard let mac = buffer.readBytes(length: macLength) else {
-                throw ProtocolError.mac
-            }
-            // mute warning for now
-            precondition(mac.count == macLength)
 
             return message
         }
+    }
+
+    private mutating func parseCiphertext(length: UInt32, protection: NIOSSHTransportProtection) throws -> SSHMessage? {
+        return try buffer.rewindReaderOnError { buffer in
+            guard var buffer = buffer.readSlice(length: Int(length) + MemoryLayout<UInt32>.size) else {
+                return nil
+            }
+
+            var content = try protection.decryptAndVerifyRemainingPacket(&buffer)
+            guard let message = try content.readSSHMessage(), content.readableBytes == 0, buffer.readableBytes == 0 else {
+                // Throw this error if the content wasn't exactly the right length for the message.
+                throw NIOSSHError.invalidPacketFormat
+            }
+
+            return message
+        }
+    }
+}
+
+
+extension ByteBuffer {
+    /// Given a ByteBuffer that is exactly the size of a packet with padding (i.e. the padding byte is first),
+    /// slices out the part of the packet that is content and returns it, while moving the reader index over the entire
+    /// packet.
+    fileprivate mutating func sliceContentFromPadding() throws -> ByteBuffer {
+        guard let paddingLength = self.readInteger(as: UInt8.self) else {
+            throw NIOSSHError.insufficientPadding
+        }
+
+        guard let contentSlice = self.readSlice(length: self.readableBytes - Int(paddingLength)) else {
+            throw NIOSSHError.excessPadding
+        }
+
+        guard self.readerIndex + Int(paddingLength) == self.writerIndex else {
+            throw NIOSSHError.invalidPacketFormat
+        }
+
+        self.moveReaderIndex(forwardBy: Int(paddingLength))
+
+        return contentSlice
     }
 }

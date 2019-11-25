@@ -65,6 +65,8 @@ extension NIOSSHError {
     }
 
     internal static let invalidExchangeHashSignature = NIOSSHError(type: .invalidExchangeHashSignature, diagnostics: nil)
+
+    internal static let invalidPacketFormat = NIOSSHError(type: .invalidPacketFormat, diagnostics: nil)
 }
 
 
@@ -93,6 +95,7 @@ extension NIOSSHError {
             case unknownSignature
             case invalidDomainParametersForKey
             case invalidExchangeHashSignature
+            case invalidPacketFormat
         }
 
         private var base: Base
@@ -136,6 +139,9 @@ extension NIOSSHError {
 
         /// The signature over the exchange hash could not be validated.
         public static let invalidExchangeHashSignature: ErrorType = .init(.invalidExchangeHashSignature)
+
+        /// The packet format is invalid.
+        public static let invalidPacketFormat: ErrorType = .init(.invalidPacketFormat)
     }
 }
 

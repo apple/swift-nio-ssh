@@ -91,45 +91,45 @@ extension SSHMessage {
 }
 
 extension ByteBuffer {
-    mutating func readSSHMessage(length: UInt32) throws -> SSHMessage {
-        return try self.rewindReaderOnError { `self` in
-            guard var message = self.readSlice(length: Int(length)) else {
-                throw SSHMessage.ParsingError.incorrectFormat
-            }
-
-            guard let type = message.readInteger(as: UInt8.self) else {
-                throw SSHMessage.ParsingError.incorrectFormat
+    /// Read an SSHMessage from a ByteBuffer.
+    ///
+    /// This function will consume as many bytes as the message should require. If it cannot read enough bytes,
+    /// it will return nil.
+    mutating func readSSHMessage() throws -> SSHMessage? {
+        return try self.rewindOnNilOrError { `self` in
+            guard let type = self.readInteger(as: UInt8.self) else {
+                return nil
             }
 
             switch type {
             case SSHMessage.DisconnectMessage.id:
-                guard let message = message.readDisconnectMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readDisconnectMessage() else {
+                    return nil
                 }
                 return .disconnect(message)
             case SSHMessage.ServiceRequestMessage.id:
-                guard let message = message.readServiceRequestMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readServiceRequestMessage() else {
+                    return nil
                 }
                 return .serviceRequest(message)
             case SSHMessage.ServiceAcceptMessage.id:
-                guard let message = message.readServiceAcceptMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readServiceAcceptMessage() else {
+                    return nil
                 }
                 return .serviceAccept(message)
             case SSHMessage.KeyExchangeMessage.id:
-                guard let message = message.readKeyExchangeMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readKeyExchangeMessage() else {
+                    return nil
                 }
                 return .keyExchange(message)
             case SSHMessage.KeyExchangeECDHInitMessage.id:
-                guard let message = message.readKeyExchangeECDHInitMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readKeyExchangeECDHInitMessage() else {
+                    return nil
                 }
                 return .keyExchangeInit(message)
             case SSHMessage.KeyExchangeECDHReplyMessage.id:
-                guard let message = try message.readKeyExchangeECDHReplyMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = try self.readKeyExchangeECDHReplyMessage() else {
+                    return nil
                 }
                 return .keyExchangeReply(message)
             case 21:
