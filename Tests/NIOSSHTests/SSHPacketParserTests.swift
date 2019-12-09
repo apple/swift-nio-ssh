@@ -17,6 +17,23 @@ import NIO
 import XCTest
 
 final class SSHPacketParserTests: XCTestCase {
+    /// Feed the SSH version to a packet parser and verify the output.
+    ///
+    /// Usually used to set up an appropriate state.
+    private func feedVersion(to parser: inout SSHPacketParser, file: StaticString = #file, line: UInt = #line) {
+        var version = ByteBuffer.of(string: "SSH-2.0-OpenSSH_7.9\r\n")
+        parser.append(bytes: &version)
+
+        var packet: SSHMessage? = nil
+        XCTAssertNoThrow(packet = try parser.nextPacket(), file: file, line: line)
+
+        switch packet {
+        case .some(.version(let string)):
+            XCTAssertEqual(string, "SSH-2.0-OpenSSH_7.9", file: file, line: line)
+        default:
+            XCTFail("Expecting .version", file: file, line: line)
+        }
+    }
 
     func testReadVersion() throws {
         var parser = SSHPacketParser(allocator: ByteBufferAllocator())
@@ -39,16 +56,7 @@ final class SSHPacketParserTests: XCTestCase {
 
     func testBinaryInParts() throws {
         var parser = SSHPacketParser(allocator: ByteBufferAllocator())
-
-        var version = ByteBuffer.of(string: "SSH-2.0-OpenSSH_7.9\r\n")
-        parser.append(bytes: &version)
-
-        switch try parser.nextPacket() {
-        case .version(let string):
-            XCTAssertEqual(string, "SSH-2.0-OpenSSH_7.9")
-        default:
-            XCTFail("Expecting .version")
-        }
+        self.feedVersion(to: &parser)
 
         var part1 = ByteBuffer.of(bytes: [0, 0, 0])
         parser.append(bytes: &part1)
@@ -59,23 +67,9 @@ final class SSHPacketParserTests: XCTestCase {
         parser.append(bytes: &part2)
 
         XCTAssertNil(try parser.nextPacket())
-        switch parser.state {
-        case .cleartextWaitingForBytes(let length):
-            XCTAssertEqual(length, 28)
-        default:
-            XCTFail("Expecting .binaryWaitingForBytes")
-        }
-
         var part3 = ByteBuffer.of(bytes: [10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97])
         parser.append(bytes: &part3)
-
         XCTAssertNil(try parser.nextPacket())
-        switch parser.state {
-        case .cleartextWaitingForBytes(let length):
-            XCTAssertEqual(length, 28)
-        default:
-            XCTFail("Expecting .binaryWaitingForBytes")
-        }
 
         var part4 = ByteBuffer.of(bytes: [117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207])
         parser.append(bytes: &part4)
@@ -90,16 +84,7 @@ final class SSHPacketParserTests: XCTestCase {
 
     func testBinaryFull() throws {
         var parser = SSHPacketParser(allocator: ByteBufferAllocator())
-
-        var version = ByteBuffer.of(string: "SSH-2.0-OpenSSH_7.9\r\n")
-        parser.append(bytes: &version)
-
-        switch try parser.nextPacket() {
-        case .version(let string):
-            XCTAssertEqual(string, "SSH-2.0-OpenSSH_7.9")
-        default:
-            XCTFail("Expecting .version")
-        }
+        self.feedVersion(to: &parser)
 
         var part1 = ByteBuffer.of(bytes: [0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207])
         parser.append(bytes: &part1)
@@ -114,8 +99,7 @@ final class SSHPacketParserTests: XCTestCase {
 
     func testBinaryTwoMessages() throws {
         var parser = SSHPacketParser(allocator: ByteBufferAllocator())
-
-        parser.state = .cleartextWaitingForLength
+        self.feedVersion(to: &parser)
 
         var part = ByteBuffer.of(bytes: [0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207, 0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207])
         parser.append(bytes: &part)

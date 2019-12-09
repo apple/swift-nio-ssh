@@ -24,15 +24,8 @@ struct SSHPacketParser {
         case encryptedWaitingForBytes(UInt32, NIOSSHTransportProtection)
     }
 
-    enum ProtocolError: Error {
-        case cannotReadVersion
-        case paddingLength
-        case padding
-        case mac
-    }
-
-    var buffer: ByteBuffer
-    var state: State
+    private var buffer: ByteBuffer
+    private var state: State
 
     init(allocator: ByteBufferAllocator) {
         self.buffer = allocator.buffer(capacity: 0)
@@ -41,6 +34,18 @@ struct SSHPacketParser {
 
     mutating func append(bytes: inout ByteBuffer) {
         self.buffer.writeBuffer(&bytes)
+    }
+
+    /// Encryption schemes can be added to a packet parser whenever encryption is negotiated.
+    /// They must be added monotonically, and may only be added once, while the parser is in an
+    /// idle state.
+    mutating func addEncryption(_ protection: NIOSSHTransportProtection) {
+        switch self.state {
+        case .cleartextWaitingForLength:
+            self.state = .encryptedWaitingForLength(protection)
+        case .cleartextWaitingForBytes, .initialized, .encryptedWaitingForLength, .encryptedWaitingForBytes:
+            preconditionFailure("Adding encryption in invalid state: \(self.state)")
+        }
     }
 
     mutating func nextPacket() throws -> SSHMessage? {

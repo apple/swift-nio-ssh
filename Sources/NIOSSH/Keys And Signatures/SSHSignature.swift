@@ -21,7 +21,7 @@ import CryptoKit
 /// A representation of an SSH signature.
 ///
 /// NIOSSH supports only ECC-based signatures, either with ECDSA or Ed25519.
-internal struct SSHSignature {
+internal struct SSHSignature: Equatable {
     internal var backingSignature: BackingSignature
 
     internal init(backingSignature: BackingSignature) {
@@ -47,6 +47,37 @@ extension SSHSignature {
 
     /// The prefix of a P256 ECDSA public key.
     fileprivate static let ecdsaP256SignaturePrefix = "ecdsa-sha2-nistp256".utf8
+}
+
+
+extension SSHSignature.BackingSignature.RawBytes: Equatable {
+    static func ==(lhs: SSHSignature.BackingSignature.RawBytes, rhs: SSHSignature.BackingSignature.RawBytes) -> Bool {
+        switch (lhs, rhs) {
+        case (.byteBuffer(let lhs), .byteBuffer(let rhs)):
+            return lhs == rhs
+        case (.data(let lhs), .data(let rhs)):
+            return lhs == rhs
+        case (.byteBuffer(let lhs), .data(let rhs)):
+            return lhs.readableBytesView.elementsEqual(rhs)
+        case (.data(let lhs), .byteBuffer(let rhs)):
+            return rhs.readableBytesView.elementsEqual(lhs)
+        }
+    }
+}
+
+
+extension SSHSignature.BackingSignature: Equatable {
+    static func ==(lhs: SSHSignature.BackingSignature, rhs: SSHSignature.BackingSignature) -> Bool {
+        // We implement equatable in terms of the key representation.
+        switch (lhs, rhs) {
+        case (.ed25519(let lhs), .ed25519(let rhs)):
+            return lhs == rhs
+        case (.ecdsaP256(let lhs), .ecdsaP256(let rhs)):
+            return lhs.rawRepresentation == rhs.rawRepresentation
+        case (.ed25519, .ecdsaP256), (.ecdsaP256, .ed25519):
+            return false
+        }
+    }
 }
 
 

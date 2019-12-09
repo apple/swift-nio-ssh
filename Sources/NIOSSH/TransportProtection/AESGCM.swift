@@ -103,6 +103,9 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
             }
         }
 
+        // Don't forget to increment the inbound nonce.
+        self.inboundNonce.increment()
+
         // Ok, we want to write the plaintext back into the buffer. This contains the padding length byte and the padding
         // bytes, so we want to strip those. We write back into the buffer and then slice the return value out because
         // it's highly likely that the source buffer is held uniquely, which means we can avoid an allocation.

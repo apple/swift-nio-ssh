@@ -14,7 +14,7 @@
 
 import NIO
 
-enum SSHMessage {
+enum SSHMessage: Equatable {
     enum ParsingError: Error {
         case unknownType
         case incorrectFormat
@@ -31,7 +31,7 @@ enum SSHMessage {
 }
 
 extension SSHMessage {
-    struct DisconnectMessage {
+    struct DisconnectMessage: Equatable {
         static let id: UInt8 = 1
 
         var reason: UInt32
@@ -39,19 +39,19 @@ extension SSHMessage {
         var tag: ByteBuffer
     }
 
-    struct ServiceRequestMessage {
+    struct ServiceRequestMessage: Equatable {
         static let id: UInt8 = 5
 
         var service: ByteBuffer
     }
 
-    struct ServiceAcceptMessage {
+    struct ServiceAcceptMessage: Equatable {
         static let id: UInt8 = 6
 
         var service: ByteBuffer
     }
 
-    struct KeyExchangeMessage {
+    struct KeyExchangeMessage: Equatable {
         static let id: UInt8 = 20
 
         var cookie: ByteBuffer
@@ -68,7 +68,7 @@ extension SSHMessage {
     }
 
     // RFC 5656 § 4
-    struct KeyExchangeECDHInitMessage {
+    struct KeyExchangeECDHInitMessage: Equatable {
         // SSH_MSG_KEX_ECDH_INIT
         static let id: UInt8 = 30
 
@@ -77,7 +77,7 @@ extension SSHMessage {
     }
 
     // RFC 5656 § 4
-    struct KeyExchangeECDHReplyMessage {
+    struct KeyExchangeECDHReplyMessage: Equatable {
         // SSH_MSG_KEX_ECDH_REPLY
         static let id: UInt8 = 31
 

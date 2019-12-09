@@ -471,7 +471,7 @@ final class AESGCMTests: XCTestCase {
 
 
 extension Array where Element == UInt8 {
-    fileprivate init(randomBytes: Int) {
+    init(randomBytes: Int) {
         var rng = CSPRNG()
         self = (0..<randomBytes).map { _ in rng.next() }
     }
