@@ -16,8 +16,23 @@
 /// The role of a given party in an SSH connection.
 enum SSHConnectionRole {
     case client
-    case server
+    case server(NIOSSHHostPrivateKey)
+
+    var isClient: Bool {
+        switch self {
+        case .client:
+            return true
+        case .server:
+            return false
+        }
+    }
+
+    var isServer: Bool {
+        switch self {
+        case .client:
+            return false
+        case .server:
+            return true
+        }
+    }
 }
-
-
-extension SSHConnectionRole: Hashable { }

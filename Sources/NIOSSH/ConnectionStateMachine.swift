@@ -38,7 +38,8 @@ struct ConnectionStateMachine {
         case .banner:
             switch message {
             case .version(let version):
-                var exchange = SSHKeyExchangeStateMachine(allocator: context.channel.allocator)
+                var exchange = SSHKeyExchangeStateMachine(allocator: context.channel.allocator, role: .client)
+                _ = try exchange.start()
                 let message = try exchange.handle(version: version)
 
                 self.state = .keyExchange(exchange)
