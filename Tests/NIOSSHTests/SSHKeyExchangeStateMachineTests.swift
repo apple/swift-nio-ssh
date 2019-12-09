@@ -96,8 +96,10 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             throw SSHKeyExchangeStateMachine.SSHKeyExchangeError.unexpectedMessage
         }
 
-        _ = try server.newKeys()
-        _ = try client.newKeys()
+        let clients = try server.newKeys()
+        let servers = try client.newKeys()
+
+        XCTAssertEqual(clients.keys, servers.keys.inverted)
     }
 
     func testVersionValidation() throws {
