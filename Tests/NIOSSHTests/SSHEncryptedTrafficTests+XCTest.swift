@@ -30,6 +30,7 @@ extension SSHEncryptedTrafficTests {
                 ("testBasicExchangeAES256", testBasicExchangeAES256),
                 ("testRejectsCorruptedPacket", testRejectsCorruptedPacket),
                 ("testRejectsIncompatibleKeys", testRejectsIncompatibleKeys),
+                ("testSamplePacketFromTesting", testSamplePacketFromTesting),
            ]
    }
 }

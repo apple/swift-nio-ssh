@@ -114,7 +114,9 @@ struct SSHPacketParser {
         }
 
         try protection.decryptFirstBlock(&self.buffer)
-        return self.buffer.getInteger(at: self.buffer.readerIndex)
+
+        // This force unwrap is safe because we must have a block size, and a block size is always going to be more than 4 bytes.
+        return self.buffer.getInteger(at: self.buffer.readerIndex)! + UInt32(protection.macBytes)
     }
 
     private mutating func parsePlaintext(length: UInt32) throws -> SSHMessage? {

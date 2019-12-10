@@ -99,6 +99,27 @@ final class SSHEncryptedTrafficTests: XCTestCase {
 
 
     }
+
+    func testSamplePacketFromTesting() throws {
+        // This is a regression test from an early example that caused us some wrinkles.
+        let keys = NIOSSHSessionKeys(initialInboundIV: [178, 178, 37, 48, 59, 189, 228, 147, 215, 24, 162, 20],
+                                     initialOutboundIV: [156, 13, 118, 91, 255, 77, 47, 189, 62, 32, 93, 62],
+                                     inboundEncryptionKey: .init(data: [241, 99, 181, 233, 148, 184, 187, 134, 80, 195, 18, 18, 218, 44, 118, 219, 120, 69, 225, 63, 105, 179, 131, 204, 156, 172, 105, 142, 12, 75, 148, 88]),
+                                     outboundEncryptionKey: .init(data: [109, 86, 219, 88, 84, 20, 197, 13, 74, 19, 120, 17, 95, 59, 25, 181, 12, 237, 109, 51, 239, 86, 169, 53, 85, 35, 162, 88, 215, 199, 219, 82]),
+                                     inboundMACKey: .init(size: .bits128), outboundMACKey: .init(size: .bits128))
+        let protection = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys))
+
+        self.parser.addEncryption(protection)
+
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        buffer.writeBytes([0, 0, 0, 32, 49, 46, 121, 14, 95, 220, 77, 39, 178, 59, 26, 135, 163, 154, 166, 208, 209, 96, 3, 190, 205, 76, 105, 53, 20, 127, 211, 176, 54, 205, 52, 39, 30, 255, 128, 181, 87, 183, 49, 153, 6, 179, 118, 188, 204, 186, 249, 175])
+
+        self.parser.append(bytes: &buffer)
+        let packet = try assertNoThrowWithValue(self.parser.nextPacket())
+
+        // The packet is temporarily nil because we don't understand it, but we will.
+        XCTAssertEqual(packet, .serviceRequest(.init(service: ByteBuffer.of(string: "ssh-userauth"))))
+    }
 }
 
 

@@ -60,6 +60,10 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         return 16
     }
 
+    var macBytes: Int {
+        return 16
+    }
+
     func updateKeys(_ newKeys: NIOSSHSessionKeys) throws {
         guard newKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 &&
               newKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
@@ -152,9 +156,9 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         encryptedBufferSize += outboundBuffer.writeSSHPaddingBytes(count: necessaryPaddingBytes)
         precondition(encryptedBufferSize % Self.cipherBlockSize == 0, "Incorrectly counted buffer size; got \(encryptedBufferSize)")
 
-        // We now know the length: it's going to be "encrypted buffer size" + the size of the tag, which in this case must be 16 bytes.
+        // We now know the length: it's going to be "encrypted buffer size". The length does not include the tag, so don't add it.
         // Let's write that in. We also need to write the number of padding bytes in.
-        outboundBuffer.setInteger(UInt32(encryptedBufferSize + 16), at: packetLengthIndex)
+        outboundBuffer.setInteger(UInt32(encryptedBufferSize), at: packetLengthIndex)
         outboundBuffer.setInteger(UInt8(necessaryPaddingBytes), at: packetPaddingIndex)
 
         // Ok, nice! Now we need to encrypt the data. We pass the length field as additional authenticated data, and the encrypted
@@ -171,7 +175,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         // tag.
         outboundBuffer.setBytes(sealedBox.ciphertext, at: packetPaddingIndex)
         let tagLength = outboundBuffer.writeBytes(sealedBox.tag)
-        precondition(tagLength == 16, "Unexpected short tag")
+        precondition(tagLength == self.macBytes, "Unexpected short tag")
 
         // Now we increment the Nonce for the next use, and then we're done!
         self.outboundNonce.increment()
