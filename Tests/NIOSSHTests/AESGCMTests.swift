@@ -47,8 +47,9 @@ final class AESGCMTests: XCTestCase {
 
         // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
         // 14 padding bytes: one byte for the padding length, then 14 more to get out to one block size. Thus, the total
-        // length of the result buffer should be 36 bytes: 4 bytes of length, 16 bytes of ciphertext, 16 bytes of tag.
-        XCTAssertEqual(self.buffer.getInteger(at: 0, as: UInt32.self), 32)
+        // length of the result buffer should be 36 bytes: 4 bytes of length, 16 bytes of ciphertext, 16 bytes of tag, but
+        // the length field will only be 16, as it excludes the tag and length field.
+        XCTAssertEqual(self.buffer.getInteger(at: 0, as: UInt32.self), 16)
         XCTAssertEqual(self.buffer.readableBytes, 36)
 
         // We should be able to decrypt this now.
@@ -81,8 +82,9 @@ final class AESGCMTests: XCTestCase {
 
         // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
         // 14 padding bytes: one byte for the padding length, then 14 more to get out to one block size. Thus, the total
-        // length of the result buffer should be 36 bytes: 4 bytes of length, 16 bytes of ciphertext, 16 bytes of tag.
-        XCTAssertEqual(self.buffer.getInteger(at: 0, as: UInt32.self), 32)
+        // length of the result buffer should be 36 bytes: 4 bytes of length, 16 bytes of ciphertext, 16 bytes of tag, but
+        // the length field will only be 16, as it excludes the tag and length field.
+        XCTAssertEqual(self.buffer.getInteger(at: 0, as: UInt32.self), 16)
         XCTAssertEqual(self.buffer.readableBytes, 36)
 
         // We should be able to decrypt this now.

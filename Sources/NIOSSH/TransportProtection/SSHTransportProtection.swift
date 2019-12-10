@@ -59,6 +59,9 @@ protocol NIOSSHTransportProtection: AnyObject {
     /// The key sizes required for this protection scheme.
     static var keySizes: ExpectedKeySizes { get }
 
+    /// The number of bytes consumed by the MAC
+    var macBytes: Int { get }
+
     /// Create a new instance of this transport protection scheme with the given keys.
     init(initialKeys: NIOSSHSessionKeys) throws
 
