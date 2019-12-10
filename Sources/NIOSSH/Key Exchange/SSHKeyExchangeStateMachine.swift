@@ -18,56 +18,38 @@ struct SSHKeyExchangeStateMachine {
     enum SSHKeyExchangeError: Error {
         case unexpectedMessage
         case inconsistentState
-        case unsupportedVersion
     }
 
     enum State {
         case idle
-        case version
         case keyExchange
         case keyExchangeInit
         case newKeys(KeyExchangeResult)
     }
 
+    static let version = "SSH-2.0-SwiftNIOSSH_1.0"
+
     private let allocator: ByteBufferAllocator
     private let role: SSHConnectionRole
     private var exhange: Curve25519KeyExchange
-    private var state: State = .idle
+    private var state: State
     private var initialExchangeBytes: ByteBuffer
 
-    init(allocator: ByteBufferAllocator, role: SSHConnectionRole) {
+    init(allocator: ByteBufferAllocator, role: SSHConnectionRole, remoteVersion: String) {
         self.allocator = allocator
         self.role = role
         self.initialExchangeBytes = allocator.buffer(capacity: 1024)
         self.exhange = Curve25519KeyExchange(ourRole: role, previousSessionIdentifier: nil)
-    }
 
-    mutating func start() throws -> SSHMessage? {
-        switch self.state {
-        case .idle:
-            switch self.role {
-            case .client:
-                self.initialExchangeBytes.writeSSHString("SSH-2.0-SwiftNIOSSH_1.0".utf8)
-                self.state = .version
-                return nil
-            case .server:
-                let message = SSHMessage.version("SSH-2.0-SwiftNIOSSH_1.0")
-                self.state = .version
-                return message
-            }
-        case .version, .keyExchange, .keyExchangeInit, .newKeys:
-            throw SSHKeyExchangeError.inconsistentState
-        }
-    }
-
-    private func validateVersion(_ version: String) throws {
-        guard version.count > 7, version.hasPrefix("SSH-") else {
-            throw SSHKeyExchangeError.unsupportedVersion
-        }
-        let start = version.index(version.startIndex, offsetBy: 4)
-        let end = version.index(start, offsetBy: 3)
-        guard version[start..<end] == "2.0" else {
-            throw SSHKeyExchangeError.unsupportedVersion
+        switch self.role {
+        case .client:
+            self.initialExchangeBytes.writeSSHString(SSHKeyExchangeStateMachine.version.utf8)
+            self.initialExchangeBytes.writeSSHString(remoteVersion.utf8)
+            self.state = .idle
+        case .server:
+            self.initialExchangeBytes.writeSSHString(remoteVersion.utf8)
+            self.initialExchangeBytes.writeSSHString(SSHKeyExchangeStateMachine.version.utf8)
+            self.state = .keyExchange
         }
     }
 
@@ -91,15 +73,11 @@ struct SSHKeyExchangeStateMachine {
         ))
     }
 
-    mutating func handle(version: String) throws -> SSHMessage? {
+    mutating func startKeyExchange() throws -> SSHMessage {
         switch self.state {
-        case .version:
+        case .idle:
             switch self.role {
             case .client:
-                try validateVersion(version)
-
-                self.initialExchangeBytes.writeSSHString(version.utf8)
-
                 let message = createKeyExchangeMessage()
 
                 self.initialExchangeBytes.writeCompositeSSHString { buffer in
@@ -109,15 +87,9 @@ struct SSHKeyExchangeStateMachine {
                 self.state = .keyExchange
                 return message
             case .server:
-                try validateVersion(version)
-
-                self.initialExchangeBytes.writeSSHString(version.utf8)
-                self.initialExchangeBytes.writeSSHString("SSH-2.0-SwiftNIOSSH_1.0".utf8)
-
-                self.state = .keyExchange
-                return nil
+                throw SSHKeyExchangeError.inconsistentState
             }
-        case .idle, .keyExchange, .keyExchangeInit, .newKeys:
+        case .keyExchange, .keyExchangeInit, .newKeys:
             throw SSHKeyExchangeError.unexpectedMessage
         }
     }
@@ -153,7 +125,7 @@ struct SSHKeyExchangeStateMachine {
 
                 return message
             }
-        case .idle, .version, .keyExchangeInit, .newKeys:
+        case .idle, .keyExchangeInit, .newKeys:
             throw SSHKeyExchangeError.unexpectedMessage
         }
     }
@@ -176,7 +148,7 @@ struct SSHKeyExchangeStateMachine {
 
                 return message
             }
-        case .idle, .version, .keyExchange, .newKeys:
+        case .idle, .keyExchange, .newKeys:
             throw SSHKeyExchangeError.unexpectedMessage
         }
     }
@@ -200,7 +172,7 @@ struct SSHKeyExchangeStateMachine {
             case .server:
                 throw SSHKeyExchangeError.unexpectedMessage
             }
-        case .idle, .version, .keyExchange, .newKeys:
+        case .idle, .keyExchange, .newKeys:
             throw SSHKeyExchangeError.unexpectedMessage
         }
     }
@@ -209,7 +181,7 @@ struct SSHKeyExchangeStateMachine {
         switch self.state {
         case .newKeys(let result):
             return result
-        case .idle, .version, .keyExchange, .keyExchangeInit:
+        case .idle, .keyExchange, .keyExchangeInit:
             throw SSHKeyExchangeError.unexpectedMessage
         }
     }

@@ -21,28 +21,11 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
     func testKeyExchange() throws {
         let allocator = ByteBufferAllocator()
 
-        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client)
-        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(ed25519Key: .init())))
+        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: SSHKeyExchangeStateMachine.version)
+        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(ed25519Key: .init())), remoteVersion: SSHKeyExchangeStateMachine.version)
 
-        XCTAssertThrowsError(try client.handle(version: "SSH-2.0-SwiftNIOSSH_1.0"))
-        XCTAssertThrowsError(try server.handle(version: "SSH-2.0-SwiftNIOSSH_1.0"))
-
-        var message = try server.start()
-        XCTAssertNil(try client.start())
-
-        XCTAssertThrowsError(try client.start())
-        XCTAssertThrowsError(try server.start())
-
-        let version: String
-        switch message {
-        case .version(let v):
-            version = v
-        default:
-            throw SSHKeyExchangeStateMachine.SSHKeyExchangeError.unexpectedMessage
-        }
-
-        XCTAssertNil(try server.handle(version: "SSH-2.0-SwiftNIOSSH_1.0"))
-        message = try client.handle(version: version)
+        XCTAssertThrowsError(try server.startKeyExchange())
+        var message = try client.startKeyExchange()
 
         var keyExchange: SSHMessage.KeyExchangeMessage
         switch message {
@@ -100,21 +83,5 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let servers = try client.newKeys()
 
         XCTAssertEqual(clients.keys, servers.keys.inverted)
-    }
-
-    func testVersionValidation() throws {
-        let allocator = ByteBufferAllocator()
-
-        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client)
-        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(ed25519Key: .init())))
-
-        _ = try client.start()
-        _ = try server.start()
-
-        XCTAssertThrowsError(try client.handle(version: "BAD"))
-        XCTAssertThrowsError(try server.handle(version: "BAD"))
-
-        XCTAssertThrowsError(try client.handle(version: "SSH-1.9-SwiftNIOSSH_1.0"))
-        XCTAssertThrowsError(try server.handle(version: "SSH-1.9-SwiftNIOSSH_1.0"))
     }
 }
