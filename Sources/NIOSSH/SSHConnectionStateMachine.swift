@@ -60,12 +60,13 @@ struct SSHConnectionStateMachine {
             case .version(let version):
                 var exchange = SSHKeyExchangeStateMachine(allocator: context.channel.allocator, role: self.role, remoteVersion: version)
 
-                self.state = .keyExchange(exchange)
-
                 switch self.role {
                 case .client:
-                    return try exchange.startKeyExchange()
+                    let message = try exchange.startKeyExchange()
+                    self.state = .keyExchange(exchange)
+                    return message
                 case .server:
+                    self.state = .keyExchange(exchange)
                     return nil
                 }
             default:
