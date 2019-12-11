@@ -37,7 +37,7 @@ extension Curve25519KeyExchange {
     ///
     /// For now, we just return the ByteBuffer containing the SSH string.
     func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage {
-        precondition(self.ourRole == .client, "Only clients may initiate the client side key exchange!")
+        precondition(self.ourRole.isClient, "Only clients may initiate the client side key exchange!")
 
         // The Curve25519 public key string size is 32 bytes.
         var buffer = allocator.buffer(capacity: 32)
@@ -59,7 +59,7 @@ extension Curve25519KeyExchange {
                                                 initialExchangeBytes: inout ByteBuffer,
                                                 allocator: ByteBufferAllocator,
                                                 expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage) {
-        precondition(self.ourRole == .server, "Only servers may receive a client key exchange packet!")
+        precondition(self.ourRole.isServer, "Only servers may receive a client key exchange packet!")
 
         // With that, we have enough to finalize the key exchange.
         let kexResult = try self.finalizeKeyExchange(theirKeyBytes: message.publicKey,
@@ -97,7 +97,7 @@ extension Curve25519KeyExchange {
                                                   initialExchangeBytes: inout ByteBuffer,
                                                   allocator: ByteBufferAllocator,
                                                   expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult {
-        precondition(self.ourRole == .client, "Only clients may receive a server key exchange packet!")
+        precondition(self.ourRole.isClient, "Only clients may receive a server key exchange packet!")
 
         // Ok, we have a few steps here. Firstly, we need to extract the server's public key and generate our shared
         // secret. Then we need to validate that we didn't generate a weak shared secret (possible under some cases),
