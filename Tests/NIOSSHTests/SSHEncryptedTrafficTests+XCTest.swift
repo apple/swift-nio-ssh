@@ -28,6 +28,8 @@ extension SSHEncryptedTrafficTests {
       return [
                 ("testBasicEncryptedPacketExchange", testBasicEncryptedPacketExchange),
                 ("testBasicExchangeAES256", testBasicExchangeAES256),
+                ("testDripFeedAES128", testDripFeedAES128),
+                ("testDripFeedAES256", testDripFeedAES256),
                 ("testRejectsCorruptedPacket", testRejectsCorruptedPacket),
                 ("testRejectsIncompatibleKeys", testRejectsIncompatibleKeys),
                 ("testSamplePacketFromTesting", testSamplePacketFromTesting),
