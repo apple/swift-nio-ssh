@@ -42,9 +42,30 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         self.parser.append(bytes: &self.buffer)
 
         var packet: SSHMessage? = nil
-        XCTAssertNoThrow(packet = try self.parser.nextPacket())
-        XCTAssertEqual(packet, message)
-        XCTAssertNil(try self.parser.nextPacket())
+        XCTAssertNoThrow(packet = try self.parser.nextPacket(), file: file, line: line)
+        XCTAssertEqual(packet, message, file: file, line: line)
+        XCTAssertNoThrow(XCTAssertNil(try self.parser.nextPacket(), file: file, line: line), file: file, line: line)
+    }
+
+    private func assertPacketRoundTripsDripFed(_ message: SSHMessage, file: StaticString = #file, line: UInt = #line) {
+        self.buffer.clear()
+        XCTAssertNoThrow(try self.serializer.serialize(message: message, to: &self.buffer), file: file, line: line)
+
+        var packet: SSHMessage? = nil
+        while var slice = self.buffer.readSlice(length: 1) {
+            self.parser.append(bytes: &slice)
+            XCTAssertNoThrow(packet = try self.parser.nextPacket(), file: file, line: line)
+
+            if self.buffer.readableBytes > 0 {
+                // More to come.
+                XCTAssertNil(packet, file: file, line: line)
+            } else {
+                // Last one!
+                XCTAssertEqual(packet, message, file: file, line: line)
+            }
+        }
+
+        XCTAssertNoThrow(XCTAssertNil(try self.parser.nextPacket(), file: file, line: line), file: file, line: line)
     }
 
     private func assertPacketErrors(_ message: SSHMessage, file: StaticString = #file, line: UInt = #line) {
@@ -75,6 +96,18 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         self.assertPacketRoundTrips(.serviceAccept(.init(service: ByteBuffer.of(string: "some service"))))
     }
 
+    func testDripFeedAES128() {
+        self.protect(.aes128)
+        self.assertPacketRoundTripsDripFed(.serviceRequest(.init(service: ByteBuffer.of(string: "some service"))))
+        self.assertPacketRoundTripsDripFed(.serviceAccept(.init(service: ByteBuffer.of(string: "some service"))))
+    }
+
+    func testDripFeedAES256() {
+        self.protect(.aes256)
+        self.assertPacketRoundTripsDripFed(.serviceRequest(.init(service: ByteBuffer.of(string: "some service"))))
+        self.assertPacketRoundTripsDripFed(.serviceAccept(.init(service: ByteBuffer.of(string: "some service"))))
+    }
+
     func testRejectsCorruptedPacket() {
         self.protect(.aes128)
         self.buffer.clear()
@@ -86,9 +119,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         self.buffer.setInteger(currentValue ^ 0xff, at: index)  // Flip every bit
         self.parser.append(bytes: &self.buffer)
 
-        XCTAssertThrowsError(try self.parser.nextPacket()) { error in
-            print(error)
-        }
+        XCTAssertThrowsError(try self.parser.nextPacket())
     }
 
     func testRejectsIncompatibleKeys() {
@@ -97,7 +128,10 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         self.serializer.addEncryption(clientProtection)
         self.parser.addEncryption(serverProtection)
 
+        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: ByteBuffer.of(string: "some service"))), to: &self.buffer))
+        self.parser.append(bytes: &self.buffer)
 
+        XCTAssertThrowsError(try self.parser.nextPacket())
     }
 
     func testSamplePacketFromTesting() throws {

@@ -88,7 +88,7 @@ struct SSHPacketParser {
             return nil
         case .encryptedWaitingForBytes(let length, let protection):
             if let message = try self.parseCiphertext(length: length, protection: protection) {
-                self.state = .cleartextWaitingForLength
+                self.state = .encryptedWaitingForLength(protection)
                 return message
             }
             return nil
