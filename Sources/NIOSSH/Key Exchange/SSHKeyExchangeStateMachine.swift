@@ -27,8 +27,6 @@ struct SSHKeyExchangeStateMachine {
         case newKeys(KeyExchangeResult)
     }
 
-    static let version = "SSH-2.0-SwiftNIOSSH_1.0"
-
     private let allocator: ByteBufferAllocator
     private let role: SSHConnectionRole
     private var exhange: Curve25519KeyExchange
@@ -43,12 +41,12 @@ struct SSHKeyExchangeStateMachine {
 
         switch self.role {
         case .client:
-            self.initialExchangeBytes.writeSSHString(SSHKeyExchangeStateMachine.version.utf8)
+            self.initialExchangeBytes.writeSSHString(Constants.version.utf8)
             self.initialExchangeBytes.writeSSHString(remoteVersion.utf8)
             self.state = .idle
         case .server:
             self.initialExchangeBytes.writeSSHString(remoteVersion.utf8)
-            self.initialExchangeBytes.writeSSHString(SSHKeyExchangeStateMachine.version.utf8)
+            self.initialExchangeBytes.writeSSHString(Constants.version.utf8)
             self.state = .keyExchange
         }
     }

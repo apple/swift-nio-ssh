@@ -21,8 +21,8 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
     func testKeyExchange() throws {
         let allocator = ByteBufferAllocator()
 
-        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: SSHKeyExchangeStateMachine.version)
-        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(ed25519Key: .init())), remoteVersion: SSHKeyExchangeStateMachine.version)
+        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: Constants.version)
+        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(ed25519Key: .init())), remoteVersion: Constants.version)
 
         XCTAssertThrowsError(try server.startKeyExchange())
         var message = try client.startKeyExchange()
