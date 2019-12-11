@@ -14,7 +14,7 @@
 
 import NIO
 
-enum SSHMessage {
+enum SSHMessage: Equatable {
     enum ParsingError: Error {
         case unknownType
         case incorrectFormat
@@ -31,7 +31,7 @@ enum SSHMessage {
 }
 
 extension SSHMessage {
-    struct DisconnectMessage {
+    struct DisconnectMessage: Equatable {
         static let id: UInt8 = 1
 
         var reason: UInt32
@@ -39,19 +39,19 @@ extension SSHMessage {
         var tag: ByteBuffer
     }
 
-    struct ServiceRequestMessage {
+    struct ServiceRequestMessage: Equatable {
         static let id: UInt8 = 5
 
         var service: ByteBuffer
     }
 
-    struct ServiceAcceptMessage {
+    struct ServiceAcceptMessage: Equatable {
         static let id: UInt8 = 6
 
         var service: ByteBuffer
     }
 
-    struct KeyExchangeMessage {
+    struct KeyExchangeMessage: Equatable {
         static let id: UInt8 = 20
 
         var cookie: ByteBuffer
@@ -68,7 +68,7 @@ extension SSHMessage {
     }
 
     // RFC 5656 § 4
-    struct KeyExchangeECDHInitMessage {
+    struct KeyExchangeECDHInitMessage: Equatable {
         // SSH_MSG_KEX_ECDH_INIT
         static let id: UInt8 = 30
 
@@ -77,7 +77,7 @@ extension SSHMessage {
     }
 
     // RFC 5656 § 4
-    struct KeyExchangeECDHReplyMessage {
+    struct KeyExchangeECDHReplyMessage: Equatable {
         // SSH_MSG_KEX_ECDH_REPLY
         static let id: UInt8 = 31
 
@@ -91,45 +91,45 @@ extension SSHMessage {
 }
 
 extension ByteBuffer {
-    mutating func readSSHMessage(length: UInt32) throws -> SSHMessage {
-        return try self.rewindReaderOnError { `self` in
-            guard var message = self.readSlice(length: Int(length)) else {
-                throw SSHMessage.ParsingError.incorrectFormat
-            }
-
-            guard let type = message.readInteger(as: UInt8.self) else {
-                throw SSHMessage.ParsingError.incorrectFormat
+    /// Read an SSHMessage from a ByteBuffer.
+    ///
+    /// This function will consume as many bytes as the message should require. If it cannot read enough bytes,
+    /// it will return nil.
+    mutating func readSSHMessage() throws -> SSHMessage? {
+        return try self.rewindOnNilOrError { `self` in
+            guard let type = self.readInteger(as: UInt8.self) else {
+                return nil
             }
 
             switch type {
             case SSHMessage.DisconnectMessage.id:
-                guard let message = message.readDisconnectMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readDisconnectMessage() else {
+                    return nil
                 }
                 return .disconnect(message)
             case SSHMessage.ServiceRequestMessage.id:
-                guard let message = message.readServiceRequestMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readServiceRequestMessage() else {
+                    return nil
                 }
                 return .serviceRequest(message)
             case SSHMessage.ServiceAcceptMessage.id:
-                guard let message = message.readServiceAcceptMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readServiceAcceptMessage() else {
+                    return nil
                 }
                 return .serviceAccept(message)
             case SSHMessage.KeyExchangeMessage.id:
-                guard let message = message.readKeyExchangeMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readKeyExchangeMessage() else {
+                    return nil
                 }
                 return .keyExchange(message)
             case SSHMessage.KeyExchangeECDHInitMessage.id:
-                guard let message = message.readKeyExchangeECDHInitMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = self.readKeyExchangeECDHInitMessage() else {
+                    return nil
                 }
                 return .keyExchangeInit(message)
             case SSHMessage.KeyExchangeECDHReplyMessage.id:
-                guard let message = try message.readKeyExchangeECDHReplyMessage() else {
-                    throw SSHMessage.ParsingError.incorrectFormat
+                guard let message = try self.readKeyExchangeECDHReplyMessage() else {
+                    return nil
                 }
                 return .keyExchangeReply(message)
             case 21:

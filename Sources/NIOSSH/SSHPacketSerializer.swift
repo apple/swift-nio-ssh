@@ -21,15 +21,26 @@ struct SSHPacketSerializer {
         case encrypted(NIOSSHTransportProtection)
     }
 
-    var state: State = .initialized
-    var padding: Int = 8
+    private var state: State = .initialized
 
-    func serialize(message: SSHMessage, to buffer: inout ByteBuffer) {
+    /// Encryption schemes can be added to a packet serializer whenever encryption is negotiated.
+    /// They may only be added once, while the serializer is in an idle state.
+    mutating func addEncryption(_ protection: NIOSSHTransportProtection) {
+        switch self.state {
+        case .cleartext:
+            self.state = .encrypted(protection)
+        case .initialized, .encrypted:
+            preconditionFailure("Adding encryption in invalid state: \(self.state)")
+        }
+    }
+
+    mutating func serialize(message: SSHMessage, to buffer: inout ByteBuffer) throws {
         switch self.state {
         case .initialized:
             switch message {
             case .version:
                 buffer.writeSSHMessage(message)
+                self.state = .cleartext
             default:
                 preconditionFailure("only .version message is allowed at this point")
             }
@@ -64,8 +75,8 @@ struct SSHPacketSerializer {
             /// random padding
             buffer.writeSSHPaddingBytes(count: paddingLength)
         case .encrypted(let protection):
-            //protection.encryptPacket()
-            preconditionFailure("Not implemented")
+            let payload = NIOSSHEncryptablePayload(message: message)
+            try protection.encryptPacket(payload, to: &buffer)
         }
     }
 }

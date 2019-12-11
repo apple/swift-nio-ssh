@@ -59,8 +59,11 @@ protocol NIOSSHTransportProtection: AnyObject {
     /// The key sizes required for this protection scheme.
     static var keySizes: ExpectedKeySizes { get }
 
+    /// The number of bytes consumed by the MAC
+    var macBytes: Int { get }
+
     /// Create a new instance of this transport protection scheme with the given keys.
-    init(initialKeys: NIOSSHSessionKeys, allocator: ByteBufferAllocator) throws
+    init(initialKeys: NIOSSHSessionKeys) throws
 
     /// A rekey has occurred and the encryption keys need to be changed.
     func updateKeys(_ newKeys: NIOSSHSessionKeys) throws
@@ -81,10 +84,21 @@ protocol NIOSSHTransportProtection: AnyObject {
     ///
     /// This function will only be called once per call to `decryptFirstBlock`, and may not be
     /// called without a call to that. It is expected that this will decrypt the remaining data,
-    /// placing the result inline in `source`. It must also perform any integrity checking that
+    /// return the packet body (i.e. the part of the packet that is not the length, the padding
+    /// length, the padding, or the MAC), and update source to indicate the consumed bytes.
+    /// It must also perform any integrity checking that
     /// is required and throw if the integrity check fails.
-    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws
+    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws -> ByteBuffer
 
     /// Encrypt an entire outbound packet
-    func encryptPacket(_ packet: NIOSSHEncryptablePayload) throws -> ByteBuffer
+    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws
+}
+
+
+extension NIOSSHTransportProtection {
+    /// Obtains the block size for this specific instantiated cipher.
+    var cipherBlockSize: Int {
+        // We just delegate to the static.
+        return Self.cipherBlockSize
+    }
 }

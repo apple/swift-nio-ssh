@@ -21,7 +21,7 @@ import CryptoKit
 /// and is also presented to clients that want to validate that they are communicating with the appropriate server.
 ///
 /// This public key is not capable of signing, only of verifying.
-internal struct NIOSSHHostPublicKey {
+internal struct NIOSSHHostPublicKey: Equatable {
     /// The actual key structure used to perform the key operations.
     internal var backingKey: BackingKey
 
@@ -66,6 +66,21 @@ extension NIOSSHHostPublicKey {
 
     /// The prefix of a P256 ECDSA public key.
     fileprivate static let ecdsaP256PublicKeyPrefix = "ecdsa-sha2-nistp256".utf8
+}
+
+
+extension NIOSSHHostPublicKey.BackingKey: Equatable {
+    static func ==(lhs: NIOSSHHostPublicKey.BackingKey, rhs: NIOSSHHostPublicKey.BackingKey) -> Bool {
+        // We implement equatable in terms of the key representation.
+        switch (lhs, rhs) {
+        case (.ed25519(let lhs), .ed25519(let rhs)):
+            return lhs.rawRepresentation == rhs.rawRepresentation
+        case (.ecdsaP256(let lhs), .ecdsaP256(let rhs)):
+            return lhs.rawRepresentation == rhs.rawRepresentation
+        case (.ed25519, .ecdsaP256), (.ecdsaP256, .ed25519):
+            return false
+        }
+    }
 }
 
 
