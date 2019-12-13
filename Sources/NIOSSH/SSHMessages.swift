@@ -84,6 +84,10 @@ extension SSHMessage {
         var languagesServerToClient: [Substring]
     }
 
+    enum NewKeysMessage {
+        static let id: UInt8 = 21
+    }
+
     // RFC 5656 § 4
     struct KeyExchangeECDHInitMessage: Equatable {
         // SSH_MSG_KEX_ECDH_INIT
@@ -128,12 +132,17 @@ extension SSHMessage {
         var partialSuccess: Bool
     }
 
+    enum UserAuthSuccessMessage {
+        static let id: UInt8 = 52
+    }
+
     struct GlobalRequestMessage: Equatable {
         // SSH_MSG_GLOBAL_REQUEST
         static let id: UInt8 = 80
 
         var name: String
         var wantReply: Bool
+        var bytes: ByteBuffer?
     }
 
     struct ChannelOpenMessage: Equatable {
@@ -289,77 +298,77 @@ extension ByteBuffer {
                     return nil
                 }
                 return .keyExchangeReply(message)
-            case 21:
+            case SSHMessage.NewKeysMessage.id:
                 return .newKeys
             case SSHMessage.UserAuthRequestMessage.id:
-                guard let message = try self.readUserAuthRequestMessage() else {
+                guard let message = self.readUserAuthRequestMessage() else {
                     return nil
                 }
                 return .userAuthRequest(message)
             case SSHMessage.UserAuthFailureMessage.id:
-                guard let message = try self.readUserAuthFailureMessage() else {
+                guard let message = self.readUserAuthFailureMessage() else {
                     return nil
                 }
                 return .userAuthFailure(message)
-            case 52:
+            case SSHMessage.UserAuthSuccessMessage.id:
                 return .userAuthSuccess
             case SSHMessage.GlobalRequestMessage.id:
-                guard let message = try self.readGlobalRequestMessage() else {
+                guard let message = self.readGlobalRequestMessage() else {
                     return nil
                 }
                 return .globalRequest(message)
             case SSHMessage.ChannelOpenMessage.id:
-                guard let message = try self.readChannelOpenMessage() else {
+                guard let message = self.readChannelOpenMessage() else {
                     return nil
                 }
                 return .channelOpen(message)
             case SSHMessage.ChannelOpenConfirmationMessage.id:
-                guard let message = try self.readChannelOpenConfirmationMessage() else {
+                guard let message = self.readChannelOpenConfirmationMessage() else {
                     return nil
                 }
                 return .channelOpenConfirmation(message)
             case SSHMessage.ChannelOpenFailureMessage.id:
-                guard let message = try self.readChannelOpenFailureMessage() else {
+                guard let message = self.readChannelOpenFailureMessage() else {
                     return nil
                 }
                 return .channelOpenFailure(message)
             case SSHMessage.ChannelWindowAdjustMessage.id:
-                guard let message = try self.readChannelWindowAdjustMessage() else {
+                guard let message = self.readChannelWindowAdjustMessage() else {
                     return nil
                 }
                 return .channelWindowAdjust(message)
             case SSHMessage.ChannelDataMessage.id:
-                guard let message = try self.readChannelDataMessage() else {
+                guard let message = self.readChannelDataMessage() else {
                     return nil
                 }
                 return .channelData(message)
             case SSHMessage.ChannelExtendedDataMessage.id:
-                guard let message = try self.readChannelExtendedDataMessage() else {
+                guard let message = self.readChannelExtendedDataMessage() else {
                     return nil
                 }
                 return .channelExtendedData(message)
             case SSHMessage.ChannelEOFMessage.id:
-                guard let message = try self.readChannelEOFMessage() else {
+                guard let message = self.readChannelEOFMessage() else {
                     return nil
                 }
                 return .channelEOF(message)
             case SSHMessage.ChannelCloseMessage.id:
-                guard let message = try self.readChannelCloseMessage() else {
+                guard let message = self.readChannelCloseMessage() else {
                     return nil
                 }
                 return .channelClose(message)
             case SSHMessage.ChannelRequestMessage.id:
-                guard let message = try self.readChannelRequestMessage() else {
+                guard let message = self.readChannelRequestMessage() else {
                     return nil
                 }
                 return .channelRequest(message)
             case SSHMessage.ChannelSuccessMessage.id:
-                guard let message = try self.readChannelSuccessMessage() else {
+                guard let message = self.readChannelSuccessMessage() else {
                     return nil
                 }
                 return .channelSuccess(message)
             case SSHMessage.ChannelFailureMessage.id:
-                guard let message = try self.readChannelFailureMessage() else {
+                guard let message = self.readChannelFailureMessage() else {
                     return nil
                 }
                 return .channelFailure(message)
@@ -478,8 +487,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readUserAuthRequestMessage() throws -> SSHMessage.UserAuthRequestMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readUserAuthRequestMessage() -> SSHMessage.UserAuthRequestMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let username = self.readSSHStringAsString(),
                 let service = self.readSSHStringAsString(),
@@ -493,11 +502,10 @@ extension ByteBuffer {
             case "none":
                 method = .none
             case "password":
-                guard self.readSSHBoolean() == false else {
-                    return nil
-                }
-
-                guard let password = self.readSSHStringAsString() else {
+                guard
+                    self.readSSHBoolean() == false,
+                    let password = self.readSSHStringAsString()
+                else {
                     return nil
                 }
 
@@ -510,8 +518,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readUserAuthFailureMessage() throws -> SSHMessage.UserAuthFailureMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readUserAuthFailureMessage() -> SSHMessage.UserAuthFailureMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let authentications = self.readAlgorithms(),
                 let partialSuccess = self.readSSHBoolean()
@@ -523,8 +531,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readGlobalRequestMessage() throws -> SSHMessage.GlobalRequestMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readGlobalRequestMessage() -> SSHMessage.GlobalRequestMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let name = self.readSSHStringAsString(),
                 let wantReply = self.readSSHBoolean()
@@ -532,21 +540,19 @@ extension ByteBuffer {
                 return nil
             }
 
-            switch name {
-            case "hostkeys-00@openssh.com":
-                _ = self.readSSHString()
-                _ = self.readSSHString()
-                _ = self.readSSHString()
-            default:
-                break
+            let bytes: ByteBuffer?
+            if self.readableBytes > 0 {
+                bytes = self.readSlice(length: self.readableBytes)
+            } else {
+                bytes = nil
             }
 
-            return SSHMessage.GlobalRequestMessage(name: name, wantReply: wantReply)
+            return SSHMessage.GlobalRequestMessage(name: name, wantReply: wantReply, bytes: bytes)
         }
     }
 
-    mutating func readChannelOpenMessage() throws -> SSHMessage.ChannelOpenMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelOpenMessage() -> SSHMessage.ChannelOpenMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let typeRawValue = self.readSSHStringAsString(),
                 let type = SSHMessage.ChannelOpenMessage.ChannelType(rawValue: typeRawValue),
@@ -561,8 +567,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelOpenConfirmationMessage() throws -> SSHMessage.ChannelOpenConfirmationMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelOpenConfirmationMessage() -> SSHMessage.ChannelOpenConfirmationMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let senderChannel: UInt32 = self.readInteger(),
@@ -576,8 +582,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelOpenFailureMessage() throws -> SSHMessage.ChannelOpenFailureMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelOpenFailureMessage() -> SSHMessage.ChannelOpenFailureMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let reasonCode: UInt32 = self.readInteger(),
@@ -591,8 +597,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelWindowAdjustMessage() throws -> SSHMessage.ChannelWindowAdjustMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelWindowAdjustMessage() -> SSHMessage.ChannelWindowAdjustMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let bytesToAdd: UInt32 = self.readInteger()
@@ -604,8 +610,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelDataMessage() throws -> SSHMessage.ChannelDataMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelDataMessage() -> SSHMessage.ChannelDataMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let data = self.readSSHString()
@@ -617,8 +623,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelExtendedDataMessage() throws -> SSHMessage.ChannelExtendedDataMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelExtendedDataMessage() -> SSHMessage.ChannelExtendedDataMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let codeRawValue: UInt32 = self.readInteger(),
@@ -632,8 +638,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelEOFMessage() throws -> SSHMessage.ChannelEOFMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelEOFMessage() -> SSHMessage.ChannelEOFMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger()
             else {
@@ -644,8 +650,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelCloseMessage() throws -> SSHMessage.ChannelCloseMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelCloseMessage() -> SSHMessage.ChannelCloseMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger()
             else {
@@ -656,8 +662,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelRequestMessage() throws -> SSHMessage.ChannelRequestMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelRequestMessage() -> SSHMessage.ChannelRequestMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let typeRawValue = self.readSSHStringAsString()
@@ -682,11 +688,10 @@ extension ByteBuffer {
                 }
                 type = .exit(status)
             case "env":
-                guard let name = self.readSSHStringAsString() else {
-                    return nil
-                }
-
-                guard let value = self.readSSHStringAsString() else {
+                guard
+                    let name = self.readSSHStringAsString(),
+                    let value = self.readSSHStringAsString()
+                else {
                     return nil
                 }
 
@@ -699,8 +704,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelSuccessMessage() throws -> SSHMessage.ChannelSuccessMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelSuccessMessage() -> SSHMessage.ChannelSuccessMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger()
             else {
@@ -711,8 +716,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelFailureMessage() throws -> SSHMessage.ChannelFailureMessage? {
-        return self.rewindOnNilOrError { `self` in
+    mutating func readChannelFailureMessage() -> SSHMessage.ChannelFailureMessage? {
+        return self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger()
             else {
@@ -724,7 +729,7 @@ extension ByteBuffer {
     }
 
     private mutating func readSSHStringAsString() -> String? {
-        return self.rewindOnNilOrError { `self` in
+        return self.rewindReaderOnNil { `self` in
             guard var bytes = self.readSSHString() else {
                 return nil
             }
