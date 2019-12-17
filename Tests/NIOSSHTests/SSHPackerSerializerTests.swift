@@ -48,7 +48,7 @@ final class SSHPacketSerializerTests: XCTestCase {
     }
 
     func testDisconnectMessage() throws {
-        let message = SSHMessage.disconnect(.init(reason: 42, description: ByteBuffer.of(string: "description"), tag: ByteBuffer.of(string: "tag")))
+        let message = SSHMessage.disconnect(.init(reason: 42, description: "description", tag: ByteBuffer.of(string: "tag")))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
         var parser = SSHPacketParser(allocator: allocator)
@@ -62,7 +62,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         switch try parser.nextPacket() {
         case .disconnect(let message):
             XCTAssertEqual(42, message.reason)
-            XCTAssertEqual(ByteBuffer.of(string: "description"), message.description)
+            XCTAssertEqual("description", message.description)
             XCTAssertEqual(ByteBuffer.of(string: "tag"), message.tag)
         default:
             XCTFail("Expecting .disconnect")
@@ -70,7 +70,7 @@ final class SSHPacketSerializerTests: XCTestCase {
     }
 
     func testServiceRequest() throws {
-        let message = SSHMessage.serviceRequest(.init(service: ByteBuffer.of(string: "ssh-userauth")))
+        let message = SSHMessage.serviceRequest(.init(service: "ssh-userauth"))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
         var parser = SSHPacketParser(allocator: allocator)
@@ -85,14 +85,14 @@ final class SSHPacketSerializerTests: XCTestCase {
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
         case .serviceRequest(let message):
-            XCTAssertEqual(ByteBuffer.of(string: "ssh-userauth"), message.service)
+            XCTAssertEqual("ssh-userauth", message.service)
         default:
             XCTFail("Expecting .serviceRequest")
         }
     }
 
     func testServiceAccept() throws {
-        let message = SSHMessage.serviceAccept(.init(service: ByteBuffer.of(string: "ssh-userauth")))
+        let message = SSHMessage.serviceAccept(.init(service: "ssh-userauth"))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
         var parser = SSHPacketParser(allocator: allocator)
@@ -107,7 +107,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
         case .serviceAccept(let message):
-            XCTAssertEqual(ByteBuffer.of(string: "ssh-userauth"), message.service)
+            XCTAssertEqual("ssh-userauth", message.service)
         default:
             XCTFail("Expecting .serviceAccept")
         }

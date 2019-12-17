@@ -70,7 +70,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
 
     private func assertPacketErrors(_ message: SSHMessage, file: StaticString = #file, line: UInt = #line) {
         self.buffer.clear()
-        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: ByteBuffer.of(string: "some service"))), to: &self.buffer))
+        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer))
         self.parser.append(bytes: &self.buffer)
 
         XCTAssertThrowsError(try self.parser.nextPacket()) { error in
@@ -86,32 +86,32 @@ final class SSHEncryptedTrafficTests: XCTestCase {
 
     func testBasicEncryptedPacketExchange() {
         self.protect(.aes128)
-        self.assertPacketRoundTrips(.serviceRequest(.init(service: ByteBuffer.of(string: "some service"))))
-        self.assertPacketRoundTrips(.serviceAccept(.init(service: ByteBuffer.of(string: "some service"))))
+        self.assertPacketRoundTrips(.serviceRequest(.init(service: "some service")))
+        self.assertPacketRoundTrips(.serviceAccept(.init(service: "some service")))
     }
 
     func testBasicExchangeAES256() {
         self.protect(.aes256)
-        self.assertPacketRoundTrips(.serviceRequest(.init(service: ByteBuffer.of(string: "some service"))))
-        self.assertPacketRoundTrips(.serviceAccept(.init(service: ByteBuffer.of(string: "some service"))))
+        self.assertPacketRoundTrips(.serviceRequest(.init(service: "some service")))
+        self.assertPacketRoundTrips(.serviceAccept(.init(service: "some service")))
     }
 
     func testDripFeedAES128() {
         self.protect(.aes128)
-        self.assertPacketRoundTripsDripFed(.serviceRequest(.init(service: ByteBuffer.of(string: "some service"))))
-        self.assertPacketRoundTripsDripFed(.serviceAccept(.init(service: ByteBuffer.of(string: "some service"))))
+        self.assertPacketRoundTripsDripFed(.serviceRequest(.init(service: "some service")))
+        self.assertPacketRoundTripsDripFed(.serviceAccept(.init(service: "some service")))
     }
 
     func testDripFeedAES256() {
         self.protect(.aes256)
-        self.assertPacketRoundTripsDripFed(.serviceRequest(.init(service: ByteBuffer.of(string: "some service"))))
-        self.assertPacketRoundTripsDripFed(.serviceAccept(.init(service: ByteBuffer.of(string: "some service"))))
+        self.assertPacketRoundTripsDripFed(.serviceRequest(.init(service: "some service")))
+        self.assertPacketRoundTripsDripFed(.serviceAccept(.init(service: "some service")))
     }
 
     func testRejectsCorruptedPacket() {
         self.protect(.aes128)
         self.buffer.clear()
-        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: ByteBuffer.of(string: "some service"))), to: &self.buffer))
+        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer))
 
         // Mutate the buffer. We don't allow mutating the length because if we set the length to very long the parser returns nil instead.
         let index = (4..<self.buffer.writerIndex).randomElement()!
@@ -128,7 +128,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         self.serializer.addEncryption(clientProtection)
         self.parser.addEncryption(serverProtection)
 
-        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: ByteBuffer.of(string: "some service"))), to: &self.buffer))
+        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer))
         self.parser.append(bytes: &self.buffer)
 
         XCTAssertThrowsError(try self.parser.nextPacket())
@@ -152,7 +152,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         let packet = try assertNoThrowWithValue(self.parser.nextPacket())
 
         // The packet is temporarily nil because we don't understand it, but we will.
-        XCTAssertEqual(packet, .serviceRequest(.init(service: ByteBuffer.of(string: "ssh-userauth"))))
+        XCTAssertEqual(packet, .serviceRequest(.init(service: "ssh-userauth")))
     }
 }
 

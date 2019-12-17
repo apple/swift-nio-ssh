@@ -76,7 +76,7 @@ final class SSHPacketParserTests: XCTestCase {
 
         switch try parser.nextPacket() {
         case .serviceRequest(let message):
-            XCTAssertEqual(message.service, ByteBuffer.of(string: "ssh-userauth"))
+            XCTAssertEqual(message.service, "ssh-userauth")
         default:
             XCTFail("Expecting .serviceRequest")
         }
@@ -91,7 +91,7 @@ final class SSHPacketParserTests: XCTestCase {
 
         switch try parser.nextPacket() {
         case .serviceRequest(let message):
-            XCTAssertEqual(message.service, ByteBuffer.of(string: "ssh-userauth"))
+            XCTAssertEqual(message.service, "ssh-userauth")
         default:
             XCTFail("Expecting .serviceRequest")
         }
@@ -106,13 +106,13 @@ final class SSHPacketParserTests: XCTestCase {
 
         switch try parser.nextPacket() {
         case .serviceRequest(let message):
-            XCTAssertEqual(message.service, ByteBuffer.of(string: "ssh-userauth"))
+            XCTAssertEqual(message.service, "ssh-userauth")
         default:
             XCTFail("Expecting .serviceRequest")
         }
         switch try parser.nextPacket() {
         case .serviceRequest(let message):
-            XCTAssertEqual(message.service, ByteBuffer.of(string: "ssh-userauth"))
+            XCTAssertEqual(message.service, "ssh-userauth")
         default:
             XCTFail("Expecting .serviceRequest")
         }

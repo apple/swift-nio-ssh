@@ -34,7 +34,7 @@ struct SSHConnectionStateMachine {
     }
 
     mutating func start() -> SSHMessage {
-        let message = SSHMessage.version(SSHKeyExchangeStateMachine.version)
+        let message = SSHMessage.version(Constants.version)
         self.state = .banner
         return message
     }
