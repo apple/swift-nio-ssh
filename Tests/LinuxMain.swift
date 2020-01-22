@@ -32,7 +32,9 @@ import XCTest
          testCase(HostKeyTests.allTests),
          testCase(SSHEncryptedTrafficTests.allTests),
          testCase(SSHKeyExchangeStateMachineTests.allTests),
+         testCase(SSHMessagesTests.allTests),
          testCase(SSHPacketParserTests.allTests),
          testCase(SSHPacketSerializerTests.allTests),
+         testCase(UserAuthenticationStateMachineTests.allTests),
     ])
 #endif

@@ -31,11 +31,14 @@ public struct NIOSSHError: Error {
 
 
 // MARK:- Internal helper functions for error construction.
+// These are never inlined as they are inherently cold path functions.
 extension NIOSSHError {
+    @inline(never)
     internal static func invalidSSHMessage(reason: String) -> NIOSSHError {
         return NIOSSHError(type: .invalidSSHMessage, diagnostics: reason)
     }
 
+    @inline(never)
     internal static func weakSharedSecret(exchangeAlgorithm: String) -> NIOSSHError {
         return NIOSSHError(type: .weakSharedSecret, diagnostics: exchangeAlgorithm)
     }
@@ -52,14 +55,17 @@ extension NIOSSHError {
 
     internal static let excessPadding = NIOSSHError(type: .excessPadding, diagnostics: nil)
 
+    @inline(never)
     internal static func unknownPublicKey(algorithm: String) -> NIOSSHError {
         return NIOSSHError(type: .unknownPublicKey, diagnostics: algorithm)
     }
 
+    @inline(never)
     internal static func unknownSignature(algorithm: String) -> NIOSSHError {
         return NIOSSHError(type: .unknownSignature, diagnostics: algorithm)
     }
 
+    @inline(never)
     internal static func invalidDomainParametersForKey(parameters: String) -> NIOSSHError {
         return NIOSSHError(type: .invalidDomainParametersForKey, diagnostics: parameters)
     }
@@ -67,6 +73,11 @@ extension NIOSSHError {
     internal static let invalidExchangeHashSignature = NIOSSHError(type: .invalidExchangeHashSignature, diagnostics: nil)
 
     internal static let invalidPacketFormat = NIOSSHError(type: .invalidPacketFormat, diagnostics: nil)
+
+    @inline(never)
+    internal static func protocolViolation(protocolName: String, violation: String) -> NIOSSHError {
+        return NIOSSHError(type: .protocolViolation, diagnostics: "Protocol \(protocolName) violated due to \(violation)")
+    }
 }
 
 
@@ -96,6 +107,7 @@ extension NIOSSHError {
             case invalidDomainParametersForKey
             case invalidExchangeHashSignature
             case invalidPacketFormat
+            case protocolViolation
         }
 
         private var base: Base
@@ -142,6 +154,9 @@ extension NIOSSHError {
 
         /// The packet format is invalid.
         public static let invalidPacketFormat: ErrorType = .init(.invalidPacketFormat)
+
+        /// One of the SSH protocols was violated.
+        public static let protocolViolation: ErrorType = .init(.protocolViolation)
     }
 }
 

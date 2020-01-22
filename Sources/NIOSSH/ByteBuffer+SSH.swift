@@ -2,7 +2,7 @@
 //
 // This source file is part of the SwiftNIO open source project
 //
-// Copyright (c) 2019 Apple Inc. and the SwiftNIO project authors
+// Copyright (c) 2019-2020 Apple Inc. and the SwiftNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -134,7 +134,7 @@ extension ByteBuffer {
         // > bytes that are the value of the string.  Terminating null
         // > characters are not used.
         let lengthLength = self.setInteger(UInt32(value.readableBytes), at: offset)
-        let valueLength = self.set(buffer: value, at: offset + lengthLength)
+        let valueLength = self.setBuffer(value, at: offset + lengthLength)
         return lengthLength + valueLength
     }
 
