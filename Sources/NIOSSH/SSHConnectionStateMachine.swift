@@ -50,7 +50,7 @@ struct SSHConnectionStateMachine {
         }
     }
 
-    mutating func process(context: ChannelHandlerContext, message: SSHMessage) throws -> SSHMessage? {
+    mutating func process(allocator: ByteBufferAllocator, message: SSHMessage) throws -> SSHMessage? {
         switch self.state {
         case .idle:
             // TODO: should be error
@@ -58,7 +58,7 @@ struct SSHConnectionStateMachine {
         case .banner:
             switch message {
             case .version(let version):
-                var exchange = SSHKeyExchangeStateMachine(allocator: context.channel.allocator, role: self.role, remoteVersion: version)
+                var exchange = SSHKeyExchangeStateMachine(allocator: allocator, role: self.role, remoteVersion: version)
 
                 switch self.role {
                 case .client:

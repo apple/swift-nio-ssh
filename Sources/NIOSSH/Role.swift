@@ -2,7 +2,7 @@
 //
 // This source file is part of the SwiftNIO open source project
 //
-// Copyright (c) 2019 Apple Inc. and the SwiftNIO project authors
+// Copyright (c) 2019-2020 Apple Inc. and the SwiftNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -14,11 +14,11 @@
 
 
 /// The role of a given party in an SSH connection.
-enum SSHConnectionRole {
+public enum SSHConnectionRole {
     case client
     case server(NIOSSHHostPrivateKey)
 
-    var isClient: Bool {
+    internal var isClient: Bool {
         switch self {
         case .client:
             return true
@@ -27,7 +27,7 @@ enum SSHConnectionRole {
         }
     }
 
-    var isServer: Bool {
+    internal var isServer: Bool {
         switch self {
         case .client:
             return false
