@@ -36,7 +36,7 @@ defer {
 
 let bootstrap = ClientBootstrap(group: group)
     .channelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .client), ErrorHandler()])
+        channel.pipeline.addHandlers([NIOSSHHandler(role: .client, allocator: channel.allocator), ErrorHandler()])
     }
     .channelOption(ChannelOptions.socket(SOL_SOCKET, SO_REUSEADDR), value: 1)
     .channelOption(ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)

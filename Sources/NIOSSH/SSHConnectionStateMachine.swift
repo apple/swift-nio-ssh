@@ -19,18 +19,31 @@ struct SSHConnectionStateMachine {
         case unsupportedVersion
     }
 
-    enum State {
+    private enum State {
         case idle
         case banner
         case keyExchange(SSHKeyExchangeStateMachine)
-        case channel(NIOSSHSessionKeys)
+        case channel
     }
 
-    let role: SSHConnectionRole
-    var state: State = .idle
+    /// The role that this state machine is operating in.
+    internal let role: SSHConnectionRole
 
-    init(role: SSHConnectionRole) {
+    /// The packet parser used by this state machine. This will automatically be
+    /// updated with SSH encryption keys as needed.
+    internal var parser: SSHPacketParser
+
+    /// The packet serializer used by this state machine. This will automatically be
+    /// updated with SSH encryption keys as needed.
+    internal var serializer: SSHPacketSerializer
+
+    /// The state of this state machine.
+    private var state: State = .idle
+
+    init(role: SSHConnectionRole, allocator: ByteBufferAllocator) {
         self.role = role
+        self.parser = SSHPacketParser(allocator: allocator)
+        self.serializer = SSHPacketSerializer()
     }
 
     mutating func start() -> SSHMessage {
@@ -50,54 +63,74 @@ struct SSHConnectionStateMachine {
         }
     }
 
-    mutating func process(allocator: ByteBufferAllocator, message: SSHMessage) throws -> SSHMessage? {
+    mutating func processInboundMessage(allocator: ByteBufferAllocator, message: SSHMessage) throws -> StateMachineProcessResult {
         switch self.state {
         case .idle:
             // TODO: should be error
-            break
+            return .noMessage
         case .banner:
             switch message {
             case .version(let version):
                 var exchange = SSHKeyExchangeStateMachine(allocator: allocator, role: self.role, remoteVersion: version)
 
-                switch self.role {
-                case .client:
-                    let message = try exchange.startKeyExchange()
-                    self.state = .keyExchange(exchange)
-                    return message
-                case .server:
-                    self.state = .keyExchange(exchange)
-                    return nil
-                }
+                let message = exchange.startKeyExchange()
+                self.state = .keyExchange(exchange)
+                return .emitMessage(message)
             default:
                 // TODO: exhaustive switch?
-                break
+                return .noMessage
             }
         case .keyExchange(var exchange):
             switch message {
             case .keyExchange(let message):
                 let message = try exchange.handle(keyExchange: message)
                 self.state = .keyExchange(exchange)
-                return message
+
+                if let message = message {
+                    return .emitMessage(message)
+                } else {
+                    return .noMessage
+                }
             case .keyExchangeInit(let message):
                 let message = try exchange.handle(keyExchangeInit: message)
                 self.state = .keyExchange(exchange)
-                return message
+
+                if let message = message {
+                    return .emitMessage(message)
+                } else {
+                    return .noMessage
+                }
             case .keyExchangeReply(let message):
                 let message = try exchange.handle(keyExchangeReply: message)
                 self.state = .keyExchange(exchange)
-                return message
+                return .emitMessage(message)
             case .newKeys:
-                let result = try exchange.newKeys()
-                self.state = .channel(result.keys)
+                // Received a new keys message. Apply the encryption keys to the parser.
+                let result = try exchange.handleNewKeys()
+                self.parser.addEncryption(result)
+                self.state = .channel
+                return .noMessage
             default:
                 // TODO: exhaustive switch?
-                break
+                return .noMessage
             }
-        case .channel(let keys):
+        case .channel:
             // TODO: we now have keys
-            break
+            return .noMessage
         }
-        return nil
+    }
+}
+
+
+extension SSHConnectionStateMachine {
+    /// The result of spinning the state machine.
+    ///
+    /// When the state machine processes a message, several things may happen. Firstly, it may generate an
+    /// automatic message that should be sent. Secondly, it may generate a possibility of having a message in
+    /// future. Thirdly, it may generate nothing.
+    enum StateMachineProcessResult {
+        case emitMessage(SSHMessage)
+        case possibleFutureMessage(EventLoopFuture<SSHMessage?>)
+        case noMessage
     }
 }

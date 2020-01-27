@@ -82,6 +82,7 @@ extension SSHMessage {
         var compressionAlgorithmsServerToClient: [Substring]
         var languagesClientToServer: [Substring]
         var languagesServerToClient: [Substring]
+        var firstKexPacketFollows: Bool
     }
 
     enum NewKeysMessage {
@@ -423,13 +424,9 @@ extension ByteBuffer {
                 let compressionAlgorithmsClientToServer = self.readAlgorithms(),
                 let compressionAlgorithmsServerToClient = self.readAlgorithms(),
                 let languagesClientToServer = self.readAlgorithms(),
-                let languagesServerToClient = self.readAlgorithms()
+                let languagesServerToClient = self.readAlgorithms(),
+                let firstKexPacketFollows = self.readSSHBoolean()
             else {
-                return nil
-            }
-
-            // first_kex_packet_follows
-            guard self.readInteger(as: UInt8.self) != nil else {
                 return nil
             }
 
@@ -448,7 +445,8 @@ extension ByteBuffer {
                          compressionAlgorithmsClientToServer: compressionAlgorithmsClientToServer,
                          compressionAlgorithmsServerToClient: compressionAlgorithmsServerToClient,
                          languagesClientToServer: languagesClientToServer,
-                         languagesServerToClient: languagesServerToClient
+                         languagesServerToClient: languagesServerToClient,
+                         firstKexPacketFollows: firstKexPacketFollows
             )
         }
     }
@@ -847,8 +845,7 @@ extension ByteBuffer {
         writtenBytes += self.writeAlgorithms(message.compressionAlgorithmsServerToClient)
         writtenBytes += self.writeAlgorithms(message.languagesClientToServer)
         writtenBytes += self.writeAlgorithms(message.languagesServerToClient)
-        // first_kex_packet_follows
-        writtenBytes += self.writeInteger(0 as UInt8)
+        writtenBytes += self.writeSSHBoolean(message.firstKexPacketFollows)
         // reserved
         writtenBytes += self.writeInteger(0 as UInt32)
         return writtenBytes
@@ -1003,7 +1000,7 @@ extension ByteBuffer {
             preconditionFailure()
         }
 
-        writtenBytes += self.writeSSHBoolean(true)
+        writtenBytes += self.writeSSHBoolean(message.wantReply)
 
         switch message.type {
         case .env(let name, let value):
