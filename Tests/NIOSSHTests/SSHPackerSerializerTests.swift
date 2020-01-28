@@ -125,7 +125,8 @@ final class SSHPacketSerializerTests: XCTestCase {
             compressionAlgorithmsClientToServer: ["none"],
             compressionAlgorithmsServerToClient: ["none"],
             languagesClientToServer: [],
-            languagesServerToClient: []
+            languagesServerToClient: [],
+            firstKexPacketFollows: false
         ))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
@@ -150,6 +151,7 @@ final class SSHPacketSerializerTests: XCTestCase {
             XCTAssertEqual(["none"], message.compressionAlgorithmsServerToClient)
             XCTAssertEqual([], message.languagesClientToServer)
             XCTAssertEqual([], message.languagesServerToClient)
+            XCTAssertEqual(false, message.firstKexPacketFollows)
         default:
             XCTFail("Expecting .keyExchange")
         }

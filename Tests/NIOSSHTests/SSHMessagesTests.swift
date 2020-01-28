@@ -64,7 +64,8 @@ final class SSHMessagesTests: XCTestCase {
             compressionAlgorithmsClientToServer: [Substring("compressionAlgorithmsClientToServer1"), Substring("compressionAlgorithmsClientToServer2")],
             compressionAlgorithmsServerToClient: [Substring("compressionAlgorithmsServerToClient1"), Substring("compressionAlgorithmsServerToClient2")],
             languagesClientToServer: [Substring("languagesClientToServer1"), Substring("languagesClientToServer2")],
-            languagesServerToClient: [Substring("languagesServerToClient1"), Substring("languagesServerToClient2")]))
+            languagesServerToClient: [Substring("languagesServerToClient1"), Substring("languagesServerToClient2")],
+            firstKexPacketFollows: false))
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)

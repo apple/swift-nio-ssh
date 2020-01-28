@@ -78,6 +78,8 @@ extension NIOSSHError {
     internal static func protocolViolation(protocolName: String, violation: String) -> NIOSSHError {
         return NIOSSHError(type: .protocolViolation, diagnostics: "Protocol \(protocolName) violated due to \(violation)")
     }
+
+    internal static let keyExchangeNegotiationFailure = NIOSSHError(type: .keyExchangeNegotiationFailure, diagnostics: nil)
 }
 
 
@@ -108,6 +110,7 @@ extension NIOSSHError {
             case invalidExchangeHashSignature
             case invalidPacketFormat
             case protocolViolation
+            case keyExchangeNegotiationFailure
         }
 
         private var base: Base
@@ -157,6 +160,9 @@ extension NIOSSHError {
 
         /// One of the SSH protocols was violated.
         public static let protocolViolation: ErrorType = .init(.protocolViolation)
+
+        /// No suitable key exchange negotiation protocols were found.
+        public static let keyExchangeNegotiationFailure: ErrorType = .init(.keyExchangeNegotiationFailure)
     }
 }
 

@@ -27,6 +27,12 @@ extension SSHKeyExchangeStateMachineTests {
    static var allTests : [(String, (SSHKeyExchangeStateMachineTests) -> () throws -> Void)] {
       return [
                 ("testKeyExchange", testKeyExchange),
+                ("testKeyExchangeWithInvalidGuess", testKeyExchangeWithInvalidGuess),
+                ("testExtraKeyExchangeMessagesAreForbidden", testExtraKeyExchangeMessagesAreForbidden),
+                ("testExtraECDHInitForbidden", testExtraECDHInitForbidden),
+                ("testExtraECDHReplyForbidden", testExtraECDHReplyForbidden),
+                ("testExtraNewKeysMessageForbidden", testExtraNewKeysMessageForbidden),
+                ("testKeyExchangeRapidNewKeys", testKeyExchangeRapidNewKeys),
            ]
    }
 }
