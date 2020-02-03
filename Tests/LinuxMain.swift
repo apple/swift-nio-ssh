@@ -30,6 +30,7 @@ import XCTest
          testCase(ByteBufferSSHTests.allTests),
          testCase(Curve25519KeyExchangeTests.allTests),
          testCase(HostKeyTests.allTests),
+         testCase(SSHConnectionStateMachineTests.allTests),
          testCase(SSHEncryptedTrafficTests.allTests),
          testCase(SSHKeyExchangeStateMachineTests.allTests),
          testCase(SSHMessagesTests.allTests),

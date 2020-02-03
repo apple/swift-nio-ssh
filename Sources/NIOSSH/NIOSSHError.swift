@@ -80,6 +80,11 @@ extension NIOSSHError {
     }
 
     internal static let keyExchangeNegotiationFailure = NIOSSHError(type: .keyExchangeNegotiationFailure, diagnostics: nil)
+
+    @inline(never)
+    internal static func unsupportedVersion(_ version: String) -> NIOSSHError {
+        return NIOSSHError(type: .unsupportedVersion, diagnostics: "Version \(version) offered by the remote peer is not supported")
+    }
 }
 
 
@@ -111,6 +116,7 @@ extension NIOSSHError {
             case invalidPacketFormat
             case protocolViolation
             case keyExchangeNegotiationFailure
+            case unsupportedVersion
         }
 
         private var base: Base
@@ -163,6 +169,9 @@ extension NIOSSHError {
 
         /// No suitable key exchange negotiation protocols were found.
         public static let keyExchangeNegotiationFailure: ErrorType = .init(.keyExchangeNegotiationFailure)
+
+        /// The SSH version offered by the remote peer is unsupported by this implementation.
+        public static let unsupportedVersion: ErrorType = .init(.unsupportedVersion)
     }
 }
 
