@@ -68,11 +68,11 @@ extension NIOSSHHandler: ChannelDuplexHandler {
 
     public func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         var data = self.unwrapInboundIn(data)
-        self.stateMachine.parser.append(bytes: &data)
+        self.stateMachine.bufferInboundData(&data)
 
         do {
-            while let message = try self.stateMachine.parser.nextPacket() {
-                try self.processInboundMessage(message, context: context)
+            while let result = try self.stateMachine.processInboundMessage(allocator: context.channel.allocator) {
+                try self.processInboundMessageResult(result, context: context)
             }
         } catch {
             context.fireErrorCaught(error)
@@ -88,14 +88,12 @@ extension NIOSSHHandler: ChannelDuplexHandler {
 
     private func writeMessage(_ message: SSHMessage, context: ChannelHandlerContext) throws {
         self.outboundFrameBuffer.clear()
-        try self.stateMachine.serializer.serialize(message: message, to: &self.outboundFrameBuffer)
+        try self.stateMachine.processOutboundMessage(message, buffer: &self.outboundFrameBuffer, allocator: context.channel.allocator)
         self.pendingWrite = true
         context.write(self.wrapOutboundOut(self.outboundFrameBuffer), promise: nil)
     }
 
-    private func processInboundMessage(_ message: SSHMessage, context: ChannelHandlerContext) throws {
-        let result = try self.stateMachine.processInboundMessage(allocator: context.channel.allocator, message: message)
-
+    private func processInboundMessageResult(_ result: SSHConnectionStateMachine.StateMachineInboundProcessResult, context: ChannelHandlerContext) throws {
         switch result {
         case .emitMessage(let message):
             try self.writeMessage(message, context: context)
@@ -119,12 +117,5 @@ extension NIOSSHHandler: ChannelDuplexHandler {
                 }
             }
         }
-    }
-}
-
-
-extension NIOSSHHandler {
-    private var isClient: Bool {
-        return self.stateMachine.role.isClient
     }
 }
