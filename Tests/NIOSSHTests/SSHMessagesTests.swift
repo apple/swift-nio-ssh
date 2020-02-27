@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import CryptoKit
+import Crypto
 import NIO
 @testable import NIOSSH
 import XCTest

@@ -14,7 +14,7 @@
 
 import XCTest
 import NIO
-import CryptoKit
+import Crypto
 import NIOFoundationCompat
 @testable import NIOSSH
 

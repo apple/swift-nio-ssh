@@ -14,7 +14,7 @@
 
 import NIO
 import NIOFoundationCompat
-import CryptoKit
+import Crypto
 
 
 struct Curve25519KeyExchange {

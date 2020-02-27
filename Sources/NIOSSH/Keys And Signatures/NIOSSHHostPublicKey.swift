@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import NIO
-import CryptoKit
+import Crypto
 
 /// An SSH server host public key.
 ///
