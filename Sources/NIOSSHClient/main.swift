@@ -38,8 +38,8 @@ let bootstrap = ClientBootstrap(group: group)
     .channelInitializer { channel in
         channel.pipeline.addHandlers([NIOSSHHandler(role: .client, allocator: channel.allocator), ErrorHandler()])
     }
-    .channelOption(ChannelOptions.socket(SOL_SOCKET, SO_REUSEADDR), value: 1)
-    .channelOption(ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
+    .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
+    .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
 
 // First argument is the program path
 let arguments = CommandLine.arguments

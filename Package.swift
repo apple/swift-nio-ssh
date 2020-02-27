@@ -28,9 +28,10 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.4.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "1.0.0"),
     ],
     targets: [
-        .target(name: "NIOSSH", dependencies: ["NIO", "NIOFoundationCompat"]),
+        .target(name: "NIOSSH", dependencies: ["NIO", "NIOFoundationCompat", "Crypto"]),
         .target(name: "NIOSSHClient", dependencies: ["NIO", "NIOSSH"]),
         .testTarget(name: "NIOSSHTests", dependencies: ["NIOSSH", "NIO", "NIOFoundationCompat"]),
     ]

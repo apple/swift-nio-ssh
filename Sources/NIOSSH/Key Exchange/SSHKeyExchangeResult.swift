@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import NIO
-import CryptoKit
+import Crypto
 
 
 /// The result of a round of key exchange.

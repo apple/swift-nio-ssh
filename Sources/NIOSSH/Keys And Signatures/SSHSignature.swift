@@ -15,7 +15,7 @@
 import Foundation
 import NIO
 import NIOFoundationCompat
-import CryptoKit
+import Crypto
 
 
 /// A representation of an SSH signature.
