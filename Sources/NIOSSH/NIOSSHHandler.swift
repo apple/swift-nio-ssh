@@ -37,10 +37,14 @@ public final class NIOSSHHandler {
     /// Whether there's a pending unflushed write.
     private var pendingWrite: Bool
 
-    public init(role: SSHConnectionRole, allocator: ByteBufferAllocator) {
-        self.stateMachine = SSHConnectionStateMachine(role: role, allocator: allocator)
+    /// The user-auth delegate for this connection.
+    private let authDelegate: UserAuthDelegate
+
+    public init(role: SSHConnectionRole, allocator: ByteBufferAllocator, clientUserAuthDelegate: NIOSSHClientUserAuthenticationDelegate?, serverUserAuthDelegate: NIOSSHServerUserAuthenticationDelegate?) {
+        self.stateMachine = SSHConnectionStateMachine(role: role)
         self.pendingWrite = false
         self.outboundFrameBuffer = allocator.buffer(capacity: 1024)
+        self.authDelegate = UserAuthDelegate(role: role, client: clientUserAuthDelegate, server: serverUserAuthDelegate)
     }
 }
 
@@ -71,7 +75,7 @@ extension NIOSSHHandler: ChannelDuplexHandler {
         self.stateMachine.bufferInboundData(&data)
 
         do {
-            while let result = try self.stateMachine.processInboundMessage(allocator: context.channel.allocator) {
+            while let result = try self.stateMachine.processInboundMessage(allocator: context.channel.allocator, loop: context.eventLoop, userAuthDelegate: self.authDelegate) {
                 try self.processInboundMessageResult(result, context: context)
             }
         } catch {
@@ -86,10 +90,14 @@ extension NIOSSHHandler: ChannelDuplexHandler {
         }
     }
 
-    private func writeMessage(_ message: SSHMessage, context: ChannelHandlerContext) throws {
+    private func writeMessage(_ multiMessage: SSHMultiMessage, context: ChannelHandlerContext) throws {
         self.outboundFrameBuffer.clear()
-        try self.stateMachine.processOutboundMessage(message, buffer: &self.outboundFrameBuffer, allocator: context.channel.allocator)
-        self.pendingWrite = true
+
+        for message in multiMessage {
+            try self.stateMachine.processOutboundMessage(message, buffer: &self.outboundFrameBuffer, allocator: context.channel.allocator, loop: context.eventLoop, userAuthDelegate: self.authDelegate)
+            self.pendingWrite = true
+        }
+
         context.write(self.wrapOutboundOut(self.outboundFrameBuffer), promise: nil)
     }
 
@@ -106,6 +114,8 @@ extension NIOSSHHandler: ChannelDuplexHandler {
                 case .success(.some(let message)):
                     do {
                         try self.writeMessage(message, context: context)
+                        self.pendingWrite = false
+                        context.flush()
                     } catch {
                         context.fireErrorCaught(error)
                     }

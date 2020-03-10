@@ -42,6 +42,15 @@ extension UserAuthenticationStateMachineTests {
                 ("testServerIgnoresMessagesAfterSuccess", testServerIgnoresMessagesAfterSuccess),
                 ("testClientRejectsUserAuthRequests", testClientRejectsUserAuthRequests),
                 ("testSimplePasswordDelegateOnlyTriesPassword", testSimplePasswordDelegateOnlyTriesPassword),
+                ("testBeginningAuthenticationOnServersDoesNothing", testBeginningAuthenticationOnServersDoesNothing),
+                ("testRejectUnexpectedServices", testRejectUnexpectedServices),
+                ("testRepeatedServiceRequestsDontWork", testRepeatedServiceRequestsDontWork),
+                ("testClientsRejectUserAuthRequests", testClientsRejectUserAuthRequests),
+                ("testClientsRejectUnexpectedAuthServices", testClientsRejectUnexpectedAuthServices),
+                ("testClientsRejectServiceAcceptOutOfSequence", testClientsRejectServiceAcceptOutOfSequence),
+                ("testServerRejectsServiceAccepts", testServerRejectsServiceAccepts),
+                ("testUserAuthRequestsMustAskForSSHConnection", testUserAuthRequestsMustAskForSSHConnection),
+                ("testUserAuthBeforeServiceAcceptIsRejected", testUserAuthBeforeServiceAcceptIsRejected),
            ]
    }
 }

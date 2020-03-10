@@ -29,6 +29,30 @@ final class SSHMessagesTests: XCTestCase {
         XCTAssertNil(try buffer.readSSHMessage())
     }
 
+    func testIgnore() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        var otherBuffer = ByteBufferAllocator().buffer(capacity: 100)
+        otherBuffer.writeString("A string!")
+        let message = SSHMessage.ignore(.init(data: otherBuffer))
+
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        buffer.writeBytes([SSHMessage.IgnoreMessage.id, 0, 0])
+        XCTAssertNil(try buffer.readSSHMessage())
+    }
+
+    func testUnimplemented() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        let message = SSHMessage.unimplemented(.init(sequenceNumber: 77))
+
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        buffer.writeBytes([SSHMessage.UnimplementedMessage.id, 0, 0])
+        XCTAssertNil(try buffer.readSSHMessage())
+    }
+
     func testServiceRequest() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
         let message = SSHMessage.serviceRequest(.init(service: "ssh-userauth"))

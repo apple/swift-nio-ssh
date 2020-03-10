@@ -14,18 +14,18 @@
 
 
 /// The user authentication modes available at this point in time.
-struct NIOSSHAvailableUserAuthenticationMethods: OptionSet {
-    var rawValue: UInt8
+public struct NIOSSHAvailableUserAuthenticationMethods: OptionSet {
+    public var rawValue: UInt8
 
-    init(rawValue: UInt8) {
+    public init(rawValue: UInt8) {
         self.rawValue = rawValue
     }
 
-    static let publicKey: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 0)
-    static let password: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 1)
-    static let hostBased: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 2)
+    public static let publicKey: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 0)
+    public static let password: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 1)
+    public static let hostBased: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 2)
 
-    static let all: NIOSSHAvailableUserAuthenticationMethods = [.publicKey, .password, .hostBased]
+    public static let all: NIOSSHAvailableUserAuthenticationMethods = [.publicKey, .password, .hostBased]
 }
 
 
@@ -76,17 +76,20 @@ extension NIOSSHAvailableUserAuthenticationMethods: Hashable { }
 
 
 /// A specific request for user authentication.
-struct NIOSSHUserAuthenticationRequest {
-    var username: String
+public struct NIOSSHUserAuthenticationRequest {
+    public var username: String
 
-    var serviceName: String
+    public var request: Request
 
-    var request: Request
+    public init(username: String, serviceName: String, request: Request) {
+        self.username = username
+        self.request = request
+    }
 }
 
 
 extension NIOSSHUserAuthenticationRequest {
-    enum Request {
+    public enum Request {
         case publicKey(PublicKey)
         case password(Password)
         case hostBased(HostBased)
@@ -97,21 +100,21 @@ extension NIOSSHUserAuthenticationRequest {
 
 
 extension NIOSSHUserAuthenticationRequest.Request {
-    struct PublicKey {
+    public struct PublicKey {
         init() {
             fatalError("PublicKeyRequest is currently unimplemented")
         }
     }
 
-    struct Password {
-        var password: String
+    public struct Password {
+        public var password: String
 
-        init(password: String) {
+        public init(password: String) {
             self.password = password
         }
     }
 
-    struct HostBased {
+    public struct HostBased {
         init() {
             fatalError("PublicKeyRequest is currently unimplemented")
         }
@@ -132,8 +135,9 @@ extension NIOSSHUserAuthenticationRequest.Request.HostBased: Hashable { }
 
 extension SSHMessage.UserAuthRequestMessage {
     init(request: NIOSSHUserAuthenticationRequest) {
+        // We only ever ask for the ssh-connection service.
         self.username = request.username
-        self.service = request.serviceName
+        self.service = "ssh-connection"
 
         switch request.request {
         case .publicKey:
@@ -152,7 +156,6 @@ extension SSHMessage.UserAuthRequestMessage {
 extension NIOSSHUserAuthenticationRequest {
     init(_ message: SSHMessage.UserAuthRequestMessage) {
         self.username = message.username
-        self.serviceName = message.service
 
         switch message.method {
         case .password(let password):
@@ -165,7 +168,7 @@ extension NIOSSHUserAuthenticationRequest {
 
 
 /// The outcome of a user authentication attempt.
-enum NIOSSHUserAuthenticationOutcome {
+public enum NIOSSHUserAuthenticationOutcome {
     case success
     case partialSuccess(remainingMethods: NIOSSHAvailableUserAuthenticationMethods)
     case failure

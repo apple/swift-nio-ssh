@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Dispatch
 import NIO
 import NIOSSH
 
@@ -29,6 +30,36 @@ final class ErrorHandler: ChannelInboundHandler {
     }
 }
 
+/// A client user auth delegate that provides an interactive prompt for password-based user auth.
+final class InteractivePasswordPromptDelegate: NIOSSHClientUserAuthenticationDelegate {
+    private let queue: DispatchQueue
+
+    init() {
+        self.queue = DispatchQueue(label: "io.swiftnio.ssh.InteractivePasswordPromptDelegate")
+    }
+
+    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationRequest?>) {
+        guard availableMethods.contains(.password) else {
+            print("Error: password auth not supported")
+            nextChallengePromise.fail(SSHClientError.passwordAuthenticationNotSupported)
+            return
+        }
+
+        self.queue.async {
+            print("Username: ", terminator: "")
+            let username = readLine() ?? ""
+            print("Password: ", terminator: "")
+            let password = readLine() ?? ""
+
+            nextChallengePromise.succeed(NIOSSHUserAuthenticationRequest(username: username, serviceName: "", request: .password(.init(password: password))))
+        }
+    }
+}
+
+enum SSHClientError: Swift.Error {
+    case passwordAuthenticationNotSupported
+}
+
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 defer {
     try! group.syncShutdownGracefully()
@@ -36,7 +67,7 @@ defer {
 
 let bootstrap = ClientBootstrap(group: group)
     .channelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .client, allocator: channel.allocator), ErrorHandler()])
+        channel.pipeline.addHandlers([NIOSSHHandler(role: .client, allocator: channel.allocator, clientUserAuthDelegate: InteractivePasswordPromptDelegate(), serverUserAuthDelegate: nil), ErrorHandler()])
     }
     .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)

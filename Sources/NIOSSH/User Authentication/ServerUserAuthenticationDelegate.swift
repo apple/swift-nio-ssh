@@ -29,7 +29,7 @@ import NIO
 ///
 /// This is currently an internal protocol, but we may make it available to users in future once
 /// we feel confident that it covers our needs. For now, all implementers are internal.
-protocol NIOSSHServerUserAuthenticationDelegate {
+public protocol NIOSSHServerUserAuthenticationDelegate {
     var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods { get }
 
     func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>)

@@ -104,17 +104,17 @@ struct SSHKeyExchangeStateMachine {
     }
 
     /// Begins the key exchange process. This may be called by both clients and servers to speed up the key exchange process.
-    mutating func startKeyExchange() -> SSHMessage {
+    mutating func startKeyExchange() -> SSHMultiMessage {
         switch self.state {
         case .idle:
-            return self.createKeyExchangeMessage()
+            return SSHMultiMessage(self.createKeyExchangeMessage())
 
         case .keyExchangeSent, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .awaitingKeyExchangeInit, .keyExchangeInitReceived, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             preconditionFailure("Duplicate call to startKeyExchange")
         }
     }
 
-    mutating func handle(keyExchange message: SSHMessage.KeyExchangeMessage) throws -> SSHMessage? {
+    mutating func handle(keyExchange message: SSHMessage.KeyExchangeMessage) throws -> SSHMultiMessage? {
         switch self.state {
         case .keyExchangeSent(message: let ourMessage):
             switch self.role {
@@ -128,7 +128,7 @@ struct SSHKeyExchangeStateMachine {
                 // Ok, we need to send the key exchange message.
                 let message = SSHMessage.keyExchangeInit(exchanger.initiateKeyExchangeClientSide(allocator: allocator))
                 self.state = .awaitingKeyExchangeInit(exchange: exchanger)
-                return message
+                return SSHMultiMessage(message)
             case .server:
                 // Write their message in first, then ours.
                 self.addKeyExchangeInitMessagesToExchangeBytes(clientsMessage: message, serversMessage: ourMessage)
@@ -161,7 +161,7 @@ struct SSHKeyExchangeStateMachine {
         }
     }
 
-    mutating func handle(keyExchangeInit message: SSHMessage.KeyExchangeECDHInitMessage) throws -> SSHMessage? {
+    mutating func handle(keyExchangeInit message: SSHMessage.KeyExchangeECDHInitMessage) throws -> SSHMultiMessage? {
         switch self.state {
         case .awaitingKeyExchangeInitInvalidGuess(exchange: let exchanger):
             // We're going to ignore this one, we already know it's wrong.
@@ -182,7 +182,7 @@ struct SSHKeyExchangeStateMachine {
 
                 let message = SSHMessage.keyExchangeReply(reply)
                 self.state = .keyExchangeInitReceived(result: result)
-                return message
+                return SSHMultiMessage(message, .newKeys)
         }
         case .idle, .keyExchangeSent, .keyExchangeInitReceived, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             throw SSHKeyExchangeError.unexpectedMessage
@@ -200,7 +200,7 @@ struct SSHKeyExchangeStateMachine {
         }
     }
 
-    mutating func handle(keyExchangeReply message: SSHMessage.KeyExchangeECDHReplyMessage) throws -> SSHMessage {
+    mutating func handle(keyExchangeReply message: SSHMessage.KeyExchangeECDHReplyMessage) throws -> SSHMultiMessage {
         switch self.state {
         case .keyExchangeInitSent(exchange: var exchanger):
             switch self.role {
@@ -212,7 +212,7 @@ struct SSHKeyExchangeStateMachine {
                     expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes)
 
                 self.state = .keysExchanged(result: result, protection: try AES256GCMOpenSSHTransportProtection(initialKeys: result.keys))
-                return SSHMessage.newKeys
+                return SSHMultiMessage(SSHMessage.newKeys)
             case .server:
                 preconditionFailure("Servers cannot enter key exchange init sent.")
             }

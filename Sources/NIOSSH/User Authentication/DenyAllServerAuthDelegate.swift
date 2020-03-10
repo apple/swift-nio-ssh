@@ -17,16 +17,16 @@ import NIO
 /// A server user authentication delegate that denies all authentication attempts.
 ///
 /// Not really useful in and of itself, but a helpful default option.
-final class DenyAllServerAuthDelegate {
+public final class DenyAllServerAuthDelegate {
 
 }
 
 extension DenyAllServerAuthDelegate: NIOSSHServerUserAuthenticationDelegate {
-    var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods {
+    public var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods {
         return .all
     }
 
-    func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+    public func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
         responsePromise.succeed(.failure)
     }
 }
