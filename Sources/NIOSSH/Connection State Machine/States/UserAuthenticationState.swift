@@ -14,10 +14,10 @@
 
 import NIO
 
+
 extension SSHConnectionStateMachine {
-    /// The state of a state machine that has sent new keys after a key exchange operation,
-    /// but has not yet received the new keys from the peer.
-    struct SentNewKeysState {
+    /// The state of a state machine that is actively engaged in a user authentication operation.
+    struct UserAuthenticationState {
         /// The role of the connection
         let role: SSHConnectionRole
 
@@ -28,23 +28,24 @@ extension SSHConnectionStateMachine {
         var serializer: SSHPacketSerializer
 
         /// The backing state machine.
-        var keyExchangeStateMachine: SSHKeyExchangeStateMachine
-
-        /// The user auth state machine that drives user authentication.
         var userAuthStateMachine: UserAuthenticationStateMachine
 
-        init(keyExchangeState state: KeyExchangeState,
-             delegate: UserAuthDelegate,
-             loop: EventLoop) {
+        init(sentNewKeysState state: SentNewKeysState) {
             self.role = state.role
             self.parser = state.parser
             self.serializer = state.serializer
-            self.keyExchangeStateMachine = state.keyExchangeStateMachine
-            self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role, delegate: delegate, loop: loop)
+            self.userAuthStateMachine = state.userAuthStateMachine
+        }
+
+        init(receivedNewKeysState state: ReceivedNewKeysState) {
+            self.role = state.role
+            self.parser = state.parser
+            self.serializer = state.serializer
+            self.userAuthStateMachine = state.userAuthStateMachine
         }
     }
 }
 
-extension SSHConnectionStateMachine.SentNewKeysState: AcceptsKeyExchangeMessages { }
+extension SSHConnectionStateMachine.UserAuthenticationState: AcceptsUserAuthMessages { }
 
-extension SSHConnectionStateMachine.SentNewKeysState: SendsUserAuthMessages { }
+extension SSHConnectionStateMachine.UserAuthenticationState: SendsUserAuthMessages { }

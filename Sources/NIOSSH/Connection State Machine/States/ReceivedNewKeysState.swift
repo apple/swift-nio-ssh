@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import NIO
+
 
 extension SSHConnectionStateMachine {
     /// The state of a state machine that has receoved new keys after a key exchange operation,
@@ -29,13 +31,21 @@ extension SSHConnectionStateMachine {
         /// The backing state machine.
         var keyExchangeStateMachine: SSHKeyExchangeStateMachine
 
-        init(keyExchangeState state: KeyExchangeState) {
+        /// The user auth state machine that drives user authentication.
+        var userAuthStateMachine: UserAuthenticationStateMachine
+
+        init(keyExchangeState state: KeyExchangeState,
+             delegate: UserAuthDelegate,
+             loop: EventLoop) {
             self.role = state.role
             self.parser = state.parser
             self.serializer = state.serializer
             self.keyExchangeStateMachine = state.keyExchangeStateMachine
+            self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role, delegate: delegate, loop: loop)
         }
     }
 }
 
 extension SSHConnectionStateMachine.ReceivedNewKeysState: SendsKeyExchangeMessages { }
+
+extension SSHConnectionStateMachine.ReceivedNewKeysState: AcceptsUserAuthMessages { }

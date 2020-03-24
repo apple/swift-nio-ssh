@@ -24,6 +24,8 @@ enum SSHMessage: Equatable {
 
     case version(String)
     case disconnect(DisconnectMessage)
+    case ignore(IgnoreMessage)
+    case unimplemented(UnimplementedMessage)
     case serviceRequest(ServiceRequestMessage)
     case serviceAccept(ServiceAcceptMessage)
     case keyExchange(KeyExchangeMessage)
@@ -54,6 +56,18 @@ extension SSHMessage {
         var reason: UInt32
         var description: String
         var tag: ByteBuffer
+    }
+
+    struct IgnoreMessage: Equatable {
+        static let id: UInt8 = 2
+
+        var data: ByteBuffer
+    }
+
+    struct UnimplementedMessage: Equatable {
+        static let id: UInt8 = 3
+
+        var sequenceNumber: UInt32
     }
 
     struct ServiceRequestMessage: Equatable {
@@ -274,6 +288,16 @@ extension ByteBuffer {
                     return nil
                 }
                 return .disconnect(message)
+            case SSHMessage.IgnoreMessage.id:
+                guard let message = self.readIgnoreMessage() else {
+                    return nil
+                }
+                return .ignore(message)
+            case SSHMessage.UnimplementedMessage.id:
+                guard let message = self.readUnimplementedMessage() else {
+                    return nil
+                }
+                return .unimplemented(message)
             case SSHMessage.ServiceRequestMessage.id:
                 guard let message = self.readServiceRequestMessage() else {
                     return nil
@@ -390,6 +414,26 @@ extension ByteBuffer {
             }
 
             return SSHMessage.DisconnectMessage(reason: reason, description: description, tag: tag)
+        }
+    }
+
+    mutating func readIgnoreMessage() -> SSHMessage.IgnoreMessage? {
+        return self.rewindReaderOnNil { `self` in
+            guard let data = self.readSSHString() else {
+                return nil
+            }
+
+            return SSHMessage.IgnoreMessage(data: data)
+        }
+    }
+
+    mutating func readUnimplementedMessage() -> SSHMessage.UnimplementedMessage? {
+        return self.rewindReaderOnNil { `self` in
+            guard let sequenceNumber = self.readInteger(as: UInt32.self) else {
+                return nil
+            }
+
+            return SSHMessage.UnimplementedMessage(sequenceNumber: sequenceNumber)
         }
     }
 
@@ -746,6 +790,12 @@ extension ByteBuffer {
         case .version(let version):
             writtenBytes += self.writeString(version)
             writtenBytes += self.writeString("\r\n")
+        case .ignore(let message):
+            writtenBytes += self.writeInteger(SSHMessage.IgnoreMessage.id)
+            writtenBytes += self.writeIgnoreMessage(message)
+        case .unimplemented(let message):
+            writtenBytes += self.writeInteger(SSHMessage.UnimplementedMessage.id)
+            writtenBytes += self.writeUnimplementedMessage(message)
         case .disconnect(let message):
             writtenBytes += self.writeInteger(SSHMessage.DisconnectMessage.id)
             writtenBytes += self.writeDisconnectMessage(message)
@@ -821,6 +871,15 @@ extension ByteBuffer {
         writtenBytes += self.writeSSHString(message.description.utf8)
         writtenBytes += self.writeSSHString(&message.tag)
         return writtenBytes
+    }
+
+    mutating func writeIgnoreMessage(_ message: SSHMessage.IgnoreMessage) -> Int {
+        var message = message
+        return self.writeSSHString(&message.data)
+    }
+
+    mutating func writeUnimplementedMessage(_ message: SSHMessage.UnimplementedMessage) -> Int {
+        return self.writeInteger(message.sequenceNumber)
     }
 
     mutating func writeServiceRequestMessage(_ message: SSHMessage.ServiceRequestMessage) -> Int {
@@ -1029,3 +1088,95 @@ extension ByteBuffer {
         return writtenBytes
     }
 }
+
+
+// MARK:- MultiMessage
+
+/// `SSHMultiMessage` is a representation of one or more SSH messages. This wide struct is used
+/// to avoid allocating arrays internally in cases where we may need to represent multiple messages
+/// that conceptually move "together". This can occur, for example, in SSH key exchange where both
+/// keyExchangeReply and newKeys messages may want to be sent at once.
+///
+/// The number of messages this can hold is strictly limited to the number of messages we need it to be
+/// able to, in order to keep sizes down.
+///
+/// This collection is never _empty_: if you have one, there must be at least one message in it. This is a
+/// convenience feature that ensures that we know that the presence of this object implies the existence of
+/// at least one message.
+internal struct SSHMultiMessage {
+    private var _first: SSHMessage
+
+    private var _second: SSHMessage?
+
+    private var _count: UInt8
+
+    init(_ first: SSHMessage, _ second: SSHMessage? = nil) {
+        self._first = first
+        self._second = second
+
+        switch self._second {
+        case .none:
+            self._count = 1
+        case .some:
+            self._count = 2
+        }
+    }
+}
+
+extension SSHMultiMessage: RandomAccessCollection {
+    struct Index {
+        fileprivate var _baseIndex: UInt8
+
+        init(_ baseIndex: UInt8) {
+            self._baseIndex = baseIndex
+        }
+    }
+
+    var startIndex: Index {
+        return Index(0)
+    }
+
+    var endIndex: Index {
+        return Index(self._count)
+    }
+
+    var count: Int {
+        return Int(self._count)
+    }
+
+    var first: SSHMessage? {
+        return self._first
+    }
+
+    subscript(position: Index) -> SSHMessage {
+        switch position._baseIndex {
+        case 0:
+            return self._first
+        case 1:
+            return self._second!
+        default:
+            preconditionFailure("Index \(position) is invalid")
+        }
+    }
+}
+
+extension SSHMultiMessage.Index: Equatable { }
+
+extension SSHMultiMessage.Index: Comparable {
+    static func <(lhs: Self, rhs: Self) -> Bool {
+        return lhs._baseIndex < rhs._baseIndex
+    }
+}
+
+// We use Int as a stride type here just because it's easier.
+extension SSHMultiMessage.Index: Strideable {
+    func advanced(by n: Int) -> SSHMultiMessage.Index {
+        return Self(UInt8(Int(self._baseIndex) + n))
+    }
+
+    func distance(to other: SSHMultiMessage.Index) -> Int {
+        return Int(other._baseIndex - self._baseIndex)
+    }
+}
+
+extension SSHMultiMessage: Equatable { }

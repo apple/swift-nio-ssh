@@ -27,6 +27,8 @@ extension SSHMessagesTests {
    static var allTests : [(String, (SSHMessagesTests) -> () throws -> Void)] {
       return [
                 ("testDisconnnect", testDisconnnect),
+                ("testIgnore", testIgnore),
+                ("testUnimplemented", testUnimplemented),
                 ("testServiceRequest", testServiceRequest),
                 ("testServiceAccept", testServiceAccept),
                 ("testKeyExchangeMessage", testKeyExchangeMessage),

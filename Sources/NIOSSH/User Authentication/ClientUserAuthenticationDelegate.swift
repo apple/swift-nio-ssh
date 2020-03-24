@@ -27,7 +27,7 @@ import NIO
 ///
 /// This is currently an internal protocol, but we may make it available to users in future once
 /// we feel confident that it covers our needs. For now, all implementers are internal.
-protocol NIOSSHClientUserAuthenticationDelegate {
+public protocol NIOSSHClientUserAuthenticationDelegate {
     func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationRequest?>)
 }
 

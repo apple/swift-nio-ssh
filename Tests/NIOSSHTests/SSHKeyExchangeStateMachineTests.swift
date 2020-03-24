@@ -20,12 +20,19 @@ import Crypto
 final class SSHKeyExchangeStateMachineTests: XCTestCase {
     enum AssertionFailure: Error {
         case invalidMessageType
+        case unexpectedMultipleMessages
+        case unexpectedMissingMessage
     }
 
-    private func assertGeneratesKeyExchangeMessage(_ messageFactory: @autoclosure () throws -> SSHMessage) throws -> SSHMessage.KeyExchangeMessage {
+    private func assertGeneratesKeyExchangeMessage(_ messageFactory: @autoclosure () throws -> SSHMultiMessage) throws -> SSHMessage.KeyExchangeMessage {
         let message = try assertNoThrowWithValue(messageFactory())
 
-        guard case .keyExchange(let v) = message else {
+        guard message.count == 1 else {
+            XCTFail("Unexpected multiple message (found \(message.count))")
+            throw AssertionFailure.unexpectedMultipleMessages
+        }
+
+        guard case .some(.keyExchange(let v)) = message.first else {
             XCTFail("Unexpected message type: \(message)")
             throw AssertionFailure.invalidMessageType
         }
@@ -33,7 +40,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         return v
     }
 
-    private func assertGeneratesNoMessage(_ messageFactory: @autoclosure () throws -> SSHMessage?) throws {
+    private func assertGeneratesNoMessage(_ messageFactory: @autoclosure () throws -> SSHMultiMessage?) throws {
         let message = try assertNoThrowWithValue(messageFactory())
 
         guard message == nil else {
@@ -42,10 +49,18 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         }
     }
 
-    private func assertGeneratesECDHKeyExchangeInit(_ messageFactory: @autoclosure () throws -> SSHMessage?) throws -> SSHMessage.KeyExchangeECDHInitMessage {
-        let message = try assertNoThrowWithValue(messageFactory())
+    private func assertGeneratesECDHKeyExchangeInit(_ messageFactory: @autoclosure () throws -> SSHMultiMessage?) throws -> SSHMessage.KeyExchangeECDHInitMessage {
+        guard let message = try assertNoThrowWithValue(messageFactory()) else {
+            XCTFail("Unexpected missing message")
+            throw AssertionFailure.unexpectedMissingMessage
+        }
 
-        guard case .some(.keyExchangeInit(let v)) = message else {
+        guard message.count == 1 else {
+            XCTFail("Unexpected multiple message (found \(message.count))")
+            throw AssertionFailure.unexpectedMultipleMessages
+        }
+
+        guard case .some(.keyExchangeInit(let v)) = message.first else {
             XCTFail("Unexpected message type: \(String(describing: message))")
             throw AssertionFailure.invalidMessageType
         }
@@ -53,10 +68,23 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         return v
     }
 
-    private func assertGeneratesECDHKeyExchangeReply(_ messageFactory: @autoclosure () throws -> SSHMessage?) throws -> SSHMessage.KeyExchangeECDHReplyMessage {
-        let message = try assertNoThrowWithValue(messageFactory())
+    private func assertGeneratesECDHKeyExchangeReplyAndNewKeys(_ messageFactory: @autoclosure () throws -> SSHMultiMessage?) throws -> SSHMessage.KeyExchangeECDHReplyMessage {
+        guard let message = try assertNoThrowWithValue(messageFactory()) else {
+            XCTFail("Unexpected missing message")
+            throw AssertionFailure.unexpectedMissingMessage
+        }
 
-        guard case .some(.keyExchangeReply(let v)) = message else {
+        guard message.count == 2 else {
+            XCTFail("Unexpected message count (found \(message.count))")
+            throw AssertionFailure.unexpectedMultipleMessages
+        }
+
+        guard case .some(.keyExchangeReply(let v)) = message.first else {
+            XCTFail("Unexpected message type: \(String(describing: message))")
+            throw AssertionFailure.invalidMessageType
+        }
+
+        guard case .some(.newKeys) = message.dropFirst().first else {
             XCTFail("Unexpected message type: \(String(describing: message))")
             throw AssertionFailure.invalidMessageType
         }
@@ -64,10 +92,18 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         return v
     }
 
-    private func assertGeneratesNewKeys(_ messageFactory: @autoclosure () throws -> SSHMessage?) throws {
-        let message = try assertNoThrowWithValue(messageFactory())
+    private func assertGeneratesNewKeys(_ messageFactory: @autoclosure () throws -> SSHMultiMessage?) throws {
+        guard let message = try assertNoThrowWithValue(messageFactory()) else {
+            XCTFail("Unexpected missing message")
+            throw AssertionFailure.unexpectedMissingMessage
+        }
 
-        guard case .some(.newKeys) = message else {
+        guard message.count == 1 else {
+            XCTFail("Unexpected multiple message (found \(message.count))")
+            throw AssertionFailure.unexpectedMultipleMessages
+        }
+
+        guard case .some(.newKeys) = message.first else {
             XCTFail("Unexpected message type: \(String(describing: message))")
             throw AssertionFailure.invalidMessageType
         }
@@ -160,7 +196,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeReceiveKeyExchangeReplyClient, stateMachine: &client)
 
         // Now the server receives the ECDH init message and generates the reply, as well as the newKeys message.
-        let ecdhReply = try assertGeneratesECDHKeyExchangeReply(server.handle(keyExchangeInit: ecdhInit))
+        let ecdhReply = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: ecdhInit))
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeSendingKeyExchangeReplyServer, stateMachine: &server)
         XCTAssertNoThrow(try server.send(keyExchangeReply: ecdhReply))
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeSendingNewKeysServer, stateMachine: &server)
@@ -204,7 +240,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         client.send(keyExchangeInit: ecdhInit)
 
         // Now the server receives the ECDH init message and generates the reply, as well as the newKeys message.
-        let ecdhReply = try assertGeneratesECDHKeyExchangeReply(server.handle(keyExchangeInit: ecdhInit))
+        let ecdhReply = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: ecdhInit))
         XCTAssertNoThrow(try server.send(keyExchangeReply: ecdhReply))
         let serverOutboundProtection = server.sendNewKeys()
 
@@ -253,7 +289,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         keyBuffer.writeInteger(UInt64(0x191a1b1c1d1e1f20))
         let realMessage = SSHMessage.KeyExchangeECDHInitMessage(publicKey: keyBuffer)
 
-        let response = try assertGeneratesECDHKeyExchangeReply(server.handle(keyExchangeInit: realMessage))
+        let response = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: realMessage))
         XCTAssertNoThrow(try server.send(keyExchangeReply: response))
         _ = server.sendNewKeys()
     }
@@ -301,7 +337,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         client.send(keyExchangeInit: ecdhInit)
 
         // Now the server receives the ECDH init message and generates the reply, as well as the newKeys message.
-        let ecdhReply = try assertGeneratesECDHKeyExchangeReply(server.handle(keyExchangeInit: ecdhInit))
+        let ecdhReply = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: ecdhInit))
         XCTAssertNoThrow(try server.send(keyExchangeReply: ecdhReply))
         let serverOutboundProtection = server.sendNewKeys()
 
