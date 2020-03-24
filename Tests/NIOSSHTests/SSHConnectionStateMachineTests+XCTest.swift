@@ -27,6 +27,7 @@ extension SSHConnectionStateMachineTests {
    static var allTests : [(String, (SSHConnectionStateMachineTests) -> () throws -> Void)] {
       return [
                 ("testBasicConnectionDance", testBasicConnectionDance),
+                ("testReceivingChannelMessagesGetForwardedOnceConnectionMade", testReceivingChannelMessagesGetForwardedOnceConnectionMade),
            ]
    }
 }

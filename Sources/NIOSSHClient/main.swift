@@ -30,35 +30,8 @@ final class ErrorHandler: ChannelInboundHandler {
     }
 }
 
-/// A client user auth delegate that provides an interactive prompt for password-based user auth.
-final class InteractivePasswordPromptDelegate: NIOSSHClientUserAuthenticationDelegate {
-    private let queue: DispatchQueue
-
-    init() {
-        self.queue = DispatchQueue(label: "io.swiftnio.ssh.InteractivePasswordPromptDelegate")
-    }
-
-    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationRequest?>) {
-        guard availableMethods.contains(.password) else {
-            print("Error: password auth not supported")
-            nextChallengePromise.fail(SSHClientError.passwordAuthenticationNotSupported)
-            return
-        }
-
-        self.queue.async {
-            print("Username: ", terminator: "")
-            let username = readLine() ?? ""
-            print("Password: ", terminator: "")
-            let password = readLine() ?? ""
-
-            nextChallengePromise.succeed(NIOSSHUserAuthenticationRequest(username: username, serviceName: "", request: .password(.init(password: password))))
-        }
-    }
-}
-
-enum SSHClientError: Swift.Error {
-    case passwordAuthenticationNotSupported
-}
+let parser = SimpleCLIParser()
+let parseResult = parser.parse()
 
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 defer {
@@ -67,51 +40,28 @@ defer {
 
 let bootstrap = ClientBootstrap(group: group)
     .channelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .client, allocator: channel.allocator, clientUserAuthDelegate: InteractivePasswordPromptDelegate(), serverUserAuthDelegate: nil), ErrorHandler()])
+        channel.pipeline.addHandlers([NIOSSHHandler(role: .client, allocator: channel.allocator, clientUserAuthDelegate: InteractivePasswordPromptDelegate(username: parseResult.user, password: parseResult.password), serverUserAuthDelegate: nil, inboundChildChannelInitializer: nil), ErrorHandler()])
     }
     .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
 
-// First argument is the program path
-let arguments = CommandLine.arguments
-let arg1 = arguments.dropFirst().first
-let arg2 = arguments.dropFirst().dropFirst().first
 
-enum ConnectTo {
-    case ip(host: String, port: Int)
-    case unixDomainSocket(path: String)
-}
+let channel = try bootstrap.connect(host: parseResult.host, port: parseResult.port).wait()
 
-let defaultHost = "::1"
-let defaultPort: Int = 8888
-let connectTarget: ConnectTo
-
-switch (arg1, arg1.flatMap { Int($0) }, arg2, arg2.flatMap { Int($0) }) {
-case (.some(let h), _ , _, .some(let p)):
-    /* second arg an integer --> host port */
-    connectTarget = .ip(host: h, port: p)
-case (_, .some(let p), .none, .none):
-    /* first arg an integer --> port */
-    connectTarget = .ip(host: defaultHost, port: p)
-case (.some(let portString), .none, .none, .none):
-    /* couldn't parse as number --> uds-path */
-    connectTarget = .unixDomainSocket(path: portString)
-default:
-    connectTarget = ConnectTo.ip(host: defaultHost, port: defaultPort)
-}
-
-let channel = try { () -> Channel in
-    switch connectTarget {
-    case .ip(let host, let port):
-        return try bootstrap.connect(host: host, port: port).wait()
-    case .unixDomainSocket(let path):
-        return try bootstrap.connect(unixDomainSocketPath: path).wait()
+// Let's try creating a child channel.
+let exitStatusPromise = channel.eventLoop.makePromise(of: Int.self)
+let childChannel: Channel = try! channel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
+    let promise = channel.eventLoop.makePromise(of: Channel.self)
+    sshHandler.createChannel(promise) { childChannel in
+        childChannel.pipeline.addHandlers([ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise), ErrorHandler()])
     }
-    }()
-
-print("Client started and connected to \(channel.remoteAddress!)")
+    return promise.futureResult
+}.wait()
 
 // Wait for the connection to close
-try channel.closeFuture.wait()
+try childChannel.closeFuture.wait()
+let exitStatus = try! exitStatusPromise.futureResult.wait()
+try! channel.close().wait()
 
-print("Client closed")
+// Exit like we're the command.
+exit(Int32(exitStatus))

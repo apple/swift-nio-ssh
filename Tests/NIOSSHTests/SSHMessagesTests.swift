@@ -310,4 +310,30 @@ final class SSHMessagesTests: XCTestCase {
         buffer.writeBytes([127])
         XCTAssertThrowsError(try buffer.readSSHMessage())
     }
+
+    func testRequestSuccess() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        var bucketOBytes = ByteBufferAllocator().buffer(capacity: 24)
+        bucketOBytes.writeBytes(0..<24)
+
+        let message = SSHMessage.requestSuccess(.init(bytes: bucketOBytes))
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        buffer.clear()
+        buffer.writeBytes([SSHMessage.RequestSuccessMessage.id] + Array(0..<24))
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+    }
+
+    func testRequestFailure() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        let message = SSHMessage.requestFailure
+
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        buffer.clear()
+        buffer.writeBytes([SSHMessage.RequestFailureMessage.id])
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+    }
 }
