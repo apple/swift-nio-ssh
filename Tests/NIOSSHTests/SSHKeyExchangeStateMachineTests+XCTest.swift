@@ -33,6 +33,7 @@ extension SSHKeyExchangeStateMachineTests {
                 ("testExtraECDHReplyForbidden", testExtraECDHReplyForbidden),
                 ("testExtraNewKeysMessageForbidden", testExtraNewKeysMessageForbidden),
                 ("testKeyExchangeRapidNewKeys", testKeyExchangeRapidNewKeys),
+                ("testKeyExchangeUsingP256HostKeysOnly", testKeyExchangeUsingP256HostKeysOnly),
            ]
    }
 }

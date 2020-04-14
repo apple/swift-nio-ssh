@@ -62,7 +62,7 @@ let hostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
 
 let bootstrap = ServerBootstrap(group: group)
     .childChannelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .server(hostKey), allocator: channel.allocator, clientUserAuthDelegate: nil, serverUserAuthDelegate: HardcodedPasswordDelegate(), inboundChildChannelInitializer: sshChildChannelInitializer(_:)), ErrorHandler()])
+        channel.pipeline.addHandlers([NIOSSHHandler(role: .server([hostKey]), allocator: channel.allocator, clientUserAuthDelegate: nil, serverUserAuthDelegate: HardcodedPasswordDelegate(), inboundChildChannelInitializer: sshChildChannelInitializer(_:)), ErrorHandler()])
     }
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)

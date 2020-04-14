@@ -34,25 +34,25 @@ struct SSHKeyExchangeStateMachine {
         case keyExchangeSent(message: SSHMessage.KeyExchangeMessage)
 
         /// The peer has guessed what key exchange init packet is coming, and guessed wrong. We need to wait for them to send that packet.
-        case awaitingKeyExchangeInitInvalidGuess(exchange: Curve25519KeyExchange)
+        case awaitingKeyExchangeInitInvalidGuess(exchange: Curve25519KeyExchange, negotiated: NegotiationResult)
 
         /// Both sides have sent their initial key exchange message but we have not begun actually performing a key exchange.
-        case awaitingKeyExchangeInit(exchange: Curve25519KeyExchange)
+        case awaitingKeyExchangeInit(exchange: Curve25519KeyExchange, negotiated: NegotiationResult)
 
         /// We've received the key exchange init, but not sent our reply yet.
-        case keyExchangeInitReceived(result: KeyExchangeResult)
+        case keyExchangeInitReceived(result: KeyExchangeResult, negotiated: NegotiationResult)
 
         /// We've sent our keyExchangeInit, but not received the keyExchangeReply.
-        case keyExchangeInitSent(exchange: Curve25519KeyExchange)
+        case keyExchangeInitSent(exchange: Curve25519KeyExchange, negotiated: NegotiationResult)
 
         /// The keys have been exchanged.
-        case keysExchanged(result: KeyExchangeResult, protection: NIOSSHTransportProtection)
+        case keysExchanged(result: KeyExchangeResult, protection: NIOSSHTransportProtection, negotiated: NegotiationResult)
 
         /// We have received the remote peer's newKeys message, and are waiting to send our own.
-        case newKeysReceived(result: KeyExchangeResult, protection: NIOSSHTransportProtection)
+        case newKeysReceived(result: KeyExchangeResult, protection: NIOSSHTransportProtection, negotiated: NegotiationResult)
 
         /// We have sent our newKeys message, and are waiting to receive the remote peer's.
-        case newKeysSent(result: KeyExchangeResult, protection: NIOSSHTransportProtection)
+        case newKeysSent(result: KeyExchangeResult, protection: NIOSSHTransportProtection, negotiated: NegotiationResult)
 
         /// We've completed the key exchange.
         case complete
@@ -90,7 +90,7 @@ struct SSHKeyExchangeStateMachine {
         return .keyExchange(.init(
             cookie: cookie,
             keyExchangeAlgorithms: Self.supportedKeyExchangeAlgorithms,
-            serverHostKeyAlgorithms: Self.supportedServerHostKeyAlgorithms,
+            serverHostKeyAlgorithms: self.supportedHostKeyAlgorithms,
             encryptionAlgorithmsClientToServer: ["aes256-gcm@openssh.com"],
             encryptionAlgorithmsServerToClient: ["aes256-gcm@openssh.com"],
             macAlgorithmsClientToServer: ["hmac-sha2-256"],
@@ -123,24 +123,24 @@ struct SSHKeyExchangeStateMachine {
 
                 // verify algorithms
                 let negotiated = try self.negotiatedKeyExchangeAlgorithm(peerKeyExchangeAlgorithms: message.keyExchangeAlgorithms, peerHostKeyAlgorithms: message.serverHostKeyAlgorithms)
-                let exchanger = self.exchangerForAlgorithm(negotiated)
+                let exchanger = self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
                 // Ok, we need to send the key exchange message.
                 let message = SSHMessage.keyExchangeInit(exchanger.initiateKeyExchangeClientSide(allocator: allocator))
-                self.state = .awaitingKeyExchangeInit(exchange: exchanger)
+                self.state = .awaitingKeyExchangeInit(exchange: exchanger, negotiated: negotiated)
                 return SSHMultiMessage(message)
             case .server:
                 // Write their message in first, then ours.
                 self.addKeyExchangeInitMessagesToExchangeBytes(clientsMessage: message, serversMessage: ourMessage)
 
                 let negotiated = try self.negotiatedKeyExchangeAlgorithm(peerKeyExchangeAlgorithms: message.keyExchangeAlgorithms, peerHostKeyAlgorithms: message.serverHostKeyAlgorithms)
-                let exchanger = self.exchangerForAlgorithm(negotiated)
+                let exchanger = self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
                 // Ok, we're waiting for them to go. They might be sending a wrong guess, which we want to ignore.
                 if self.expectingIncorrectGuess(message) {
-                    self.state = .awaitingKeyExchangeInitInvalidGuess(exchange: exchanger)
+                    self.state = .awaitingKeyExchangeInitInvalidGuess(exchange: exchanger, negotiated: negotiated)
                 } else {
-                    self.state = .awaitingKeyExchangeInit(exchange: exchanger)
+                    self.state = .awaitingKeyExchangeInit(exchange: exchanger, negotiated: negotiated)
                 }
                 return nil
             }
@@ -163,25 +163,25 @@ struct SSHKeyExchangeStateMachine {
 
     mutating func handle(keyExchangeInit message: SSHMessage.KeyExchangeECDHInitMessage) throws -> SSHMultiMessage? {
         switch self.state {
-        case .awaitingKeyExchangeInitInvalidGuess(exchange: let exchanger):
+        case .awaitingKeyExchangeInitInvalidGuess(exchange: let exchanger, negotiated: let negotiated):
             // We're going to ignore this one, we already know it's wrong.
             assert(self.role.isServer, "Clients cannot be expecting invalid guess from the peer")
-            self.state = .awaitingKeyExchangeInit(exchange: exchanger)
+            self.state = .awaitingKeyExchangeInit(exchange: exchanger, negotiated: negotiated)
             return nil
 
-        case .awaitingKeyExchangeInit(exchange: var exchanger):
+        case .awaitingKeyExchangeInit(exchange: var exchanger, negotiated: let negotiated):
             switch self.role {
             case .client:
                 throw SSHKeyExchangeError.unexpectedMessage
-            case .server(let key):
+            case .server(let keys):
                 let (result, reply) = try exchanger.completeKeyExchangeServerSide(
                     clientKeyExchangeMessage: message,
-                    serverHostKey: key,
+                    serverHostKey: negotiated.negotiatedHostKey(keys),
                     initialExchangeBytes: &self.initialExchangeBytes,
                     allocator: self.allocator, expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes)
 
                 let message = SSHMessage.keyExchangeReply(reply)
-                self.state = .keyExchangeInitReceived(result: result)
+                self.state = .keyExchangeInitReceived(result: result, negotiated: negotiated)
                 return SSHMultiMessage(message, .newKeys)
         }
         case .idle, .keyExchangeSent, .keyExchangeInitReceived, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
@@ -191,9 +191,9 @@ struct SSHKeyExchangeStateMachine {
 
     mutating func send(keyExchangeInit message: SSHMessage.KeyExchangeECDHInitMessage) {
         switch self.state {
-        case .awaitingKeyExchangeInit(exchange: let exchanger):
+        case .awaitingKeyExchangeInit(exchange: let exchanger, negotiated: let negotiated):
             precondition(self.role.isClient, "Servers must not send ecdh key exchange init messages")
-            self.state = .keyExchangeInitSent(exchange: exchanger)
+            self.state = .keyExchangeInitSent(exchange: exchanger, negotiated: negotiated)
         case .idle, .keyExchangeSent, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             // This is a precondition not a throw because we control the sending of this message.
             preconditionFailure("Cannot send ECDH key exchange message in state \(self.state)")
@@ -202,7 +202,7 @@ struct SSHKeyExchangeStateMachine {
 
     mutating func handle(keyExchangeReply message: SSHMessage.KeyExchangeECDHReplyMessage) throws -> SSHMultiMessage {
         switch self.state {
-        case .keyExchangeInitSent(exchange: var exchanger):
+        case .keyExchangeInitSent(exchange: var exchanger, negotiated: let negotiated):
             switch self.role {
             case .client:
                 let result = try exchanger.receiveServerKeyExchangePayload(
@@ -211,7 +211,7 @@ struct SSHKeyExchangeStateMachine {
                     allocator: allocator,
                     expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes)
 
-                self.state = .keysExchanged(result: result, protection: try AES256GCMOpenSSHTransportProtection(initialKeys: result.keys))
+                self.state = .keysExchanged(result: result, protection: try AES256GCMOpenSSHTransportProtection(initialKeys: result.keys), negotiated: negotiated)
                 return SSHMultiMessage(SSHMessage.newKeys)
             case .server:
                 preconditionFailure("Servers cannot enter key exchange init sent.")
@@ -223,9 +223,9 @@ struct SSHKeyExchangeStateMachine {
 
     mutating func send(keyExchangeReply message: SSHMessage.KeyExchangeECDHReplyMessage) throws {
         switch self.state {
-        case .keyExchangeInitReceived(result: let result):
+        case .keyExchangeInitReceived(result: let result, negotiated: let negotiated):
             precondition(self.role.isServer, "Clients cannot enter key exchange init received")
-            self.state = .keysExchanged(result: result, protection: try AES256GCMOpenSSHTransportProtection(initialKeys: result.keys))
+            self.state = .keysExchanged(result: result, protection: try AES256GCMOpenSSHTransportProtection(initialKeys: result.keys), negotiated: negotiated)
         case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             // This is a precondition not a throw because we control the sending of this message.
             preconditionFailure("Cannot send ECDH key exchange message in state \(self.state)")
@@ -234,10 +234,10 @@ struct SSHKeyExchangeStateMachine {
 
     mutating func handleNewKeys() throws -> NIOSSHTransportProtection {
         switch self.state {
-        case .keysExchanged(result: let result, protection: let protection):
-            self.state = .newKeysReceived(result: result, protection: protection)
+        case .keysExchanged(result: let result, protection: let protection, negotiated: let negotiated):
+            self.state = .newKeysReceived(result: result, protection: protection, negotiated: negotiated)
             return protection
-        case .newKeysSent(_, protection: let protection):
+        case .newKeysSent(_, protection: let protection, _):
             self.state = .complete
             return protection
         case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .newKeysReceived, .complete:
@@ -247,10 +247,10 @@ struct SSHKeyExchangeStateMachine {
 
     mutating func sendNewKeys() -> NIOSSHTransportProtection {
         switch self.state {
-        case .keysExchanged(result: let result, protection: let protection):
-            self.state = .newKeysSent(result: result, protection: protection)
+        case .keysExchanged(result: let result, protection: let protection, negotiated: let negotiated):
+            self.state = .newKeysSent(result: result, protection: protection, negotiated: negotiated)
             return protection
-        case .newKeysReceived(_, protection: let protection):
+        case .newKeysReceived(_, protection: let protection, _):
             self.state = .complete
             return protection
         case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .newKeysSent, .complete:
@@ -259,7 +259,7 @@ struct SSHKeyExchangeStateMachine {
         }
     }
 
-    private func negotiatedKeyExchangeAlgorithm(peerKeyExchangeAlgorithms: [Substring], peerHostKeyAlgorithms: [Substring]) throws -> Substring {
+    private func negotiatedKeyExchangeAlgorithm(peerKeyExchangeAlgorithms: [Substring], peerHostKeyAlgorithms: [Substring]) throws -> NegotiationResult {
         // From RFC 4253:
         //
         // > The first algorithm MUST be the preferred (and guessed) algorithm.  If
@@ -284,14 +284,10 @@ struct SSHKeyExchangeStateMachine {
         // > If no algorithm satisfying all these conditions can be found, the
         // > connection fails, and both sides MUST disconnect.
 
-        // We begin with the early check: is the peer's first algorithm ours?
-        if peerKeyExchangeAlgorithms.first == Self.supportedKeyExchangeAlgorithms.first {
-            return Self.supportedKeyExchangeAlgorithms.first!
-        }
-
         // Ok, rephrase as client and server instead of us and them.
         let clientAlgorithms: [Substring]
         let serverAlgorithms: [Substring]
+        let supportedHostKeyAlgorithms = self.supportedHostKeyAlgorithms
 
         switch self.role {
         case .client:
@@ -303,20 +299,20 @@ struct SSHKeyExchangeStateMachine {
         }
 
         // Let's find the first protocol the client supports that the server does too.
-        outerLoop: for algorithm in clientAlgorithms {
+        for algorithm in clientAlgorithms {
             guard serverAlgorithms.contains(algorithm) else {
-                continue outerLoop
+                continue
             }
 
             // Ok, got one. We need a signing capable host key algorithm, which for us is all of them.
             // We iterate over our list because it's almost certainly smaller than the peer's.
-            for hostKeyAlgorithm in Self.supportedServerHostKeyAlgorithms {
+            for hostKeyAlgorithm in supportedHostKeyAlgorithms {
                 guard peerHostKeyAlgorithms.contains(hostKeyAlgorithm) else {
-                    continue outerLoop
+                    continue
                 }
 
                 // Got one! This one works.
-                return algorithm
+                return NegotiationResult(negotiatedKeyExchangeAlgorithm: algorithm, negotiatedHostKeyAlgorithm: hostKeyAlgorithm)
             }
         }
 
@@ -346,8 +342,18 @@ struct SSHKeyExchangeStateMachine {
         // A guess is wrong if the key exchange algorithm and/or the host key algorithm differ from our preference.
         return kexMessage.firstKexPacketFollows && (
             kexMessage.keyExchangeAlgorithms.first != Self.supportedKeyExchangeAlgorithms.first ||
-            kexMessage.serverHostKeyAlgorithms.first != Self.supportedServerHostKeyAlgorithms.first
+            kexMessage.serverHostKeyAlgorithms.first != self.supportedHostKeyAlgorithms.first
         )
+    }
+
+    // The host key algorithms supported by this peer, in order of preferences..
+    private var supportedHostKeyAlgorithms: [Substring] {
+        switch self.role {
+        case .client:
+            return Self.supportedServerHostKeyAlgorithms
+        case .server(let keys):
+            return keys.flatMap { $0.hostKeyAlgorithms }
+        }
     }
 }
 
@@ -356,5 +362,20 @@ extension SSHKeyExchangeStateMachine {
     // For now this is a static list.
     static let supportedKeyExchangeAlgorithms: [Substring] = ["curve25519-sha256", "curve25519-sha256@libssh.org"]
 
-    static let supportedServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519"]
+    /// All known host key algorithms.
+    static let supportedServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp256"]
+}
+
+extension SSHKeyExchangeStateMachine {
+    struct NegotiationResult {
+        var negotiatedKeyExchangeAlgorithm: Substring
+
+        var negotiatedHostKeyAlgorithm: Substring
+
+        func negotiatedHostKey(_ keys: [NIOSSHHostPrivateKey]) -> NIOSSHHostPrivateKey {
+            // This force-unwrap is safe: to fail to obtain it is a programming error, as we must have negotiated
+            // the host key algorithm.
+            return keys.first { $0.hostKeyAlgorithms.contains(self.negotiatedHostKeyAlgorithm) }!
+        }
+    }
 }
