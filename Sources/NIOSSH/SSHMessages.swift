@@ -36,6 +36,8 @@ enum SSHMessage: Equatable {
     case userAuthFailure(UserAuthFailureMessage)
     case userAuthSuccess
     case globalRequest(GlobalRequestMessage)
+    case requestSuccess(RequestSuccessMessage)
+    case requestFailure
     case channelOpen(ChannelOpenMessage)
     case channelOpenConfirmation(ChannelOpenConfirmationMessage)
     case channelOpenFailure(ChannelOpenFailureMessage)
@@ -158,6 +160,16 @@ extension SSHMessage {
         var name: String
         var wantReply: Bool
         var bytes: ByteBuffer?
+    }
+
+    struct RequestSuccessMessage: Equatable {
+        static let id: UInt8 = 81
+
+        var bytes: ByteBuffer
+    }
+
+    enum RequestFailureMessage {
+        static let id: UInt8 = 82
     }
 
     struct ChannelOpenMessage: Equatable {
@@ -342,6 +354,13 @@ extension ByteBuffer {
                     return nil
                 }
                 return .globalRequest(message)
+            case SSHMessage.RequestSuccessMessage.id:
+                guard let message = self.readRequestSuccessMessage() else {
+                    return nil
+                }
+                return .requestSuccess(message)
+            case SSHMessage.RequestFailureMessage.id:
+                return .requestFailure
             case SSHMessage.ChannelOpenMessage.id:
                 guard let message = self.readChannelOpenMessage() else {
                     return nil
@@ -593,6 +612,11 @@ extension ByteBuffer {
         }
     }
 
+    mutating func readRequestSuccessMessage() -> SSHMessage.RequestSuccessMessage? {
+        let bytes = self.readSlice(length: self.readableBytes)!
+        return SSHMessage.RequestSuccessMessage(bytes: bytes)
+    }
+
     mutating func readChannelOpenMessage() -> SSHMessage.ChannelOpenMessage? {
         return self.rewindReaderOnNil { `self` in
             guard
@@ -827,6 +851,11 @@ extension ByteBuffer {
         case .globalRequest(let message):
             writtenBytes += self.writeInteger(SSHMessage.GlobalRequestMessage.id)
             writtenBytes += self.writeGlobalRequestMessage(message)
+        case .requestSuccess(let message):
+            writtenBytes += self.writeInteger(SSHMessage.RequestSuccessMessage.id)
+            writtenBytes += self.writeRequestSuccessMessage(message)
+        case .requestFailure:
+            writtenBytes += self.writeInteger(SSHMessage.RequestFailureMessage.id)
         case .channelOpen(let message):
             writtenBytes += self.writeInteger(SSHMessage.ChannelOpenMessage.id)
             writtenBytes += self.writeChannelOpenMessage(message)
@@ -963,6 +992,11 @@ extension ByteBuffer {
         writtenBytes += self.writeSSHBoolean(message.wantReply)
 
         return writtenBytes
+    }
+
+    mutating func writeRequestSuccessMessage(_ message: SSHMessage.RequestSuccessMessage) -> Int {
+        var buffer = message.bytes
+        return self.writeBuffer(&buffer)
     }
 
     mutating func writeChannelOpenMessage(_ message: SSHMessage.ChannelOpenMessage) -> Int {

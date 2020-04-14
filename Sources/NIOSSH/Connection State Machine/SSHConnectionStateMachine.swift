@@ -34,7 +34,8 @@ struct SSHConnectionStateMachine {
         /// We are currently performing a user authentication.
         case userAuthentication(UserAuthenticationState)
 
-        case channel
+        /// The SSH connection is active.
+        case active(ActiveState)
     }
 
     /// The state of this state machine.
@@ -48,7 +49,7 @@ struct SSHConnectionStateMachine {
         switch self.state {
         case .idle:
             return SSHMultiMessage(SSHMessage.version(Constants.version))
-        case .sentVersion, .keyExchange, .sentNewKeys, .receivedNewKeys, .userAuthentication, .channel:
+        case .sentVersion, .keyExchange, .sentNewKeys, .receivedNewKeys, .userAuthentication, .active:
             preconditionFailure("Cannot call start twice, state \(self.state)")
         }
     }
@@ -72,8 +73,9 @@ struct SSHConnectionStateMachine {
         case .userAuthentication(var state):
             state.parser.append(bytes: &data)
             self.state = .userAuthentication(state)
-        case .channel:
-            break
+        case .active(var state):
+            state.parser.append(bytes: &data)
+            self.state = .active(state)
         }
     }
 
@@ -241,7 +243,7 @@ struct SSHConnectionStateMachine {
             case .userAuthSuccess:
                 let result = try state.receiveUserAuthSuccess()
                 // Hey, auth succeeded!
-                self.state = .channel
+                self.state = .active(ActiveState(state))
                 return result
 
             case .userAuthFailure(let message):
@@ -253,9 +255,49 @@ struct SSHConnectionStateMachine {
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
             }
 
-        case .channel:
-            // TODO: we now have keys
-            return .noMessage
+        case .active(var state):
+            guard let message = try state.parser.nextPacket() else {
+                return nil
+            }
+
+            switch message {
+            // TODO(cory): One day soon we'll need to support re-keying in this state.
+            // For now we only support channel messages.
+            case .channelOpen(let message):
+                try state.receiveChannelOpen(message)
+            case .channelOpenConfirmation(let message):
+                try state.receiveChannelOpenConfirmation(message)
+            case .channelOpenFailure(let message):
+                try state.receiveChannelOpenFailure(message)
+            case .channelEOF(let message):
+                try state.receiveChannelEOF(message)
+            case .channelClose(let message):
+                try state.receiveChannelClose(message)
+            case .channelWindowAdjust(let message):
+                try state.receiveChannelWindowAdjust(message)
+            case .channelData(let message):
+                try state.receiveChannelData(message)
+            case .channelExtendedData(let message):
+                try state.receiveChannelExtendedData(message)
+            case .channelRequest(let message):
+                try state.receiveChannelRequest(message)
+            case .channelSuccess(let message):
+                try state.receiveChannelSuccess(message)
+            case .channelFailure(let message):
+                try state.receiveChannelFailure(message)
+            case .globalRequest(let message):
+                // For now on global request messages we ignore or reject.
+                try state.receiveGlobalRequest(message)
+                if message.wantReply {
+                    self.state = .active(state)
+                    return .emitMessage(SSHMultiMessage(.requestFailure))
+                }
+            default:
+                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
+            }
+
+            self.state = .active(state)
+            return .forwardToMultiplexer(message)
         }
     }
 
@@ -351,7 +393,7 @@ struct SSHConnectionStateMachine {
             case .userAuthSuccess:
                 try state.writeUserAuthSuccess(into: &buffer)
                 // Ok we're good to go!
-                self.state = .channel
+                self.state = .active(ActiveState(state))
 
             case .userAuthFailure(let message):
                 try state.writeUserAuthFailure(message, into: &buffer)
@@ -361,9 +403,37 @@ struct SSHConnectionStateMachine {
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Sent unexpected message type: \(message)")
             }
 
-        case .channel:
-            // We can't send anything in these states.
-            break
+        case .active(var state):
+            switch message {
+            // TODO(cory): One day soon we'll need to support re-keying in this state.
+            // For now we only support channel messages.
+            case .channelOpen(let message):
+                try state.writeChannelOpen(message, into: &buffer)
+            case .channelOpenConfirmation(let message):
+                try state.writeChannelOpenConfirmation(message, into: &buffer)
+            case .channelOpenFailure(let message):
+                try state.writeChannelOpenFailure(message, into: &buffer)
+            case .channelEOF(let message):
+                try state.writeChannelEOF(message, into: &buffer)
+            case .channelClose(let message):
+                try state.writeChannelClose(message, into: &buffer)
+            case .channelWindowAdjust(let message):
+                try state.writeChannelWindowAdjust(message, into: &buffer)
+            case .channelData(let message):
+                try state.writeChannelData(message, into: &buffer)
+            case .channelExtendedData(let message):
+                try state.writeChannelExtendedData(message, into: &buffer)
+            case .channelRequest(let message):
+                try state.writeChannelRequest(message, into: &buffer)
+            case .channelSuccess(let message):
+                try state.writeChannelSuccess(message, into: &buffer)
+            case .channelFailure(let message):
+                try state.writeChannelFailure(message, into: &buffer)
+            default:
+                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Sent unexpected message type: \(message)")
+            }
+
+            self.state = .active(state)
         }
     }
 }
@@ -374,10 +444,24 @@ extension SSHConnectionStateMachine {
     ///
     /// When the state machine processes a message, several things may happen. Firstly, it may generate an
     /// automatic message that should be sent. Secondly, it may generate a possibility of having a message in
-    /// future. Thirdly, it may generate nothing.
+    /// future. Thirdly, it may be a message targetted to one of the child channels. Fourthly, it may generate nothing.
     enum StateMachineInboundProcessResult {
         case emitMessage(SSHMultiMessage)
         case possibleFutureMessage(EventLoopFuture<SSHMultiMessage?>)
+        case forwardToMultiplexer(SSHMessage)
         case noMessage
+    }
+}
+
+
+// MARK: Helper properties
+extension SSHConnectionStateMachine {
+    var canInitializeChildChannels: Bool {
+        switch self.state {
+        case .active:
+            return true
+        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication:
+            return false
+        }
     }
 }

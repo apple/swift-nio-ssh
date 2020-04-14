@@ -51,6 +51,8 @@ extension SSHMessagesTests {
                 ("testChannelSuccess", testChannelSuccess),
                 ("testChannelFailure", testChannelFailure),
                 ("testTypeError", testTypeError),
+                ("testRequestSuccess", testRequestSuccess),
+                ("testRequestFailure", testRequestFailure),
            ]
    }
 }

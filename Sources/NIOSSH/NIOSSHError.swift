@@ -85,6 +85,20 @@ extension NIOSSHError {
     internal static func unsupportedVersion(_ version: String) -> NIOSSHError {
         return NIOSSHError(type: .unsupportedVersion, diagnostics: "Version \(version) offered by the remote peer is not supported")
     }
+
+    @inline(never)
+    internal static func channelSetupRejected(reasonCode: UInt32, reason: String) -> NIOSSHError {
+        return NIOSSHError(type: .channelSetupRejected, diagnostics: "Reason: \(reasonCode) \(reason)")
+    }
+
+    @inline(never)
+    internal static func flowControlViolation(currentWindow: UInt32, increment: UInt32) -> NIOSSHError {
+        return NIOSSHError(type: .flowControlViolation, diagnostics: "Window size \(currentWindow), bad increment \(increment)")
+    }
+
+    internal static let creatingChannelAfterClosure = NIOSSHError(type: .creatingChannelAfterClosure, diagnostics: nil)
+
+    internal static let tcpShutdown = NIOSSHError(type: .tcpShutdown, diagnostics: nil)
 }
 
 
@@ -117,6 +131,10 @@ extension NIOSSHError {
             case protocolViolation
             case keyExchangeNegotiationFailure
             case unsupportedVersion
+            case channelSetupRejected
+            case flowControlViolation
+            case creatingChannelAfterClosure
+            case tcpShutdown
         }
 
         private var base: Base
@@ -172,6 +190,18 @@ extension NIOSSHError {
 
         /// The SSH version offered by the remote peer is unsupported by this implementation.
         public static let unsupportedVersion: ErrorType = .init(.unsupportedVersion)
+
+        /// The remote peer rejected a request to setup a new channel.
+        public static let channelSetupRejected: ErrorType = .init(.channelSetupRejected)
+
+        /// The remote peer violated the SSH flow control rules.
+        public static let flowControlViolation: ErrorType = .init(.flowControlViolation)
+
+        /// The user attempted to create an SSH channel after the SSH handler was closed.
+        public static let creatingChannelAfterClosure: ErrorType = .init(.creatingChannelAfterClosure)
+
+        /// The TCP connection was shut down without cleanly closing the SSH channel.
+        public static let tcpShutdown: ErrorType = .init(.tcpShutdown)
     }
 }
 
