@@ -33,6 +33,7 @@ let package = Package(
     targets: [
         .target(name: "NIOSSH", dependencies: ["NIO", "NIOFoundationCompat", "Crypto"]),
         .target(name: "NIOSSHClient", dependencies: ["NIO", "NIOSSH", "NIOConcurrencyHelpers"]),
+        .target(name: "NIOSSHServer", dependencies: ["NIO", "NIOSSH", "NIOFoundationCompat", "Crypto"]),
         .testTarget(name: "NIOSSHTests", dependencies: ["NIOSSH", "NIO", "NIOFoundationCompat"]),
     ]
 )
