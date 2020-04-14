@@ -464,6 +464,9 @@ extension SSHChildChannel: Channel, ChannelCore {
                                                         maximumPacketSize: 1 << 24)
             self.processOutboundMessage(.channelOpen(message), promise: nil)
             self.writePendingToMultiplexer()
+        } else {
+            // Already closed, just fail this promise.
+            self.closeFuture.cascadeFailure(to: userPromise)
         }
     }
 
@@ -975,11 +978,11 @@ extension SSHChildChannel {
     }
 
     func parentChannelInactive() {
-        // The parent has gone inactive. If we're inactive on the network, this was unclean: otherwise it's clean.
-        if self.state.isActiveOnNetwork {
+        // The parent has gone inactive. If we're already closed, do nothing. Otherwise, this is an error that forces us directly into
+        // closed.
+        if !self.state.isClosed {
+            self.state.receiveTCPEOF()
             self.errorEncountered(error: NIOSSHError.tcpShutdown)
-        } else {
-            self.closedCleanly()
         }
     }
 }

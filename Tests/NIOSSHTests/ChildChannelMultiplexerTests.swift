@@ -666,9 +666,9 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Claim the parent has gone inactive. All should go inactive.
         harness.multiplexer.parentChannelInactive()
 
-        // They send some messages: these will never reach the network.
+        // They send no messages.
         XCTAssertTrue(childChannels.allSatisfy { !$0.isActive })
-        XCTAssertEqual(harness.flushedMessages.count, 10)
+        XCTAssertEqual(harness.flushedMessages.count, 5)
     }
 
     func testClosingClosedChannelsDoesntHurt() throws {
@@ -1307,5 +1307,70 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Now we drop in an open failure. The promise completes.
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openFailure(originalChannelID: channelID!, reasonCode: 1)))
         XCTAssertEqual((childPromiseError as? Optional<NIOSSHError>)??.type, .channelSetupRejected)
+    }
+
+    func testTCPCloseWhileAwaitingChannelSetup() throws {
+        let harness = self.harnessForbiddingInboundChannels()
+        defer {
+            harness.finish()
+        }
+
+        XCTAssertEqual(harness.flushedMessages.count, 0)
+
+        var childPromiseError: Error? = nil
+        let childPromise: EventLoopPromise<Channel> = harness.eventLoop.makePromise()
+        var childChannel: Channel?
+        childPromise.futureResult.whenFailure { error in childPromiseError = error }
+
+        harness.multiplexer.createChildChannel(childPromise) { channel in
+            childChannel = channel
+            return channel.eventLoop.makeSucceededFuture(())
+        }
+
+        guard let channel = childChannel else {
+            XCTFail("Did not create channnel")
+            return
+        }
+        XCTAssertNil(childPromiseError)
+        XCTAssertFalse(channel.isActive)
+        assertChannelOpen(harness.flushedMessages.first)
+
+        // Now we drop in a TCP closure. The promise completes and the channel stays inactive, but is now closed.
+        harness.multiplexer.parentChannelInactive()
+        XCTAssertEqual((childPromiseError as? Optional<NIOSSHError>)??.type, .tcpShutdown)
+
+        harness.eventLoop.run()
+        XCTAssertThrowsError(try channel.closeFuture.wait()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .tcpShutdown)
+        }
+    }
+
+    func testTCPCloseWhileAwaitingInitializer() throws {
+        let harness = self.harnessForbiddingInboundChannels()
+        defer {
+            harness.finish()
+        }
+
+        XCTAssertEqual(harness.flushedMessages.count, 0)
+        let childPromise: EventLoopPromise<Channel> = harness.eventLoop.makePromise()
+        let delayPromise = harness.eventLoop.makePromise(of: Void.self)
+
+        var childPromiseError: Error? = nil
+        childPromise.futureResult.whenFailure { error in childPromiseError = error }
+
+        harness.multiplexer.createChildChannel(childPromise) { _ in
+            return delayPromise.futureResult
+        }
+
+        XCTAssertEqual(harness.flushedMessages.count, 0)
+
+        // Now we drop in a TCP closure. The promise stays incomplete.
+        harness.multiplexer.parentChannelInactive()
+        harness.eventLoop.run()
+        XCTAssertNil(childPromiseError)
+
+        // Now complete the delay promise.
+        delayPromise.succeed(())
+        XCTAssertEqual((childPromiseError as? Optional<NIOSSHError>)??.type, .tcpShutdown)
     }
 }
