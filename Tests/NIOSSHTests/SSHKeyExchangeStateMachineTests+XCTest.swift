@@ -34,6 +34,7 @@ extension SSHKeyExchangeStateMachineTests {
                 ("testExtraNewKeysMessageForbidden", testExtraNewKeysMessageForbidden),
                 ("testKeyExchangeRapidNewKeys", testKeyExchangeRapidNewKeys),
                 ("testKeyExchangeUsingP256HostKeysOnly", testKeyExchangeUsingP256HostKeysOnly),
+                ("testKeyExchangeMessageCookieValidation", testKeyExchangeMessageCookieValidation),
            ]
    }
 }

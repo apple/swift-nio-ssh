@@ -82,13 +82,11 @@ struct SSHKeyExchangeStateMachine {
     /// Currently we statically only use a single key exchange message. In future this will expand out to
     /// support arbitrary SSHTransportProtection schemes.
     private func createKeyExchangeMessage() -> SSHMessage {
-        // TODO: Set a proper cookie.
-        var cookie = allocator.buffer(capacity: 16)
-        cookie.writeBytes([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        var rng = CSPRNG()
 
-        // TODO: "ecdsa-sha2-nistp256" doesnt work, default to aes256 since keys size and algorithm are hardcoded for now
+        // TODO: default to aes256 since keys size and algorithm are hardcoded for now
         return .keyExchange(.init(
-            cookie: cookie,
+            cookie: rng.randomCookie(allocator: self.allocator),
             keyExchangeAlgorithms: Self.supportedKeyExchangeAlgorithms,
             serverHostKeyAlgorithms: self.supportedHostKeyAlgorithms,
             encryptionAlgorithmsClientToServer: ["aes256-gcm@openssh.com"],
@@ -377,5 +375,16 @@ extension SSHKeyExchangeStateMachine {
             // the host key algorithm.
             return keys.first { $0.hostKeyAlgorithms.contains(self.negotiatedHostKeyAlgorithm) }!
         }
+    }
+}
+
+extension CSPRNG {
+    /// A SSH key exchange cookie is 16 random bytes.
+    fileprivate mutating func randomCookie(allocator: ByteBufferAllocator) -> ByteBuffer {
+        var buffer = allocator.buffer(capacity: 16)
+        buffer.writeInteger(self.next())
+        buffer.writeInteger(self.next())
+        assert(buffer.readableBytes == 16)
+        return buffer
     }
 }

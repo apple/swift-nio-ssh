@@ -394,6 +394,24 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
 
         assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
     }
+
+    func testKeyExchangeMessageCookieValidation() throws {
+        var cookies: [ByteBuffer] = []
+        for _ in 0..<5 {
+            let allocator = ByteBufferAllocator()
+            var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: Constants.version)
+            let clientMessage = try assertGeneratesKeyExchangeMessage(client.startKeyExchange())
+            cookies.append(clientMessage.cookie)
+        }
+
+        XCTAssertTrue(cookies.allSatisfy { $0.readableBytes == 16 })
+
+        // It's hard to validate that cookies are truly random, so what we'll do instead is validate that they are all _different_.
+        // That should be good enough: it's statistically stunningly unlikely that we'll generate two identical 16 byte sequences.
+        for element in cookies {
+            XCTAssertEqual(cookies.filter { $0 == element }.count, 1)
+        }
+    }
 }
 
 
