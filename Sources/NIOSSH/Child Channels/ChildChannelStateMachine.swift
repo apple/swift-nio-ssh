@@ -508,6 +508,31 @@ extension ChildChannelStateMachine {
 }
 
 
+// MARK: Other state changes
+extension ChildChannelStateMachine {
+    /// Called when TCP EOF is received. This forcibly shuts down the channel from any state.
+    ///
+    /// Must not be called on closed channels.
+    mutating func receiveTCPEOF() {
+        switch self.state {
+        case .closed:
+            preconditionFailure("Channel already closed")
+
+        case .idle(localChannelID: let localID),
+             .requestedLocally(localChannelID: let localID):
+            self.state = .closed(channelID: SSHChannelIdentifier(localChannelID: localID, peerChannelID: 0))
+
+        case .requestedRemotely(channelID: let channelID),
+             .active(channelID: let channelID),
+             .halfClosedLocal(channelID: let channelID),
+             .halfClosedRemote(channelID: let channelID),
+             .quiescent(channelID: let channelID):
+            self.state = .closed(channelID: channelID)
+        }
+    }
+}
+
+
 // MARK: Helper computed properties
 extension ChildChannelStateMachine {
     /// Whether this channel is currently active on the network.

@@ -53,6 +53,8 @@ extension ChildChannelMultiplexerTests {
                 ("testRespectingMaxMessageSizeOnOutboundChannel", testRespectingMaxMessageSizeOnOutboundChannel),
                 ("testPromiseCompletionDelaysUntilResponse", testPromiseCompletionDelaysUntilResponse),
                 ("testPromiseCompletionDelaysUntilResponseOnFailure", testPromiseCompletionDelaysUntilResponseOnFailure),
+                ("testTCPCloseWhileAwaitingChannelSetup", testTCPCloseWhileAwaitingChannelSetup),
+                ("testTCPCloseWhileAwaitingInitializer", testTCPCloseWhileAwaitingInitializer),
            ]
    }
 }
