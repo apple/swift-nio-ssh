@@ -144,7 +144,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
         var client = SSHConnectionStateMachine(role: .client)
-        var server = SSHConnectionStateMachine(role: .server(NIOSSHHostPrivateKey(ed25519Key: .init())))
+        var server = SSHConnectionStateMachine(role: .server([NIOSSHHostPrivateKey(ed25519Key: .init())]))
         let clientAuthDelegate = InfinitePasswordDelegate()
         let serverAuthDelegate = DenyThenAcceptDelegate(messagesToDeny: 1)
 
@@ -173,7 +173,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
         var client = SSHConnectionStateMachine(role: .client)
-        var server = SSHConnectionStateMachine(role: .server(NIOSSHHostPrivateKey(ed25519Key: .init())))
+        var server = SSHConnectionStateMachine(role: .server([NIOSSHHostPrivateKey(ed25519Key: .init())]))
         let clientAuthDelegate = InfinitePasswordDelegate()
         let serverAuthDelegate = DenyThenAcceptDelegate(messagesToDeny: 1)
 

@@ -36,6 +36,16 @@ public struct NIOSSHHostPrivateKey {
     public init(p256Key key: P256.Signing.PrivateKey) {
         self.backingKey = .ecdsaP256(key)
     }
+
+    // The algorithms that apply to this host key.
+    internal var hostKeyAlgorithms: [Substring] {
+        switch self.backingKey {
+        case .ed25519:
+            return ["ssh-ed25519"]
+        case .ecdsaP256:
+            return ["ecdsa-sha2-nistp256"]
+        }
+    }
 }
 
 
