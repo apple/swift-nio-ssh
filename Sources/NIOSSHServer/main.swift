@@ -58,7 +58,7 @@ func sshChildChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
 }
 
 // We need a host key. For now, generate it dynamically.
-let hostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
+let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
 let bootstrap = ServerBootstrap(group: group)
     .childChannelInitializer { channel in

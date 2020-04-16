@@ -51,6 +51,9 @@ extension UserAuthenticationStateMachineTests {
                 ("testServerRejectsServiceAccepts", testServerRejectsServiceAccepts),
                 ("testUserAuthRequestsMustAskForSSHConnection", testUserAuthRequestsMustAskForSSHConnection),
                 ("testUserAuthBeforeServiceAcceptIsRejected", testUserAuthBeforeServiceAcceptIsRejected),
+                ("testPrivateKeyServerAuthFlow", testPrivateKeyServerAuthFlow),
+                ("testServerPerformsValidationsOnSignatures", testServerPerformsValidationsOnSignatures),
+                ("testPrivateKeyClientAuthFlow", testPrivateKeyClientAuthFlow),
            ]
    }
 }

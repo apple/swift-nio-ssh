@@ -24,10 +24,7 @@ import NIO
 /// that the application would like to provide a user-interactive password prompt. This is
 /// enabled by allowing implementers to satisfy a promise, rather than requiring that they
 /// synchronously provide a response.
-///
-/// This is currently an internal protocol, but we may make it available to users in future once
-/// we feel confident that it covers our needs. For now, all implementers are internal.
 public protocol NIOSSHClientUserAuthenticationDelegate {
-    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationRequest?>)
+    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>)
 }
 

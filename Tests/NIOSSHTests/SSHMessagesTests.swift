@@ -18,6 +18,26 @@ import NIO
 import XCTest
 
 final class SSHMessagesTests: XCTestCase {
+    /// This assertion validates two things: first, that partial-message reads return nil, and
+    /// second, that they apporpriately maintain reader indices.
+    private func assertCorrectlyManagesPartialRead(_ message: SSHMessage) throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        buffer.writeSSHMessage(message)
+        let messageBytes = buffer.readableBytesView[...]
+        buffer.clear()
+
+        for byte in messageBytes.dropLast() {
+            buffer.writeInteger(byte)
+            XCTAssertNil(try buffer.readSSHMessage())
+        }
+
+        if let last = messageBytes.last {
+            buffer.writeInteger(last)
+        }
+
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+    }
+
     func testDisconnnect() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
         let message = SSHMessage.disconnect(.init(reason: 2, description: "user closed connection", tag: ""))
@@ -27,6 +47,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.DisconnectMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testIgnore() throws {
@@ -40,6 +62,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.IgnoreMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testUnimplemented() throws {
@@ -51,6 +75,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.UnimplementedMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testServiceRequest() throws {
@@ -62,6 +88,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ServiceRequestMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testServiceAccept() throws {
@@ -73,6 +101,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ServiceAcceptMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testKeyExchangeMessage() throws {
@@ -96,6 +126,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.KeyExchangeMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testKeyExchangeInit() throws {
@@ -107,11 +139,13 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.KeyExchangeECDHInitMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testKeyExchangeReply() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
-        let key = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let key = NIOSSHPrivateKey(ed25519Key: .init())
         var digest = SHA256()
         digest.update(data: [24])
         let signature = try key.sign(digest: digest.finalize())
@@ -122,6 +156,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.KeyExchangeECDHReplyMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testNewKeys() throws {
@@ -130,6 +166,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testUserAuthRequest() throws {
@@ -141,6 +179,176 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.UserAuthRequestMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
+    }
+
+    func testUserAuthRequestWithKeysNoSignature() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        let key = NIOSSHPrivateKey(ed25519Key: .init())
+
+        let message = SSHMessage.userAuthRequest(.init(username: "test",
+                                                       service: "ssh-connection",
+                                                       method: .publicKey(.known(key: key.publicKey, signature: nil))))
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
+    }
+
+    func testUserAuthRequestWithKeysAndSignature() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        let key = NIOSSHPrivateKey(ed25519Key: .init())
+        let signature = try key.sign(digest: SHA256.hash(data: Array("hello world!".utf8)))
+
+        let message = SSHMessage.userAuthRequest(.init(username: "test",
+                                                       service: "ssh-connection",
+                                                       method: .publicKey(.known(key: key.publicKey, signature: signature))))
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
+    }
+
+    func testUserAuthRequestWithMismatchedKeyAndAlgorithm() throws {
+        // This is a SSHMessage.userAuthRequest that has been tweaked to have an ed25519 key claiming to be a P256 key.
+        let message: [UInt8] = [
+            50,  // Type: user auth request
+            0, 0, 0, 4,  // SSH String: 4 bytes
+                116, 101, 115, 116,  // username "test"
+            0, 0, 0, 14,  // SSH string: 14 bytes
+                115, 115, 104, 45, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110,  // Service name: "ssh-connection"
+            0, 0, 0, 9,  // SSH string: 9 bytes
+                112, 117, 98, 108, 105, 99, 107, 101, 121,  // Authorization type: "publickey"
+            0,  // SSH Bool: signature follows = false
+            0, 0, 0, 19,  // SSH String: 19 bytes
+                101, 99, 100, 115, 97, 45, 115, 104, 97, 50, 45, 110, 105, 115, 116, 112, 50, 53, 54,  // public key type: "ecdsa-sha2-nistp256"
+            0, 0, 0, 51,  // SSH String: 51 bytes
+                0, 0, 0, 11,  // SSH string: 11 bytes
+                    115, 115, 104, 45, 101, 100, 50, 53, 53, 49, 57,  // Key type: "ssh-ed25519"
+                0, 0, 0, 32,  // SSH string: 32 bytes
+                    118, 208, 190, 118, 231, 217, 30, 99, 140, 250, 52,  // raw key bytes
+                    55, 241, 233, 78, 43, 19, 110, 34, 206, 254, 170,
+                    38, 226, 210, 30, 134, 86, 144, 252, 193, 188
+        ]
+
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        buffer.writeBytes(message)
+
+        XCTAssertThrowsError(try buffer.readSSHMessage()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidSSHMessage)
+        }
+    }
+
+    func testUserAuthRequestToleratesUnsupportedPublicKeyAlgorithms() throws {
+        // This test ensures that userAuthRequest will tolerate an unsupported public key algorithm.
+        let message: [UInt8] = [
+            50,  // Type: user auth request
+            0, 0, 0, 4,  // SSH String: 4 bytes
+                116, 101, 115, 116,  // username "test"
+            0, 0, 0, 14,  // SSH string: 14 bytes
+                115, 115, 104, 45, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110,  // Service name: "ssh-connection"
+            0, 0, 0, 9,  // SSH string: 9 bytes
+                112, 117, 98, 108, 105, 99, 107, 101, 121,  // Authorization type: "publickey"
+            1,  // SSH Bool: signature follows = true
+            0, 0, 0, 14,  // SSH String: 14 bytes
+                110, 111, 116, 45, 97, 45, 114, 101, 97, 108, 45, 107, 101, 121,  // public key type: "not-a-real-key"
+            0, 0, 0, 50,  // SSH String: 50 bytes
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,  // gibberish bytes: we shouldn't be parsing them. This is the "key"
+                19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+            0, 0, 0, 30,  // SSH string: 30 bytes
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,  // gibberish bytes: this is a "signature"
+                19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29
+        ]
+
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        buffer.writeBytes(message)
+
+        let expectedMessage = SSHMessage.userAuthRequest(.init(username: "test", service: "ssh-connection", method: .publicKey(.unknown)))
+        XCTAssertEqual(try buffer.readSSHMessage(), expectedMessage)
+    }
+
+    func testUserAuthRequestToleratesUnsupportedPublicKeyAlgorithmsWithoutSignatures() throws {
+        // This test ensures that userAuthRequest will tolerate an unsupported public key algorithm without a singature.
+        let message: [UInt8] = [
+            50,  // Type: user auth request
+            0, 0, 0, 4,  // SSH String: 4 bytes
+                116, 101, 115, 116,  // username "test"
+            0, 0, 0, 14,  // SSH string: 14 bytes
+                115, 115, 104, 45, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110,  // Service name: "ssh-connection"
+            0, 0, 0, 9,  // SSH string: 9 bytes
+                112, 117, 98, 108, 105, 99, 107, 101, 121,  // Authorization type: "publickey"
+            0,  // SSH Bool: signature follows = false
+            0, 0, 0, 14,  // SSH String: 14 bytes
+                110, 111, 116, 45, 97, 45, 114, 101, 97, 108, 45, 107, 101, 121,  // public key type: "not-a-real-key"
+            0, 0, 0, 50,  // SSH String: 50 bytes
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,  // gibberish bytes: we shouldn't be parsing them. This is the "key"
+                19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+        ]
+
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        buffer.writeBytes(message)
+
+        let expectedMessage = SSHMessage.userAuthRequest(.init(username: "test", service: "ssh-connection", method: .publicKey(.unknown)))
+        XCTAssertEqual(try buffer.readSSHMessage(), expectedMessage)
+    }
+
+    func testUserAuthPKOK() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHPrivateKey(p256Key: .init())
+        let message = SSHMessage.userAuthPKOK(.init(key: key.publicKey))
+
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
+    }
+
+    func testUserAuthPKOKWithMismatchedKeyAndAlgorithm() throws {
+        // This is a SSHMessage.userAuthPKOK that has been tweaked to have an ed25519 key claiming to be a P256 key.
+        let message: [UInt8] = [
+            60,  // Type: user auth PK OK
+            0, 0, 0, 19,  // SSH String: 19 bytes
+                101, 99, 100, 115, 97, 45, 115, 104, 97, 50, 45, 110, 105, 115, 116, 112, 50, 53, 54,  // public key type: "ecdsa-sha2-nistp256"
+            0, 0, 0, 51,  // SSH String: 51 bytes
+                0, 0, 0, 11,  // SSH String: 11 bytes
+                    115, 115, 104, 45, 101, 100, 50, 53, 53, 49, 57,  // key type: "ssh-ed25519"
+                0, 0, 0, 32,  // SSH String: 32 bytes
+                    199, 71, 224, 105, 163, 32, 57, 80, 25, 213, 160, 24, 221, 96,  // raw key bytes
+                    104, 162, 186, 156, 99, 159, 50, 153, 116, 91, 129, 87, 130,
+                    137, 185, 251, 199, 249
+        ]
+
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        buffer.writeBytes(message)
+
+        XCTAssertThrowsError(try buffer.readSSHMessage()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidSSHMessage)
+        }
+    }
+
+    func testUserAuthPKOKWithUnknownKeyFormat() throws {
+        // This is a SSHMessage.userAuthPKOK that has been tweaked to have an unknown key algorithm.
+        // We don't tolerate these: they can only be sent to us if we sent a message out for this kind of key,
+        // and naturally we never try to use keys we don't understand.
+        let message: [UInt8] = [
+            60,  // Type: user auth PK OK
+            0, 0, 0, 14,  // SSH String: 14 bytes
+                110, 111, 116, 45, 97, 45, 114, 101, 97, 108, 45, 107, 101, 121,  // public key type: "not-a-real-key"
+            0, 0, 0, 50,  // SSH String: 50 bytes
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,  // gibberish bytes: we shouldn't be parsing them. This is the "key"
+                19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+        ]
+
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        buffer.writeBytes(message)
+
+        XCTAssertThrowsError(try buffer.readSSHMessage()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidSSHMessage)
+        }
     }
 
     func testUserAuthFailure() throws {
@@ -152,6 +360,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.UserAuthFailureMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testUserAuthSuccess() throws {
@@ -160,6 +370,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testGlobalRequest() throws {
@@ -171,6 +383,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.GlobalRequestMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelOpen() throws {
@@ -182,6 +396,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelOpenMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelOpenConfirmation() throws {
@@ -193,6 +409,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelOpenConfirmationMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelOpenFailure() throws {
@@ -204,6 +422,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelOpenFailureMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelWindowAdjust() throws {
@@ -215,6 +435,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelWindowAdjustMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelData() throws {
@@ -226,6 +448,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelDataMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelExtendedData() throws {
@@ -237,6 +461,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelExtendedDataMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelEOF() throws {
@@ -248,6 +474,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelEOFMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelClose() throws {
@@ -259,6 +487,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelCloseMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelRequest() throws {
@@ -267,14 +497,17 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
+        try self.assertCorrectlyManagesPartialRead(message)
 
         message = SSHMessage.channelRequest(.init(recipientChannel: 0, type: .exec("date"), wantReply: true))
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
+        try self.assertCorrectlyManagesPartialRead(message)
 
         message = SSHMessage.channelRequest(.init(recipientChannel: 0, type: .exit(1), wantReply: true))
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
+        try self.assertCorrectlyManagesPartialRead(message)
 
         buffer.writeBytes([SSHMessage.ChannelRequestMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
@@ -289,6 +522,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelSuccessMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelFailure() throws {
@@ -300,6 +535,8 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.writeBytes([SSHMessage.ChannelFailureMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testTypeError() throws {
@@ -323,6 +560,10 @@ final class SSHMessagesTests: XCTestCase {
         buffer.clear()
         buffer.writeBytes([SSHMessage.RequestSuccessMessage.id] + Array(0..<24))
         XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        // We don't use the partial read test here as it fails: this message is opaque
+        // bytes to us, so we tolerate any possible length. We rely on the higher-level framing
+        // logic to avoid breakage.
     }
 
     func testRequestFailure() throws {
@@ -335,5 +576,7 @@ final class SSHMessagesTests: XCTestCase {
         buffer.clear()
         buffer.writeBytes([SSHMessage.RequestFailureMessage.id])
         XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
 }

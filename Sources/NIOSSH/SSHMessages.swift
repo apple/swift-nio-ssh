@@ -35,6 +35,7 @@ enum SSHMessage: Equatable {
     case userAuthRequest(UserAuthRequestMessage)
     case userAuthFailure(UserAuthFailureMessage)
     case userAuthSuccess
+    case userAuthPKOK(UserAuthPKOKMessage)
     case globalRequest(GlobalRequestMessage)
     case requestSuccess(RequestSuccessMessage)
     case requestFailure
@@ -120,7 +121,7 @@ extension SSHMessage {
         static let id: UInt8 = 31
 
         // K_S, server's public host key
-        var hostKey: NIOSSHHostPublicKey
+        var hostKey: NIOSSHPublicKey
         // Q_S, server's ephemeral public key octet string
         var publicKey: ByteBuffer
         // the signature on the exchange hash
@@ -133,7 +134,13 @@ extension SSHMessage {
 
         enum Method: Equatable {
             case none
+            case publicKey(PublicKeyAuthType)
             case password(String)
+        }
+
+        enum PublicKeyAuthType: Equatable {
+            case known(key: NIOSSHPublicKey, signature: SSHSignature?)
+            case unknown
         }
 
         var username: String
@@ -151,6 +158,13 @@ extension SSHMessage {
 
     enum UserAuthSuccessMessage {
         static let id: UInt8 = 52
+    }
+
+    struct UserAuthPKOKMessage: Equatable {
+        // SSH_MSG_USERAUTH_PK_OK
+        static let id: UInt8 = 60
+
+        var key: NIOSSHPublicKey
     }
 
     struct GlobalRequestMessage: Equatable {
@@ -338,7 +352,7 @@ extension ByteBuffer {
             case SSHMessage.NewKeysMessage.id:
                 return .newKeys
             case SSHMessage.UserAuthRequestMessage.id:
-                guard let message = self.readUserAuthRequestMessage() else {
+                guard let message = try self.readUserAuthRequestMessage() else {
                     return nil
                 }
                 return .userAuthRequest(message)
@@ -349,6 +363,11 @@ extension ByteBuffer {
                 return .userAuthFailure(message)
             case SSHMessage.UserAuthSuccessMessage.id:
                 return .userAuthSuccess
+            case SSHMessage.UserAuthPKOKMessage.id:
+                guard let message = try self.readUserAuthPKOKMessage() else {
+                    return nil
+                }
+                return .userAuthPKOK(message)
             case SSHMessage.GlobalRequestMessage.id:
                 guard let message = self.readGlobalRequestMessage() else {
                     return nil
@@ -548,8 +567,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readUserAuthRequestMessage() -> SSHMessage.UserAuthRequestMessage? {
-        return self.rewindReaderOnNil { `self` in
+    mutating func readUserAuthRequestMessage() throws -> SSHMessage.UserAuthRequestMessage? {
+        return try self.rewindOnNilOrError { `self` in
             guard
                 let username = self.readSSHStringAsString(),
                 let service = self.readSSHStringAsString(),
@@ -571,6 +590,44 @@ extension ByteBuffer {
                 }
 
                 method = .password(password)
+            case "publickey":
+                guard
+                    let expectSignature = self.readSSHBoolean(),
+                    let algorithmName = self.readSSHString(),
+                    var keyBytes = self.readSSHString()
+                else {
+                    return nil
+                }
+
+                if NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(algorithmName.readableBytesView) }) {
+                    // This is a known algorithm, we can load the key.
+                    guard let publicKey = try keyBytes.readSSHHostKey() else {
+                        return nil
+                    }
+
+                    guard algorithmName.readableBytesView.elementsEqual(publicKey.keyPrefix) else {
+                        throw NIOSSHError.invalidSSHMessage(reason: "algorithm and key mismatch in user auth request")
+                    }
+
+                    if expectSignature {
+                        guard var signatureBytes = self.readSSHString(), let signature = try signatureBytes.readSSHSignature() else {
+                            return nil
+                        }
+
+                        method = .publicKey(.known(key: publicKey, signature: signature))
+                    } else {
+                        method = .publicKey(.known(key: publicKey, signature: nil))
+                    }
+                } else {
+                    // This is not an algorithm we know. Consume the signature if we're expecting it.
+                    if expectSignature {
+                        guard let _ = self.readSSHString() else {
+                            return nil
+                        }
+                    }
+
+                    method = .publicKey(.unknown)
+                }
             default:
                 return nil
             }
@@ -589,6 +646,32 @@ extension ByteBuffer {
             }
 
             return SSHMessage.UserAuthFailureMessage(authentications: authentications, partialSuccess: partialSuccess)
+        }
+    }
+
+    mutating func readUserAuthPKOKMessage() throws -> SSHMessage.UserAuthPKOKMessage? {
+        return try self.rewindOnNilOrError { `self` in
+            guard
+                let publicKeyType = self.readSSHString(),
+                var publicKeyBytes = self.readSSHString()
+            else {
+                return nil
+            }
+
+            guard NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(publicKeyType.readableBytesView) }) else {
+                throw NIOSSHError.invalidSSHMessage(reason: "unsupported key type in PK_OK")
+            }
+
+            guard let publicKey = try publicKeyBytes.readSSHHostKey() else {
+                return nil
+            }
+
+            // Validate consistency here.
+            guard publicKeyType.readableBytesView.elementsEqual(publicKey.keyPrefix) else {
+                throw NIOSSHError.invalidSSHMessage(reason: "inconsistent key type")
+            }
+
+            return .init(key: publicKey)
         }
     }
 
@@ -848,6 +931,9 @@ extension ByteBuffer {
             writtenBytes += self.writeUserAuthFailureMessage(message)
         case .userAuthSuccess:
             writtenBytes += self.writeInteger(52 as UInt8)
+        case .userAuthPKOK(let message):
+            writtenBytes += self.writeInteger(SSHMessage.UserAuthPKOKMessage.id)
+            writtenBytes += self.writeUserAuthPKOKMessage(message)
         case .globalRequest(let message):
             writtenBytes += self.writeInteger(SSHMessage.GlobalRequestMessage.id)
             writtenBytes += self.writeGlobalRequestMessage(message)
@@ -972,6 +1058,22 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHString("password".utf8)
             writtenBytes += self.writeSSHBoolean(false)
             writtenBytes += self.writeSSHString(password.utf8)
+        case .publicKey(.known(key: let key, signature: let signature)):
+            writtenBytes += self.writeSSHString("publickey".utf8)
+            writtenBytes += self.writeSSHBoolean(signature != nil)
+            writtenBytes += self.writeSSHString(key.keyPrefix)
+            writtenBytes += self.writeCompositeSSHString { buffer in
+                buffer.writeSSHHostKey(key)
+            }
+
+            if let signature = signature {
+                writtenBytes += self.writeCompositeSSHString { buffer in
+                    buffer.writeSSHSignature(signature)
+                }
+            }
+
+        case .publicKey(.unknown):
+            preconditionFailure("We cannot write user auth request messages on unknown keys")
         }
 
         return writtenBytes
@@ -981,6 +1083,15 @@ extension ByteBuffer {
         var writtenBytes = 0
         writtenBytes += self.writeAlgorithms(message.authentications)
         writtenBytes += self.writeSSHBoolean(message.partialSuccess)
+        return writtenBytes
+    }
+
+    mutating func writeUserAuthPKOKMessage(_ message: SSHMessage.UserAuthPKOKMessage) -> Int {
+        var writtenBytes = 0
+        writtenBytes += self.writeSSHString(message.key.keyPrefix)
+        writtenBytes += self.writeCompositeSSHString { buffer in
+            buffer.writeSSHHostKey(message.key)
+        }
         return writtenBytes
     }
 

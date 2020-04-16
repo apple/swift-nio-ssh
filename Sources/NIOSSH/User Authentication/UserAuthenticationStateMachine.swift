@@ -18,12 +18,14 @@ struct UserAuthenticationStateMachine {
     private var state: State
     private var delegate: UserAuthDelegate
     private let loop: EventLoop
+    private var sessionID: ByteBuffer
 
     // TODO: The server SHOULD limit the number of authentication attempts the client may make.
-    init(role: SSHConnectionRole, delegate: UserAuthDelegate, loop: EventLoop) {
+    init(role: SSHConnectionRole, delegate: UserAuthDelegate, loop: EventLoop, sessionID: ByteBuffer) {
         self.state = .idle
         self.delegate = delegate
         self.loop = loop
+        self.sessionID = sessionID
     }
 
     fileprivate static let serviceName: String = "ssh-userauth"
@@ -244,6 +246,28 @@ extension UserAuthenticationStateMachine {
         }
     }
 
+    mutating func sendUserAuthPKOK(_ message: SSHMessage.UserAuthPKOKMessage) {
+        switch (self.delegate, self.state) {
+        case (.server, .idle),
+             (.server, .awaitingServiceAcceptance):
+            preconditionFailure("Server sent an auth response prior to receiving an auth request")
+        case (.server, .awaitingNextRequest):
+            preconditionFailure("Too many auth responses sent")
+        case (.server, .awaitingResponses(let responseCount)):
+            if responseCount > 1 {
+                self.state = .awaitingResponses(responseCount - 1)
+            } else {
+                self.state = .awaitingNextRequest
+            }
+        case (.server, .authenticationSucceeded):
+            preconditionFailure("Authentication already succeeded, further messages are unnecessary.")
+        case (.server, .authenticationFailed):
+            preconditionFailure("Servers can never enter authenticationFailed")
+        case (.client, _):
+            preconditionFailure("Clients never send auth responses")
+        }
+    }
+
     mutating func sendUserAuthSuccess() {
         self.sendUserAuthResponseMessage(success: true)
     }
@@ -320,10 +344,12 @@ extension UserAuthenticationStateMachine {
 // MARK: Interacting with client delegate
 extension UserAuthenticationStateMachine {
     fileprivate func requestNextAuthRequest(methods: NIOSSHAvailableUserAuthenticationMethods, delegate: NIOSSHClientUserAuthenticationDelegate) -> EventLoopFuture<SSHMessage.UserAuthRequestMessage?> {
-        let promise = self.loop.makePromise(of: Optional<NIOSSHUserAuthenticationRequest>.self)
+        let promise = self.loop.makePromise(of: Optional<NIOSSHUserAuthenticationOffer>.self)
         delegate.nextAuthenticationType(availableMethods: methods, nextChallengePromise: promise)
-        return promise.futureResult.map { request in
-            return request.map { SSHMessage.UserAuthRequestMessage(request: $0) }
+
+        // The explicit capture list is here to force a copy of the buffer, rather than capturing self.
+        return promise.futureResult.flatMapThrowing { [sessionID = self.sessionID] request in
+            return try request.map { try SSHMessage.UserAuthRequestMessage(request: $0, sessionID: sessionID) }
         }
     }
 }
@@ -332,12 +358,54 @@ extension UserAuthenticationStateMachine {
 // MARK: Interacting with server delegate
 extension UserAuthenticationStateMachine {
     fileprivate func nextAuthResponse(request: SSHMessage.UserAuthRequestMessage, delegate: NIOSSHServerUserAuthenticationDelegate) -> EventLoopFuture<NIOSSHUserAuthenticationResponseMessage> {
-        let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOutcome.self)
-        delegate.requestReceived(request: .init(request), responsePromise: promise)
-        let supportedMethods = delegate.supportedAuthenticationMethods
+        switch request.method {
+        case .password(let password):
+            let request = NIOSSHUserAuthenticationRequest(username: request.username, serviceName: request.service, request: .password(.init(password: password)))
+            let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOutcome.self)
+            delegate.requestReceived(request: request, responsePromise: promise)
+            let supportedMethods = delegate.supportedAuthenticationMethods
 
-        return promise.futureResult.map { outcome in
-            return .init(outcome, supportedMethods: supportedMethods)
+            return promise.futureResult.map { outcome in
+                return .init(outcome, supportedMethods: supportedMethods)
+            }
+
+        case .publicKey(.known(key: let key, signature: .some(let signature))):
+            // This is a direct request to auth, just pass it through.
+            let dataToSign = UserAuthSignablePayload(sessionIdentifier: sessionID, userName: request.username, serviceName: request.service, publicKey: key)
+            let supportedMethods = delegate.supportedAuthenticationMethods
+
+            guard key.isValidSignature(signature, for: dataToSign) else {
+                // Whoops, signature not valid.
+                return self.loop.makeSucceededFuture(.failure(.init(authentications: supportedMethods.strings, partialSuccess: false)))
+            }
+
+            // Signature is valid, ask if the delegate is happy.
+            let request = NIOSSHUserAuthenticationRequest(username: request.username, serviceName: request.service, request: .publicKey(.init(publicKey: key)))
+            let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOutcome.self)
+            delegate.requestReceived(request: request, responsePromise: promise)
+
+            return promise.futureResult.map { outcome in
+                return .init(outcome, supportedMethods: supportedMethods)
+            }
+
+        case .publicKey(.known(key: let key, signature: .none)):
+            // This is a weird wrinkle in public key auth: it's a request to ask whether a given key is valid, but not to validate that key itself.
+            // For now we do a shortcut: we just say that all keys are acceptable, rather than ask the delegate.
+            return self.loop.makeSucceededFuture(.publicKeyOK(.init(key: key)))
+
+        case .publicKey(.unknown):
+            // We don't known the algorithm, the auth attempt has failed.
+            return self.loop.makeSucceededFuture(.failure(.init(authentications: delegate.supportedAuthenticationMethods.strings, partialSuccess: false)))
+
+        case .none:
+            let request = NIOSSHUserAuthenticationRequest(username: request.username, serviceName: request.service, request: .none)
+            let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOutcome.self)
+            delegate.requestReceived(request: request, responsePromise: promise)
+            let supportedMethods = delegate.supportedAuthenticationMethods
+
+            return promise.futureResult.map { outcome in
+                return .init(outcome, supportedMethods: supportedMethods)
+            }
         }
     }
 }

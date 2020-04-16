@@ -15,13 +15,14 @@
 import NIO
 import Crypto
 
-/// An SSH server host public key.
+/// An SSH public key.
 ///
-/// This object identifies a single SSH server. It is used as part of the SSH handshake and key exchange process,
-/// and is also presented to clients that want to validate that they are communicating with the appropriate server.
+/// This object identifies a single SSH server or user. It is used as part of the SSH handshake and key exchange process,
+/// is presented to clients that want to validate that they are communicating with the appropriate server, and is also used
+/// to validate users.
 ///
-/// This public key is not capable of signing, only of verifying.
-internal struct NIOSSHHostPublicKey: Equatable {
+/// This key is not capable of signing, only verifying.
+public struct NIOSSHPublicKey: Hashable {
     /// The actual key structure used to perform the key operations.
     internal var backingKey: BackingKey
 
@@ -31,7 +32,7 @@ internal struct NIOSSHHostPublicKey: Equatable {
 }
 
 
-extension NIOSSHHostPublicKey {
+extension NIOSSHPublicKey {
     /// Verifies that a given `SSHSignature` was created by the holder of the private key associated with this
     /// public key.
     internal func isValidSignature<DigestBytes: Digest>(_ signature: SSHSignature, for digest: DigestBytes) -> Bool {
@@ -46,7 +47,22 @@ extension NIOSSHHostPublicKey {
                 }
             }
         case (.ecdsaP256(let key), .ecdsaP256(let sig)):
-            return key.isValidSignature(sig, for: digest)
+            return digest.withUnsafeBytes { digestPtr in
+                return key.isValidSignature(sig, for: digestPtr)
+            }
+        case (.ed25519, .ecdsaP256), (.ecdsaP256, .ed25519):
+            return false
+        }
+    }
+
+    internal func isValidSignature(_ signature: SSHSignature, for payload: UserAuthSignablePayload) -> Bool {
+        switch (self.backingKey, signature.backingSignature) {
+        case (.ed25519(let key), .ed25519(.byteBuffer(let sig))):
+            return key.isValidSignature(sig.readableBytesView, for: payload.bytes.readableBytesView)
+        case (.ed25519(let key), .ed25519(.data(let sig))):
+            return key.isValidSignature(sig, for: payload.bytes.readableBytesView)
+        case (.ecdsaP256(let key), .ecdsaP256(let sig)):
+            return key.isValidSignature(sig, for: payload.bytes.readableBytesView)
         case (.ed25519, .ecdsaP256), (.ecdsaP256, .ed25519):
             return false
         }
@@ -54,7 +70,7 @@ extension NIOSSHHostPublicKey {
 }
 
 
-extension NIOSSHHostPublicKey {
+extension NIOSSHPublicKey {
     /// The various key types that can be used with NIOSSH.
     internal enum BackingKey {
         case ed25519(Curve25519.Signing.PublicKey)
@@ -66,11 +82,24 @@ extension NIOSSHHostPublicKey {
 
     /// The prefix of a P256 ECDSA public key.
     fileprivate static let ecdsaP256PublicKeyPrefix = "ecdsa-sha2-nistp256".utf8
+
+    internal var keyPrefix: String.UTF8View {
+        switch self.backingKey {
+        case .ed25519:
+            return Self.ed25519PublicKeyPrefix
+        case .ecdsaP256:
+            return Self.ecdsaP256PublicKeyPrefix
+        }
+    }
+
+    internal static var knownAlgorithms: [String.UTF8View] {
+        return [Self.ed25519PublicKeyPrefix, Self.ecdsaP256PublicKeyPrefix]
+    }
 }
 
 
-extension NIOSSHHostPublicKey.BackingKey: Equatable {
-    static func ==(lhs: NIOSSHHostPublicKey.BackingKey, rhs: NIOSSHHostPublicKey.BackingKey) -> Bool {
+extension NIOSSHPublicKey.BackingKey: Equatable {
+    static func ==(lhs: NIOSSHPublicKey.BackingKey, rhs: NIOSSHPublicKey.BackingKey) -> Bool {
         // We implement equatable in terms of the key representation.
         switch (lhs, rhs) {
         case (.ed25519(let lhs), .ed25519(let rhs)):
@@ -84,10 +113,24 @@ extension NIOSSHHostPublicKey.BackingKey: Equatable {
 }
 
 
+extension NIOSSHPublicKey.BackingKey: Hashable {
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case .ed25519(let pkey):
+            hasher.combine(1)
+            hasher.combine(pkey.rawRepresentation)
+        case .ecdsaP256(let pkey):
+            hasher.combine(2)
+            hasher.combine(pkey.rawRepresentation)
+        }
+    }
+}
+
+
 extension ByteBuffer {
     /// Writes an SSH host key to this `ByteBuffer`.
     @discardableResult
-    mutating func writeSSHHostKey(_ key: NIOSSHHostPublicKey) -> Int {
+    mutating func writeSSHHostKey(_ key: NIOSSHPublicKey) -> Int {
         switch key.backingKey {
         case .ed25519(let key):
             return self.writeEd25519PublicKey(baseKey: key)
@@ -96,7 +139,7 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readSSHHostKey() throws -> NIOSSHHostPublicKey? {
+    mutating func readSSHHostKey() throws -> NIOSSHPublicKey? {
         return try self.rewindOnNilOrError { buffer in
             // The wire format always begins with an SSH string containing the key format identifier. Let's grab that.
             guard var keyIdentifierBytes = buffer.readSSHString() else {
@@ -105,9 +148,9 @@ extension ByteBuffer {
 
             // Now we need to check if they match our supported key algorithms.
             let bytesView = keyIdentifierBytes.readableBytesView
-            if bytesView.elementsEqual(NIOSSHHostPublicKey.ed25519PublicKeyPrefix) {
+            if bytesView.elementsEqual(NIOSSHPublicKey.ed25519PublicKeyPrefix) {
                 return try buffer.readEd25519PublicKey()
-            } else if bytesView.elementsEqual(NIOSSHHostPublicKey.ecdsaP256PublicKeyPrefix) {
+            } else if bytesView.elementsEqual(NIOSSHPublicKey.ecdsaP256PublicKeyPrefix) {
                 return try buffer.readECDSAP256PublicKey()
             } else {
                 // We don't know this public key type.
@@ -119,7 +162,7 @@ extension ByteBuffer {
 
     private mutating func writeEd25519PublicKey(baseKey: Curve25519.Signing.PublicKey) -> Int {
         // For Ed25519 the key format is the key prefix, followed by Q as a String.
-        var writtenBytes = self.writeSSHString(NIOSSHHostPublicKey.ed25519PublicKeyPrefix)
+        var writtenBytes = self.writeSSHString(NIOSSHPublicKey.ed25519PublicKeyPrefix)
         writtenBytes += self.writeSSHString(baseKey.rawRepresentation)
         return writtenBytes
     }
@@ -127,9 +170,9 @@ extension ByteBuffer {
     private mutating func writeECDSAP256PublicKey(baseKey: P256.Signing.PublicKey) -> Int {
         // For ECDSA-P256, the key format is the key prefix, then the string "nistp256", followed by the
         // the public point Q.
-        var writtenBytes = self.writeSSHString(NIOSSHHostPublicKey.ecdsaP256PublicKeyPrefix)
+        var writtenBytes = self.writeSSHString(NIOSSHPublicKey.ecdsaP256PublicKeyPrefix)
         writtenBytes += self.writeSSHString("nistp256".utf8)
-        writtenBytes += self.writeSSHString(baseKey.rawRepresentation)
+        writtenBytes += self.writeSSHString(baseKey.x963Representation)
         return writtenBytes
     }
 
@@ -137,21 +180,21 @@ extension ByteBuffer {
     ///
     /// Not safe to call from arbitrary code as this does not return the reader index on failure: it relies on the caller performing
     /// the rewind.
-    private mutating func readEd25519PublicKey() throws -> NIOSSHHostPublicKey? {
+    private mutating func readEd25519PublicKey() throws -> NIOSSHPublicKey? {
         // For ed25519 the key format is just Q encoded as a String.
         guard let qBytes = self.readSSHString() else {
             return nil
         }
 
         let key = try Curve25519.Signing.PublicKey(rawRepresentation: qBytes.readableBytesView)
-        return NIOSSHHostPublicKey(backingKey: .ed25519(key))
+        return NIOSSHPublicKey(backingKey: .ed25519(key))
     }
 
     /// A helper function that reads an ECDSA P-256 public key.
     ///
     /// Not safe to call from arbitrary code as this does not return the reader index on failure: it relies on the caller performing
     /// the rewind.
-    private mutating func readECDSAP256PublicKey() throws -> NIOSSHHostPublicKey? {
+    private mutating func readECDSAP256PublicKey() throws -> NIOSSHPublicKey? {
         // For ECDSA-P256, the key format is the string "nistp256" followed by the
         // the public point Q.
         guard var domainParameter = self.readSSHString() else {
@@ -166,8 +209,8 @@ extension ByteBuffer {
             return nil
         }
 
-        let key = try P256.Signing.PublicKey(rawRepresentation: qBytes.readableBytesView)
-        return NIOSSHHostPublicKey(backingKey: .ecdsaP256(key))
+        let key = try P256.Signing.PublicKey(x963Representation: qBytes.readableBytesView)
+        return NIOSSHPublicKey(backingKey: .ecdsaP256(key))
     }
 
     /// A helper function for complex readers that will reset a buffer on nil or on error, as though the read

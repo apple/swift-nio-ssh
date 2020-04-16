@@ -40,7 +40,12 @@ extension SSHConnectionStateMachine {
             self.parser = state.parser
             self.serializer = state.serializer
             self.keyExchangeStateMachine = state.keyExchangeStateMachine
-            self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role, delegate: delegate, loop: loop)
+
+            // We force unwrap the session ID here because it's programmer error to not have it at this stage.
+            self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role,
+                                                                       delegate: delegate,
+                                                                       loop: loop,
+                                                                       sessionID: keyExchangeStateMachine.sessionID!)
         }
     }
 }

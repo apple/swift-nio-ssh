@@ -23,7 +23,7 @@ final class ExplodingAuthDelegate: NIOSSHClientUserAuthenticationDelegate {
         case kaboom
     }
 
-    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationRequest?>) {
+    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
         XCTFail("Next Authentication Type must not be called")
         nextChallengePromise.fail(Error.kaboom)
     }
@@ -169,7 +169,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
         var client = SSHConnectionStateMachine(role: .client)
-        var server = SSHConnectionStateMachine(role: .server([NIOSSHHostPrivateKey(ed25519Key: .init())]))
+        var server = SSHConnectionStateMachine(role: .server([NIOSSHPrivateKey(ed25519Key: .init())]))
         let clientAuthDelegate = InfinitePasswordDelegate()
         let serverAuthDelegate = DenyThenAcceptDelegate(messagesToDeny: 1)
 
@@ -198,7 +198,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
         var client = SSHConnectionStateMachine(role: .client)
-        var server = SSHConnectionStateMachine(role: .server([NIOSSHHostPrivateKey(ed25519Key: .init())]))
+        var server = SSHConnectionStateMachine(role: .server([NIOSSHPrivateKey(ed25519Key: .init())]))
         let clientAuthDelegate = InfinitePasswordDelegate()
         let serverAuthDelegate = DenyThenAcceptDelegate(messagesToDeny: 1)
 
@@ -213,7 +213,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
         var client = SSHConnectionStateMachine(role: .client)
-        var server = SSHConnectionStateMachine(role: .server([NIOSSHHostPrivateKey(ed25519Key: .init())]))
+        var server = SSHConnectionStateMachine(role: .server([NIOSSHPrivateKey(ed25519Key: .init())]))
         let clientAuthDelegate = InfinitePasswordDelegate()
         let serverAuthDelegate = DenyThenAcceptDelegate(messagesToDeny: 0)
 

@@ -118,8 +118,12 @@ extension ByteBuffer {
         let rBytes: Data = rawRepresentation.prefix(32)
         let sBytes: Data = rawRepresentation.dropFirst(32)
 
-        writtenLength += self.writePositiveMPInt(rBytes)
-        writtenLength += self.writePositiveMPInt(sBytes)
+        writtenLength += self.writeCompositeSSHString { buffer in
+            var written = 0
+            written += buffer.writePositiveMPInt(rBytes)
+            written += buffer.writePositiveMPInt(sBytes)
+            return written
+        }
 
         return writtenLength
     }
@@ -165,8 +169,9 @@ extension ByteBuffer {
     private mutating func readECDSAP256Signature() throws -> SSHSignature? {
         // For ECDSA-P256, the key format is `mpint r` followed by `mpint s`.
         // We don't need them as mpints, so let's treat them as strings instead.
-        guard let rBytes = self.readSSHString(),
-              let sBytes = self.readSSHString() else {
+        guard var signatureBytes = self.readSSHString(),
+              let rBytes = signatureBytes.readSSHString(),
+              let sBytes = signatureBytes.readSSHString() else {
             return nil
         }
 

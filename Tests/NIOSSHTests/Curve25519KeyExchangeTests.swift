@@ -43,7 +43,7 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     func testBasicSuccessfulKeyExchangeNoPreviousSession() throws {
         var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
         var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
-        let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
@@ -75,7 +75,7 @@ final class Curve25519KeyExchangeTests: XCTestCase {
 
         var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: previousSessionIdentifier)
         var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: previousSessionIdentifier)
-        let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
@@ -104,7 +104,7 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     func testKeyExchangeWithECDSASignatures() throws {
         var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
         var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
-        let serverHostKey = NIOSSHHostPrivateKey(p256Key: .init())
+        let serverHostKey = NIOSSHPrivateKey(p256Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
@@ -133,7 +133,7 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     func testBasicSuccessfulKeyExchangeWithWiderKeys() throws {
         var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
         var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
-        let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
@@ -162,7 +162,7 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     func testDisagreeingOnInitialExchangeBytesLeadsToFailedKeyExchange() throws {
         var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
         var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
-        let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var serverInitialBytes = ByteBufferAllocator().buffer(capacity: 1024)
         var clientInitialBytes = serverInitialBytes
@@ -192,7 +192,7 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     func testWeValidateTheExchangeHash() throws {
         var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
         var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
-        let serverHostKey = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 

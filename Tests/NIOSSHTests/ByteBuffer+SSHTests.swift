@@ -217,7 +217,7 @@ final class ByteBufferSSHTests: XCTestCase {
 
     func testReadingEd25519SignaturesFromBuffers() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        let key = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let key = NIOSSHPrivateKey(ed25519Key: .init())
         let signature = try assertNoThrowWithValue(key.sign(digest: SHA256.hash(data: Array("hello, world!".utf8))))
 
         // Write a signature in.
@@ -236,7 +236,7 @@ final class ByteBufferSSHTests: XCTestCase {
 
     func testReadingECDSAP256SignaturesFromBuffers() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        let key = NIOSSHHostPrivateKey(p256Key: .init())
+        let key = NIOSSHPrivateKey(p256Key: .init())
         let signature = try assertNoThrowWithValue(key.sign(digest: SHA256.hash(data: Array("hello, world!".utf8))))
 
         // Write a signature in.
@@ -255,7 +255,7 @@ final class ByteBufferSSHTests: XCTestCase {
 
     func testReadingEd25519PublicKeysFromBuffers() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        let key = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let key = NIOSSHPrivateKey(ed25519Key: .init())
 
         // Write a signature in.
         buffer.writeSSHHostKey(key.publicKey)
@@ -273,7 +273,7 @@ final class ByteBufferSSHTests: XCTestCase {
 
     func testReadingECDASAP256PublicKeysFromBuffers() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        let key = NIOSSHHostPrivateKey(p256Key: .init())
+        let key = NIOSSHPrivateKey(p256Key: .init())
 
         // Write a signature in.
         buffer.writeSSHHostKey(key.publicKey)

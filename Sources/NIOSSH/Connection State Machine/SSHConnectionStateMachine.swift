@@ -447,6 +447,10 @@ struct SSHConnectionStateMachine {
                 try state.writeUserAuthFailure(message, into: &buffer)
                 self.state = .userAuthentication(state)
 
+            case .userAuthPKOK(let message):
+                try state.writeUserAuthPKOK(message, into: &buffer)
+                self.state = .userAuthentication(state)
+
             case .disconnect:
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentDisconnect
