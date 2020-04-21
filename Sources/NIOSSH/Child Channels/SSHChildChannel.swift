@@ -490,6 +490,11 @@ extension SSHChildChannel: Channel, ChannelCore {
     private func closedWhileOpen() {
         precondition(!self.state.isClosed)
 
+        if self.state.sentClose {
+            // Already sent a close, do nothing else.
+            return
+        }
+
         let message = SSHMessage.ChannelCloseMessage(recipientChannel: self.state.remoteChannelIdentifier!)
         self.processOutboundMessage(.channelClose(message), promise: nil)
         self.writePendingToMultiplexer()
@@ -554,7 +559,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         self.notifyChannelInactive()
 
         // Ok, we need to notify the network that we're done.
-        if self.state.isActiveOnNetwork {
+        if self.state.isActiveOnNetwork && !self.state.sentClose {
             let message = SSHMessage.ChannelCloseMessage(recipientChannel: self.state.remoteChannelIdentifier!)
             self.processOutboundMessage(.channelClose(message), promise: nil)
             self.writePendingToMultiplexer()
@@ -563,7 +568,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         self.eventLoop.execute {
             self.removeHandlers(channel: self)
             self.closePromise.fail(error)
-            self.multiplexer.childChannelClosed(channelID: self.state.localChannelIdentifier)
+            self.multiplexer.childChannelErrored(channelID: self.state.localChannelIdentifier, expectClose: !self.state.isClosed)
         }
     }
 
@@ -754,7 +759,13 @@ extension SSHChildChannel {
         try self.state.receiveChannelClose(message)
 
         // If we didn't throw, this must be acceptable to process.
-        self.closedCleanly()
+        if self.state.isClosed {
+            self.closedCleanly()
+        } else {
+            // We need to issue a close immediately.
+            let closeMessage = SSHMessage.channelClose(.init(recipientChannel: self.state.remoteChannelIdentifier!))
+            self.processOutboundMessage(closeMessage, promise: nil)
+        }
     }
 
     private func handleInboundChannelWindowAdjust(_ message: SSHMessage.ChannelWindowAdjustMessage) throws {
@@ -895,12 +906,8 @@ extension SSHChildChannel {
         try self.state.sendChannelEOF(message)
         self.pendingWritesForMultiplexer.append((.channelEOF(message), promise))
 
-        if self.state.isClosed {
-            self.closedCleanly()
-        } else {
-            self.failPendingWrites(error: ChannelError.eof)
-            self.pipeline.fireUserInboundEventTriggered(ChannelEvent.outputClosed)
-        }
+        self.failPendingWrites(error: ChannelError.eof)
+        self.pipeline.fireUserInboundEventTriggered(ChannelEvent.outputClosed)
     }
 
     private func handleOutboundChannelClose(_ message: SSHMessage.ChannelCloseMessage, _ promise: EventLoopPromise<Void>?) throws {
@@ -908,7 +915,9 @@ extension SSHChildChannel {
         self.pendingWritesForMultiplexer.append((.channelClose(message), promise))
 
         // If we didn't throw, this must be acceptable to process.
-        self.closedCleanly()
+        if self.state.isClosed {
+            self.closedCleanly()
+        }
     }
 
     private func handleOutboundChannelWindowAdjust(_ message: SSHMessage.ChannelWindowAdjustMessage, _ promise: EventLoopPromise<Void>?) throws {

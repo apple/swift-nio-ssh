@@ -18,6 +18,8 @@ import NIO
 final class SSHChannelMultiplexer {
     private var channels: [UInt32: SSHChildChannel]
 
+    private var erroredChannels: [UInt32]
+
     // This object can cause a reference cycle, so we require it to be optional so that we can
     // break the cycle manually.
     private var delegate: SSHMultiplexerDelegate?
@@ -32,6 +34,7 @@ final class SSHChannelMultiplexer {
     init(delegate: SSHMultiplexerDelegate, allocator: ByteBufferAllocator, childChannelInitializer: ((Channel) -> EventLoopFuture<Void>)?) {
         self.channels = [:]
         self.channels.reserveCapacity(8)
+        self.erroredChannels = []
         self.delegate = delegate
         self.nextChannelID = 0
         self.allocator = allocator
@@ -73,12 +76,23 @@ extension SSHChannelMultiplexer {
         // even if the object was never in the map, nothing bad will happen: it's gone!
         self.channels.removeValue(forKey: channelID)
     }
+
+    func childChannelErrored(channelID: UInt32, expectClose: Bool) {
+        // This should never return `nil`, but we don't want to assert on it because
+        // even if the object was never in the map, nothing bad will happen: it's gone!
+        self.channels.removeValue(forKey: channelID)
+
+        if expectClose {
+            // We keep track of the errored channel because we will tolerate receiving a close for it.
+            self.erroredChannels.append(channelID)
+        }
+    }
 }
 
 // MARK: Calls from SSH handlers.
 extension SSHChannelMultiplexer {
     func receiveMessage(_ message: SSHMessage) throws {
-        let channel: SSHChildChannel
+        let channel: SSHChildChannel?
 
         switch message {
         case .channelOpen:
@@ -95,6 +109,10 @@ extension SSHChannelMultiplexer {
 
         case .channelClose(let message):
             channel = try self.existingChannel(localID: message.recipientChannel)
+            if channel == nil, let errorIndex = self.erroredChannels.firstIndex(of: message.recipientChannel) {
+                // This is the end of our need to keep track of the channel.
+                self.erroredChannels.remove(at: errorIndex)
+            }
 
         case .channelWindowAdjust(let message):
             channel = try self.existingChannel(localID: message.recipientChannel)
@@ -119,8 +137,9 @@ extension SSHChannelMultiplexer {
             return
         }
 
-        // Deliver this message to the channel.
-        channel.receiveInboundMessage(message)
+        if let channel = channel {
+            channel.receiveInboundMessage(message)
+        }
     }
 
     func createChildChannel(_ promise: EventLoopPromise<Channel>? = nil, _ channelInitializer: ((Channel) -> EventLoopFuture<Void>)?) {
@@ -172,11 +191,14 @@ extension SSHChannelMultiplexer {
         return channel
     }
 
-    private func existingChannel(localID: UInt32) throws -> SSHChildChannel {
-        guard let channel = self.channels[localID] else {
+    private func existingChannel(localID: UInt32) throws -> SSHChildChannel? {
+        if let channel = self.channels[localID] {
+            return channel
+        } else if self.erroredChannels.contains(localID) {
+            return nil
+        } else {
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Unexpected request with local channel id \(localID)")
         }
-        return channel
     }
 }
 

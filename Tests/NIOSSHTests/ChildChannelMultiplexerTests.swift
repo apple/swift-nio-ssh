@@ -305,6 +305,16 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
     }
 
+    func assertEOF(_ message: SSHMessage?, recipientChannel: UInt32) {
+        switch message {
+        case .some(.channelEOF(let message)):
+            XCTAssertEqual(message.recipientChannel, recipientChannel)
+
+        case let fallback:
+            XCTFail("Unexpected message: \(String(describing: fallback))")
+        }
+    }
+
     func testBasicInboundChannelCreation() throws {
         var creationCount = 0
         let harness = self.harness { channel in
@@ -392,11 +402,15 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Now we drop in an open confirmation. This immediately triggers a close message.
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
-        XCTAssertTrue(didClose)
+        XCTAssertFalse(didClose)
         XCTAssertEqual(harness.flushedMessages.count, 2)
         self.assertChannelClose(harness.flushedMessages.last, recipientChannel: 1)
 
+        // We get a response
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.close(peerChannelID: channelID!)))
+
         // No longer active.
+        XCTAssertTrue(didClose)
         XCTAssertFalse(channel.isActive)
     }
 
@@ -431,12 +445,25 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertTrue(channel.isWritable)
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
-        // Closing will be instant.
-        XCTAssertNoThrow(try channel.close().wait())
+        // Closing will not happen straight away. We'll send a channel close message.
+        var closed = false
+        channel.close().whenComplete { result in
+            closed = true
+
+            if case .failure(let error) = result {
+                XCTFail("Closing hit error: \(error)")
+            }
+        }
+        XCTAssertFalse(closed)
         XCTAssertEqual(harness.flushedMessages.count, 2)
         self.assertChannelClose(harness.flushedMessages.last, recipientChannel: 1)
+        XCTAssertTrue(channel.isActive)
+
+        // But we need one back.
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.close(peerChannelID: channelID!)))
 
         // No longer active.
+        XCTAssertTrue(closed)
         XCTAssertFalse(channel.isActive)
     }
 
@@ -950,7 +977,22 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let channelID = assertChannelOpen(harness.flushedMessages.first)
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
 
-        XCTAssertNoThrow(try channel.close().wait())
+        var first: Result<Void, Error>?
+        var second: Result<Void, Error>?
+
+        channel.close().whenComplete { result in first = result }
+        channel.close().whenComplete { result in second = result }
+
+        XCTAssertNil(first)
+        XCTAssertNil(second)
+
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.close(peerChannelID: channelID!)))
+
+        guard case .success = first, case .success = second else {
+            XCTFail("Unexpected results: first \(String(describing: first)) second \(String(describing: second))")
+            return
+        }
+
         XCTAssertThrowsError(try channel.close().wait()) { error in
             XCTAssertEqual(error as? ChannelError, .alreadyClosed)
         }
@@ -1372,5 +1414,44 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Now complete the delay promise.
         delayPromise.succeed(())
         XCTAssertEqual((childPromiseError as? Optional<NIOSSHError>)??.type, .tcpShutdown)
+    }
+
+    func testErrorGracePeriod() throws {
+        let harness = self.harness { channel in
+            return channel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true)
+        }
+        defer {
+            harness.finish()
+        }
+
+        let openRequest = self.openRequest(channelID: 1)
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(openRequest))
+        let channelID = assertChannelOpenConfirmation(harness.flushedMessages.first, recipientChannel: 1)
+
+        // Ok, we're going to force the channel to encounter an error. We can do that by violating the state machine rules:
+        // we'll send EOF twice.
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
+
+        harness.eventLoop.run()
+
+        // Ok, we should see one message, close.
+        assertChannelClose(harness.flushedMessage(1), recipientChannel: 1)
+
+        // Now, we're going to fire in another few messages. These messages are gibberish, but they'll be allowed. The child channel is
+        // gone, and so it's no longer enforcing its state machine.
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
+
+        // Now we're going to send a close. This will be accepted as well.
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.close(peerChannelID: channelID!)))
+
+        // But now further frames are rejected.
+        XCTAssertThrowsError(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!))) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
+        }
     }
 }

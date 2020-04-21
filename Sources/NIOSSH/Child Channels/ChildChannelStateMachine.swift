@@ -62,7 +62,13 @@ extension ChildChannelStateMachine {
         /// may still be sent, but no further data may be exchanged.
         case quiescent(channelID: SSHChannelIdentifier)
 
-        /// `closed` is a channel where we have either sent or received `CHANNEL_CLOSE`.
+        /// `closedRemotely` is a channel where the remote peer has sent `CHANNEL_CLOSE` but we have not yet sent `CHANNEL_CLOSE` back.
+        case closedRemotely(channelID: SSHChannelIdentifier, sentEOF: Bool)
+
+        /// `closedLocally` is a channel where we have sent `CHANNEL_CLOSE` but have not yet received a `CHANNEL_CLOSE` back.
+        case closedLocally(channelID: SSHChannelIdentifier, receivedPeerEOF: Bool)
+
+        /// `closed` is a channel where we have both sent and received `CHANNEL_CLOSE`.
         /// No further activity is possible. The channel identifier may now be re-used.
         case closed(channelID: SSHChannelIdentifier)
     }
@@ -82,7 +88,7 @@ extension ChildChannelStateMachine {
             // channel open request for a channel we requested, because the message cannot carry our channel ID.
             preconditionFailure("Somehow received an open request for a locally-initiated channel")
 
-        case .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closed:
+        case .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedRemotely, .closedLocally, .closed:
             // As above, we precondition here because the rest of the code should prevent this from happening: there's no way to deliver
             // a channel open request for a channel that has a remote ID already!
             preconditionFailure("Received an open request for an active channel")
@@ -102,7 +108,7 @@ extension ChildChannelStateMachine {
         case .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Open confirmation sent on remotely-initiated channel")
 
-        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closed:
+        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Duplicate open confirmation received.")
         }
     }
@@ -121,7 +127,7 @@ extension ChildChannelStateMachine {
         case .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Open failure sent on remotely-initiated channel")
 
-        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closed:
+        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Duplicate open failure received.")
         }
     }
@@ -137,10 +143,14 @@ extension ChildChannelStateMachine {
             precondition(message.recipientChannel == channelID.localChannelID)
             self.state = .quiescent(channelID: channelID)
 
+        case .closedLocally(channelID: let channelID, receivedPeerEOF: false):
+            precondition(message.recipientChannel == channelID.localChannelID)
+            self.state = .closedLocally(channelID: channelID, receivedPeerEOF: true)
+
         case .idle:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received EOF on idle")
 
-        case .requestedLocally, .requestedRemotely, .halfClosedRemote, .quiescent, .closed:
+        case .requestedLocally, .requestedRemotely, .halfClosedRemote, .quiescent, .closedLocally(channelID: _, receivedPeerEOF: true), .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received EOF out of sequence.")
         }
     }
@@ -149,9 +159,16 @@ extension ChildChannelStateMachine {
         // We can get channel close at any point after the channel is active.
         switch self.state {
         case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
+             .halfClosedRemote(channelID: let channelID):
+            precondition(message.recipientChannel == channelID.localChannelID)
+            self.state = .closedRemotely(channelID: channelID, sentEOF: false)
+
+        case .halfClosedLocal(channelID: let channelID),
              .quiescent(channelID: let channelID):
+            precondition(message.recipientChannel == channelID.localChannelID)
+            self.state = .closedRemotely(channelID: channelID, sentEOF: true)
+
+        case .closedLocally(channelID: let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
             self.state = .closed(channelID: channelID)
 
@@ -161,7 +178,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received close before channel was open.")
 
-        case .closed:
+        case .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received close on closed channel.")
         }
     }
@@ -171,7 +188,8 @@ extension ChildChannelStateMachine {
         case .active(channelID: let channelID),
              .halfClosedLocal(channelID: let channelID),
              .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+             .quiescent(channelID: let channelID),
+             .closedLocally(channelID: let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
 
         case .idle:
@@ -180,7 +198,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel window adjust before channel was open.")
 
-        case .closed:
+        case .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received window adjust on closed channel.")
         }
     }
@@ -188,10 +206,12 @@ extension ChildChannelStateMachine {
     mutating func receiveChannelData(_ message: SSHMessage.ChannelDataMessage) throws {
         switch self.state {
         case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID):
+             .halfClosedLocal(channelID: let channelID),
+             .closedLocally(channelID: let channelID, receivedPeerEOF: false):
+            // We allow data in closed locally because there may be a timing problem here.
             precondition(message.recipientChannel == channelID.localChannelID)
 
-        case .halfClosedRemote, .quiescent:
+        case .halfClosedRemote, .quiescent, .closedLocally(channelID: _, receivedPeerEOF: true):
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received message after EOF.")
 
         case .idle:
@@ -200,7 +220,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel data before channel was open.")
 
-        case .closed:
+        case .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received data on closed channel.")
         }
     }
@@ -208,10 +228,12 @@ extension ChildChannelStateMachine {
     mutating func receiveChannelExtendedData(_ message: SSHMessage.ChannelExtendedDataMessage) throws {
         switch self.state {
         case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID):
+             .halfClosedLocal(channelID: let channelID),
+             .closedLocally(channelID: let channelID, receivedPeerEOF: false):
+            // We allow data in closed locally because there may be a timing problem here.
             precondition(message.recipientChannel == channelID.localChannelID)
 
-        case .halfClosedRemote, .quiescent:
+        case .halfClosedRemote, .quiescent, .closedLocally(channelID: _, receivedPeerEOF: true):
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received message after EOF.")
 
         case .idle:
@@ -220,7 +242,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel extended data before channel was open.")
 
-        case .closed:
+        case .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received extended data on closed channel.")
         }
     }
@@ -231,7 +253,8 @@ extension ChildChannelStateMachine {
         case .active(channelID: let channelID),
              .halfClosedLocal(channelID: let channelID),
              .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+             .quiescent(channelID: let channelID),
+             .closedLocally(channelID: let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
 
         case .idle:
@@ -240,7 +263,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel request before channel was open.")
 
-        case .closed:
+        case .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel request on closed channel.")
         }
     }
@@ -251,7 +274,8 @@ extension ChildChannelStateMachine {
         case .active(channelID: let channelID),
              .halfClosedLocal(channelID: let channelID),
              .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+             .quiescent(channelID: let channelID),
+             .closedLocally(channelID: let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
 
         case .idle:
@@ -260,7 +284,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel success before channel was open.")
 
-        case .closed:
+        case .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel success on closed channel.")
         }
     }
@@ -271,7 +295,8 @@ extension ChildChannelStateMachine {
         case .active(channelID: let channelID),
              .halfClosedLocal(channelID: let channelID),
              .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+             .quiescent(channelID: let channelID),
+             .closedLocally(channelID: let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
 
         case .idle:
@@ -280,7 +305,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel failure before channel was open.")
 
-        case .closed:
+        case .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel failure on closed channel.")
         }
     }
@@ -296,7 +321,7 @@ extension ChildChannelStateMachine {
             precondition(localID == message.senderChannel)
             self.state = .requestedLocally(localChannelID: localID)
 
-        case .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closed:
+        case .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
             // The code should prevent us from sending channel open twice.
             preconditionFailure("Attempted to send duplicate channel open")
         }
@@ -317,7 +342,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally:
             preconditionFailure("Sent open confirmation on locally initiated channel.")
 
-        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closed:
+        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
             preconditionFailure("Duplicate open confirmation sent.")
         }
     }
@@ -337,7 +362,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally:
             preconditionFailure("Sent open failure on locally initiated channel.")
 
-        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closed:
+        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
             preconditionFailure("Duplicate open failure sent.")
         }
     }
@@ -355,10 +380,10 @@ extension ChildChannelStateMachine {
 
         case .idle:
             // In the idle state we haven't either sent a channel open or received one. This is not really possible.
-            preconditionFailure("Somehow received channel EOF for idle channel")
+            preconditionFailure("Somehow sent channel EOF for idle channel")
 
-        case .requestedLocally, .requestedRemotely, .halfClosedRemote, .quiescent, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received EOF out of sequence.")
+        case .requestedLocally, .requestedRemotely, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
+            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent EOF out of sequence.")
         }
     }
 
@@ -366,9 +391,16 @@ extension ChildChannelStateMachine {
         // We can send channel close at any point after the channel is active.
         switch self.state {
         case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
+             .halfClosedLocal(channelID: let channelID):
+            precondition(message.recipientChannel == channelID.peerChannelID)
+            self.state = .closedLocally(channelID: channelID, receivedPeerEOF: false)
+
+        case .halfClosedRemote(channelID: let channelID),
              .quiescent(channelID: let channelID):
+            precondition(message.recipientChannel == channelID.peerChannelID)
+            self.state = .closedLocally(channelID: channelID, receivedPeerEOF: true)
+
+        case .closedRemotely(channelID: let channelID, sentEOF: _):
             precondition(message.recipientChannel == channelID.peerChannelID)
             self.state = .closed(channelID: channelID)
 
@@ -379,7 +411,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent close before channel was open.")
 
-        case .closed:
+        case .closedLocally, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent close on closed channel.")
         }
     }
@@ -396,7 +428,7 @@ extension ChildChannelStateMachine {
             // In the idle state we haven't either sent a channel open or received one. This is not really possible.
             preconditionFailure("Somehow received channel EOF for idle channel")
 
-        case .requestedLocally, .requestedRemotely, .closed:
+        case .requestedLocally, .requestedRemotely, .closedLocally, .closedRemotely, .closed:
             preconditionFailure("Sent channel window adjust on channel in invalid state")
         }
     }
@@ -410,7 +442,7 @@ extension ChildChannelStateMachine {
         case .halfClosedLocal, .quiescent:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent message after EOF.")
 
-        case .closed:
+        case .closedLocally, .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent data on closed channel.")
 
         case .idle:
@@ -431,7 +463,7 @@ extension ChildChannelStateMachine {
         case .halfClosedLocal, .quiescent:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent message after EOF.")
 
-        case .closed:
+        case .closedLocally, .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent extended data on closed channel.")
 
         case .idle:
@@ -459,7 +491,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel request before channel was open.")
 
-        case .closed:
+        case .closedLocally, .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel request on closed channel.")
         }
     }
@@ -480,7 +512,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel success before channel was open.")
 
-        case .closed:
+        case .closedLocally, .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel success on closed channel.")
         }
     }
@@ -501,7 +533,7 @@ extension ChildChannelStateMachine {
         case .requestedLocally, .requestedRemotely:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel failure before channel was open.")
 
-        case .closed:
+        case .closedLocally, .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel failure on closed channel.")
         }
     }
@@ -526,7 +558,9 @@ extension ChildChannelStateMachine {
              .active(channelID: let channelID),
              .halfClosedLocal(channelID: let channelID),
              .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+             .quiescent(channelID: let channelID),
+             .closedLocally(channelID: let channelID, receivedPeerEOF: _),
+             .closedRemotely(channelID: let channelID, sentEOF: _):
             self.state = .closed(channelID: channelID)
         }
     }
@@ -540,7 +574,7 @@ extension ChildChannelStateMachine {
         switch self.state {
         case .idle, .closed:
             return false
-        case .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent:
+        case .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely:
             return true
         }
     }
@@ -550,7 +584,7 @@ extension ChildChannelStateMachine {
         switch self.state {
         case .closed:
             return true
-        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent:
+        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely:
             return false
         }
     }
@@ -558,9 +592,19 @@ extension ChildChannelStateMachine {
     /// Whether `Channel.isActive` should be true.
     var isActiveOnChannel: Bool {
         switch self.state {
-        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent:
+        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely:
             return true
         case .idle, .requestedLocally, .requestedRemotely, .closed:
+            return false
+        }
+    }
+
+    // Whether we've sent a channel close message.
+    var sentClose: Bool {
+        switch self.state {
+        case .closedLocally, .closed:
+            return true
+        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedRemotely:
             return false
         }
     }
@@ -577,6 +621,8 @@ extension ChildChannelStateMachine {
              .halfClosedLocal(channelID: let channelID),
              .halfClosedRemote(channelID: let channelID),
              .quiescent(channelID: let channelID),
+             .closedRemotely(channelID: let channelID, sentEOF: _),
+             .closedLocally(channelID: let channelID, receivedPeerEOF: _),
              .closed(channelID: let channelID):
             return channelID.localChannelID
         }
@@ -593,6 +639,8 @@ extension ChildChannelStateMachine {
              .halfClosedLocal(channelID: let channelID),
              .halfClosedRemote(channelID: let channelID),
              .quiescent(channelID: let channelID),
+             .closedRemotely(channelID: let channelID, sentEOF: _),
+             .closedLocally(channelID: let channelID, receivedPeerEOF: _),
              .closed(channelID: let channelID):
             return channelID.peerChannelID
         }
@@ -600,10 +648,10 @@ extension ChildChannelStateMachine {
 
     var sentEOF: Bool {
         switch self.state {
-        case .halfClosedLocal, .quiescent, .closed:
+        case .halfClosedLocal, .quiescent, .closedLocally, .closedRemotely(channelID: _, sentEOF: true), .closed:
             return true
 
-        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedRemote:
+        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedRemote, .closedRemotely(channelID: _, sentEOF: false):
             return false
         }
     }
@@ -614,7 +662,7 @@ extension ChildChannelStateMachine {
         case .idle, .requestedLocally, .requestedRemotely:
             return true
 
-        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closed:
+        case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
             return false
         }
     }
