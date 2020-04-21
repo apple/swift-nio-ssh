@@ -57,7 +57,7 @@ extension SSHMessage {
 
         var reason: UInt32
         var description: String
-        var tag: ByteBuffer
+        var tag: String
     }
 
     struct IgnoreMessage: Equatable {
@@ -427,7 +427,7 @@ extension ByteBuffer {
             guard
                 let reason = self.readInteger(as: UInt32.self),
                 let description = self.readSSHStringAsString(),
-                let tag = self.readSSHString()
+                let tag = self.readSSHStringAsString()
             else {
                 return nil
             }
@@ -894,11 +894,10 @@ extension ByteBuffer {
     }
 
     mutating func writeDisconnectMessage(_ message: SSHMessage.DisconnectMessage) -> Int {
-        var message = message
         var writtenBytes = 0
         writtenBytes += self.writeInteger(message.reason)
         writtenBytes += self.writeSSHString(message.description.utf8)
-        writtenBytes += self.writeSSHString(&message.tag)
+        writtenBytes += self.writeSSHString(message.tag.utf8)
         return writtenBytes
     }
 

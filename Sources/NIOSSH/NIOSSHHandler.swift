@@ -170,6 +170,9 @@ extension NIOSSHHandler: ChannelDuplexHandler {
             }
         case .forwardToMultiplexer(let message):
             try self.multiplexer?.receiveMessage(message)
+        case .disconnect:
+            // Welp, we immediately have to close.
+            context.close(promise: nil)
         }
     }
 }

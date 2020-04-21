@@ -48,7 +48,7 @@ final class SSHPacketSerializerTests: XCTestCase {
     }
 
     func testDisconnectMessage() throws {
-        let message = SSHMessage.disconnect(.init(reason: 42, description: "description", tag: ByteBuffer.of(string: "tag")))
+        let message = SSHMessage.disconnect(.init(reason: 42, description: "description", tag: "tag"))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
         var parser = SSHPacketParser(allocator: allocator)
@@ -63,7 +63,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         case .disconnect(let message):
             XCTAssertEqual(42, message.reason)
             XCTAssertEqual("description", message.description)
-            XCTAssertEqual(ByteBuffer.of(string: "tag"), message.tag)
+            XCTAssertEqual("tag", message.tag)
         default:
             XCTFail("Expecting .disconnect")
         }

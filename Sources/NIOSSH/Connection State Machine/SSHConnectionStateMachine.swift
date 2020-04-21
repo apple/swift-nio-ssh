@@ -36,6 +36,10 @@ struct SSHConnectionStateMachine {
 
         /// The SSH connection is active.
         case active(ActiveState)
+
+        case receivedDisconnect
+
+        case sentDisconnect
     }
 
     /// The state of this state machine.
@@ -49,7 +53,7 @@ struct SSHConnectionStateMachine {
         switch self.state {
         case .idle:
             return SSHMultiMessage(SSHMessage.version(Constants.version))
-        case .sentVersion, .keyExchange, .sentNewKeys, .receivedNewKeys, .userAuthentication, .active:
+        case .sentVersion, .keyExchange, .sentNewKeys, .receivedNewKeys, .userAuthentication, .active, .receivedDisconnect, .sentDisconnect:
             preconditionFailure("Cannot call start twice, state \(self.state)")
         }
     }
@@ -76,6 +80,9 @@ struct SSHConnectionStateMachine {
         case .active(var state):
             state.parser.append(bytes: &data)
             self.state = .active(state)
+        case .receivedDisconnect, .sentDisconnect:
+            // No more I/O, we're done.
+            break
         }
     }
 
@@ -97,6 +104,10 @@ struct SSHConnectionStateMachine {
                 let message = newState.keyExchangeStateMachine.startKeyExchange()
                 self.state = .keyExchange(newState)
                 return .emitMessage(message)
+
+            case .disconnect:
+                self.state = .receivedDisconnect
+                return .disconnect
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "transport", violation: "Did not receive version message")
             }
@@ -129,6 +140,9 @@ struct SSHConnectionStateMachine {
                 } else {
                     return .noMessage
                 }
+            case .disconnect:
+                self.state = .receivedDisconnect
+                return .disconnect
             default:
                 // TODO: enforce RFC 4253:
                 //
@@ -177,6 +191,9 @@ struct SSHConnectionStateMachine {
                 } else {
                     return .noMessage
                 }
+            case .disconnect:
+                self.state = .receivedDisconnect
+                return .disconnect
                 
             default:
                 // TODO: enforce RFC 4253:
@@ -210,6 +227,10 @@ struct SSHConnectionStateMachine {
                 let result = try state.receiveServiceRequest(message)
                 self.state = .receivedNewKeys(state)
                 return result
+
+            case .disconnect:
+                self.state = .receivedDisconnect
+                return .disconnect
 
             case .serviceAccept, .userAuthRequest, .userAuthSuccess, .userAuthFailure:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
@@ -250,6 +271,10 @@ struct SSHConnectionStateMachine {
                 let result = try state.receiveUserAuthFailure(message)
                 self.state = .userAuthentication(state)
                 return result
+
+            case .disconnect:
+                self.state = .receivedDisconnect
+                return .disconnect
 
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
@@ -292,12 +317,20 @@ struct SSHConnectionStateMachine {
                     self.state = .active(state)
                     return .emitMessage(SSHMultiMessage(.requestFailure))
                 }
+            case .disconnect:
+                self.state = .receivedDisconnect
+                return .disconnect
+
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
             }
 
             self.state = .active(state)
             return .forwardToMultiplexer(message)
+
+        case .receivedDisconnect, .sentDisconnect:
+            // We do no further I/O in these states.
+            return .noMessage
         }
     }
 
@@ -312,6 +345,9 @@ struct SSHConnectionStateMachine {
             case .version:
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentVersion(.init(idleState: state, allocator: allocator))
+            case .disconnect:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect
             default:
                 preconditionFailure("First message sent must be version, not \(message)")
             }
@@ -337,6 +373,10 @@ struct SSHConnectionStateMachine {
                 try kex.writeNewKeysMessage(into: &buffer)
                 self.state = .sentNewKeys(.init(keyExchangeState: kex, delegate: userAuthDelegate, loop: loop))
 
+            case .disconnect:
+                try kex.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect
+
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
             }
@@ -356,6 +396,10 @@ struct SSHConnectionStateMachine {
                 try kex.writeNewKeysMessage(into: &buffer)
                 self.state = .userAuthentication(.init(receivedNewKeysState: kex))
 
+            case .disconnect:
+                try kex.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect
+
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
             }
@@ -370,6 +414,10 @@ struct SSHConnectionStateMachine {
 
             case .serviceAccept, .userAuthRequest, .userAuthSuccess, .userAuthFailure:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Cannot send \(message) before receiving newKeys")
+
+            case .disconnect:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect
 
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Sent unexpected message type: \(message)")
@@ -398,6 +446,10 @@ struct SSHConnectionStateMachine {
             case .userAuthFailure(let message):
                 try state.writeUserAuthFailure(message, into: &buffer)
                 self.state = .userAuthentication(state)
+
+            case .disconnect:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect
 
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Sent unexpected message type: \(message)")
@@ -429,11 +481,19 @@ struct SSHConnectionStateMachine {
                 try state.writeChannelSuccess(message, into: &buffer)
             case .channelFailure(let message):
                 try state.writeChannelFailure(message, into: &buffer)
+            case .disconnect:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect
+                return
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Sent unexpected message type: \(message)")
             }
 
             self.state = .active(state)
+
+        case .sentDisconnect, .receivedDisconnect:
+            // We don't allow more messages once disconnect has occured
+            throw NIOSSHError.protocolViolation(protocolName: "transport", violation: "I/O after disconnect")
         }
     }
 }
@@ -444,11 +504,13 @@ extension SSHConnectionStateMachine {
     ///
     /// When the state machine processes a message, several things may happen. Firstly, it may generate an
     /// automatic message that should be sent. Secondly, it may generate a possibility of having a message in
-    /// future. Thirdly, it may be a message targetted to one of the child channels. Fourthly, it may generate nothing.
+    /// future. Thirdly, it may be a message targetted to one of the child channels. Fourthly, it may require us to disconnect.
+    /// Fifthly, it may generate nothing.
     enum StateMachineInboundProcessResult {
         case emitMessage(SSHMultiMessage)
         case possibleFutureMessage(EventLoopFuture<SSHMultiMessage?>)
         case forwardToMultiplexer(SSHMessage)
+        case disconnect
         case noMessage
     }
 }
@@ -460,7 +522,16 @@ extension SSHConnectionStateMachine {
         switch self.state {
         case .active:
             return true
-        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication:
+        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication, .receivedDisconnect, .sentDisconnect:
+            return false
+        }
+    }
+
+    var disconnected: Bool {
+        switch self.state {
+        case .receivedDisconnect, .sentDisconnect:
+            return true
+        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication, .active:
             return false
         }
     }
