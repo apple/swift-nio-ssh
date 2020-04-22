@@ -20,7 +20,7 @@ import XCTest
 final class SSHMessagesTests: XCTestCase {
     func testDisconnnect() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
-        let message = SSHMessage.disconnect(.init(reason: 2, description: "user closed connection", tag: ByteBuffer.of(bytes: [0])))
+        let message = SSHMessage.disconnect(.init(reason: 2, description: "user closed connection", tag: ""))
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)

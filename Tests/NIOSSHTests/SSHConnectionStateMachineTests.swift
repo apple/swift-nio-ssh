@@ -85,7 +85,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
                         }
                     }
                 }
-            case .some(.forwardToMultiplexer):
+            case .some(.forwardToMultiplexer), .some(.disconnect):
                 fatalError("Currently unsupported")
             }
 
@@ -112,7 +112,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
                         }
                     }
                 }
-            case .some(.forwardToMultiplexer):
+            case .some(.forwardToMultiplexer), .some(.disconnect):
                 fatalError("Currently unsupported")
             }
 
@@ -135,7 +135,32 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         switch result {
         case .some(.forwardToMultiplexer(let forwardedMessage)):
             XCTAssertEqual(forwardedMessage, message)
-        case .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .none:
+        case .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .some(.disconnect), .none:
+            XCTFail("Unexpected result: \(String(describing: result))")
+        }
+    }
+
+    private func assertSendingIsProtocolError(_ message: SSHMessage, sender: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop) throws {
+        var tempBuffer = allocator.buffer(capacity: 1024)
+        XCTAssertThrowsError(try sender.processOutboundMessage(message, buffer: &tempBuffer, allocator: allocator, loop: loop, userAuthDelegate: .client(ExplodingAuthDelegate()))) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
+        }
+        XCTAssertEqual(tempBuffer.readableBytes, 0)
+    }
+
+    private func assertDisconnects(_ message: SSHMessage, sender: inout SSHConnectionStateMachine, receiver: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop) throws {
+        var tempBuffer = allocator.buffer(capacity: 1024)
+        XCTAssertNoThrow(try sender.processOutboundMessage(message, buffer: &tempBuffer, allocator: allocator, loop: loop, userAuthDelegate: .client(ExplodingAuthDelegate())))
+        XCTAssert(tempBuffer.readableBytes > 0)
+
+        receiver.bufferInboundData(&tempBuffer)
+        let result = try assertNoThrowWithValue(receiver.processInboundMessage(allocator: allocator, loop: loop, userAuthDelegate: .client(ExplodingAuthDelegate())))
+
+        switch result {
+        case .some(.disconnect):
+            // Good
+            break
+        case .some(.forwardToMultiplexer), .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .none:
             XCTFail("Unexpected result: \(String(describing: result))")
         }
     }
@@ -181,6 +206,31 @@ final class SSHConnectionStateMachineTests: XCTestCase {
 
         for message in channelMessages {
             XCTAssertNoThrow(try assertForwardsToMultiplexer(message, sender: &client, receiver: &server, allocator: allocator, loop: loop))
+        }
+    }
+
+    func testDisconnectMessageCausesImmediateConnectionClose() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client)
+        var server = SSHConnectionStateMachine(role: .server([NIOSSHHostPrivateKey(ed25519Key: .init())]))
+        let clientAuthDelegate = InfinitePasswordDelegate()
+        let serverAuthDelegate = DenyThenAcceptDelegate(messagesToDeny: 0)
+
+        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop, clientAuthDelegate: .client(clientAuthDelegate), serverAuthDelegate: .server(serverAuthDelegate))
+
+        XCTAssertFalse(client.disconnected)
+        XCTAssertFalse(server.disconnected)
+
+        // Have the client send and the server receive a disconnection message.
+        try assertDisconnects(.disconnect(.init(reason: 0, description: "", tag: "")), sender: &client, receiver: &server, allocator: allocator, loop: loop)
+
+        XCTAssertTrue(client.disconnected)
+        XCTAssertTrue(server.disconnected)
+
+        // Further messages are not sent.
+        for message in channelMessages {
+            XCTAssertNoThrow(try assertSendingIsProtocolError(message, sender: &client, allocator: allocator, loop: loop))
         }
     }
 }

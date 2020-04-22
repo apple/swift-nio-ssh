@@ -28,6 +28,7 @@ extension SSHConnectionStateMachineTests {
       return [
                 ("testBasicConnectionDance", testBasicConnectionDance),
                 ("testReceivingChannelMessagesGetForwardedOnceConnectionMade", testReceivingChannelMessagesGetForwardedOnceConnectionMade),
+                ("testDisconnectMessageCausesImmediateConnectionClose", testDisconnectMessageCausesImmediateConnectionClose),
            ]
    }
 }
