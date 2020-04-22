@@ -55,6 +55,7 @@ extension ChildChannelMultiplexerTests {
                 ("testPromiseCompletionDelaysUntilResponseOnFailure", testPromiseCompletionDelaysUntilResponseOnFailure),
                 ("testTCPCloseWhileAwaitingChannelSetup", testTCPCloseWhileAwaitingChannelSetup),
                 ("testTCPCloseWhileAwaitingInitializer", testTCPCloseWhileAwaitingInitializer),
+                ("testErrorGracePeriod", testErrorGracePeriod),
            ]
    }
 }
