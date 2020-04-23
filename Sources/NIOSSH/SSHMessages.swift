@@ -171,9 +171,13 @@ extension SSHMessage {
         // SSH_MSG_GLOBAL_REQUEST
         static let id: UInt8 = 80
 
-        var name: String
+        enum RequestType: Equatable {
+            case tcpipForward(String, UInt32)
+            case cancelTcpipForward(String, UInt32)
+        }
+
         var wantReply: Bool
-        var bytes: ByteBuffer?
+        var type: RequestType
     }
 
     struct RequestSuccessMessage: Equatable {
@@ -369,7 +373,7 @@ extension ByteBuffer {
                 }
                 return .userAuthPKOK(message)
             case SSHMessage.GlobalRequestMessage.id:
-                guard let message = self.readGlobalRequestMessage() else {
+                guard let message = try self.readGlobalRequestMessage() else {
                     return nil
                 }
                 return .globalRequest(message)
@@ -675,8 +679,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readGlobalRequestMessage() -> SSHMessage.GlobalRequestMessage? {
-        return self.rewindReaderOnNil { `self` in
+    mutating func readGlobalRequestMessage() throws -> SSHMessage.GlobalRequestMessage? {
+        return try self.rewindOnNilOrError { `self` in
             guard
                 let name = self.readSSHStringAsString(),
                 let wantReply = self.readSSHBoolean()
@@ -684,14 +688,34 @@ extension ByteBuffer {
                 return nil
             }
 
-            let bytes: ByteBuffer?
-            if self.readableBytes > 0 {
-                bytes = self.readSlice(length: self.readableBytes)
-            } else {
-                bytes = nil
+            let type: SSHMessage.GlobalRequestMessage.RequestType
+
+            switch name {
+            case "tcpip-forward":
+                guard
+                    let addressToBind = self.readSSHStringAsString(),
+                    let port = self.readInteger(as: UInt32.self)
+                else {
+                    return nil
+                }
+
+                type = .tcpipForward(addressToBind, port)
+
+            case "cancel-tcpip-forward":
+                guard
+                    let addressToBind = self.readSSHStringAsString(),
+                    let port = self.readInteger(as: UInt32.self)
+                else {
+                    return nil
+                }
+
+                type = .cancelTcpipForward(addressToBind, port)
+
+            default:
+                throw NIOSSHError.unknownPacketType(diagnostic: "global request, name \(name)")
             }
 
-            return SSHMessage.GlobalRequestMessage(name: name, wantReply: wantReply, bytes: bytes)
+            return SSHMessage.GlobalRequestMessage(wantReply: wantReply, type: type)
         }
     }
 
@@ -1098,8 +1122,21 @@ extension ByteBuffer {
     mutating func writeGlobalRequestMessage(_ message: SSHMessage.GlobalRequestMessage) -> Int {
         var writtenBytes = 0
 
-        writtenBytes += self.writeSSHString(message.name.utf8)
+        switch message.type {
+        case .tcpipForward:
+            writtenBytes += self.writeSSHString("tcpip-forward".utf8)
+        case .cancelTcpipForward:
+            writtenBytes += self.writeSSHString("cancel-tcpip-forward".utf8)
+        }
+
         writtenBytes += self.writeSSHBoolean(message.wantReply)
+
+        switch message.type {
+        case .tcpipForward(let addressToBind, let port),
+             .cancelTcpipForward(let addressToBind, let port):
+            writtenBytes += self.writeSSHString(addressToBind.utf8)
+            writtenBytes += self.writeInteger(port)
+        }
 
         return writtenBytes
     }

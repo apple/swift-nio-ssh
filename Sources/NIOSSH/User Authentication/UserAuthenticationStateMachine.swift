@@ -21,9 +21,9 @@ struct UserAuthenticationStateMachine {
     private var sessionID: ByteBuffer
 
     // TODO: The server SHOULD limit the number of authentication attempts the client may make.
-    init(role: SSHConnectionRole, delegate: UserAuthDelegate, loop: EventLoop, sessionID: ByteBuffer) {
+    init(role: SSHConnectionRole, loop: EventLoop, sessionID: ByteBuffer) {
         self.state = .idle
-        self.delegate = delegate
+        self.delegate = UserAuthDelegate(role: role)
         self.loop = loop
         self.sessionID = sessionID
     }

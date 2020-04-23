@@ -376,15 +376,27 @@ final class SSHMessagesTests: XCTestCase {
 
     func testGlobalRequest() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
-        let message = SSHMessage.globalRequest(.init(name: "test", wantReply: false))
+        let message = SSHMessage.globalRequest(.init(wantReply: false, type: .tcpipForward("0.0.0.0", 2222)))
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
 
+        try self.assertCorrectlyManagesPartialRead(message)
+
+        let secondMessage = SSHMessage.globalRequest(.init(wantReply: true, type: .cancelTcpipForward("10.0.0.1", 66)))
+        buffer.writeSSHMessage(secondMessage)
+        XCTAssertEqual(try buffer.readSSHMessage(), secondMessage)
+
+        try self.assertCorrectlyManagesPartialRead(secondMessage)
+
         buffer.writeBytes([SSHMessage.GlobalRequestMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
 
-        try self.assertCorrectlyManagesPartialRead(message)
+        buffer.clear()
+        buffer.writeBytes([SSHMessage.GlobalRequestMessage.id, 0, 0, 0, 4, UInt8(ascii: "t"), UInt8(ascii: "e"), UInt8(ascii: "s"), UInt8(ascii: "t"), 0])
+        XCTAssertThrowsError(try buffer.readSSHMessage()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .unknownPacketType)
+        }
     }
 
     func testChannelOpen() throws {

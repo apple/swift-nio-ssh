@@ -35,7 +35,6 @@ extension SSHConnectionStateMachine {
         var userAuthStateMachine: UserAuthenticationStateMachine
 
         init(keyExchangeState state: KeyExchangeState,
-             delegate: UserAuthDelegate,
              loop: EventLoop) {
             self.role = state.role
             self.parser = state.parser
@@ -44,7 +43,6 @@ extension SSHConnectionStateMachine {
 
             // We force unwrap the session ID because it's programmer error to not have it at this time.
             self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role,
-                                                                       delegate: delegate,
                                                                        loop: loop,
                                                                        sessionID: state.keyExchangeStateMachine.sessionID!)
         }

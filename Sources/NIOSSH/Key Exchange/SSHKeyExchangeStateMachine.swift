@@ -171,10 +171,10 @@ struct SSHKeyExchangeStateMachine {
             switch self.role {
             case .client:
                 throw SSHKeyExchangeError.unexpectedMessage
-            case .server(let keys):
+            case .server(let configuration):
                 let (result, reply) = try exchanger.completeKeyExchangeServerSide(
                     clientKeyExchangeMessage: message,
-                    serverHostKey: negotiated.negotiatedHostKey(keys),
+                    serverHostKey: negotiated.negotiatedHostKey(configuration.hostKeys),
                     initialExchangeBytes: &self.initialExchangeBytes,
                     allocator: self.allocator, expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes)
 
@@ -349,8 +349,8 @@ struct SSHKeyExchangeStateMachine {
         switch self.role {
         case .client:
             return Self.supportedServerHostKeyAlgorithms
-        case .server(let keys):
-            return keys.flatMap { $0.hostKeyAlgorithms }
+        case .server(let configuration):
+            return configuration.hostKeys.flatMap { $0.hostKeyAlgorithms }
         }
     }
 }
