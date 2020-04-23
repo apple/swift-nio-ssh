@@ -14,7 +14,6 @@
 
 import NIO
 
-
 extension SSHConnectionStateMachine {
     /// The state of a state machine that has receoved new keys after a key exchange operation,
     /// but has not yet sent its new keys to the peer.
@@ -51,6 +50,6 @@ extension SSHConnectionStateMachine {
     }
 }
 
-extension SSHConnectionStateMachine.ReceivedNewKeysState: SendsKeyExchangeMessages { }
+extension SSHConnectionStateMachine.ReceivedNewKeysState: SendsKeyExchangeMessages {}
 
-extension SSHConnectionStateMachine.ReceivedNewKeysState: AcceptsUserAuthMessages { }
+extension SSHConnectionStateMachine.ReceivedNewKeysState: AcceptsUserAuthMessages {}

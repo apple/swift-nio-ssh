@@ -12,9 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import XCTest
 @testable import NIOSSH
-
+import XCTest
 
 func assertNoThrowWithValue<T>(_ body: @autoclosure () throws -> T, defaultValue: T? = nil, message: String? = nil, file: StaticString = #file, line: UInt = #line) throws -> T {
     do {

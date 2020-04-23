@@ -18,7 +18,6 @@ import NIO
 import XCTest
 
 final class SSHPacketSerializerTests: XCTestCase {
-
     private func runVersionHandshake(serializer: inout SSHPacketSerializer, parser: inout SSHPacketParser, file: StaticString = #file, line: UInt = #line) {
         var buffer = ByteBufferAllocator().buffer(capacity: 22)
         let versionString = "SSH-2.0-SwiftSSH_1.0"
@@ -26,7 +25,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         XCTAssertNoThrow(try serializer.serialize(message: .version(versionString), to: &buffer), file: file, line: line)
         parser.append(bytes: &buffer)
 
-        var resultingMessage: SSHMessage? = nil
+        var resultingMessage: SSHMessage?
         XCTAssertNoThrow(resultingMessage = try parser.nextPacket(), file: file, line: line)
 
         switch resultingMessage {

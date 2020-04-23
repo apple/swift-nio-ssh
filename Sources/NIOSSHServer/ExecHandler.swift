@@ -12,11 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import Dispatch
+import Foundation
 import NIO
-import NIOSSH
 import NIOFoundationCompat
+import NIOSSH
 
 enum SSHServerError: Error {
     case invalidCommand
@@ -115,7 +115,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
                 _ = try NIOPipeBootstrap(group: channel.eventLoop)
                     .channelOption(ChannelOptions.allowRemoteHalfClosure, value: true)
                     .channelInitializer { pipeChannel in
-                        return pipeChannel.pipeline.addHandler(theirs)
+                        pipeChannel.pipeline.addHandler(theirs)
                     }.withPipes(inputDescriptor: outPipe.fileHandleForReading.fileDescriptor, outputDescriptor: inPipe.fileHandleForWriting.fileDescriptor).wait()
 
                 // Ok, great, we've sorted stdout and stdin. For stderr we need a different strategy: we just park a thread for this.

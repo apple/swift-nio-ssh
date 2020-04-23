@@ -25,20 +25,20 @@ public struct SSHTerminalModes {
     }
 }
 
-extension SSHTerminalModes: Hashable { }
-
+extension SSHTerminalModes: Hashable {}
 
 // MARK: Opcode
+
 extension SSHTerminalModes {
     /// A terminal mode opcode.
     public struct Opcode {
         /// The raw value of the terminal mode opcode.
         public var rawValue: UInt8 {
             get {
-                return self._rawValue
+                self._rawValue
             }
             set {
-                precondition(newValue != 0)  // Reserved for TTY_OP_END.
+                precondition(newValue != 0) // Reserved for TTY_OP_END.
                 self._rawValue = newValue
             }
         }
@@ -46,7 +46,7 @@ extension SSHTerminalModes {
         private var _rawValue: UInt8
 
         public init(rawValue: UInt8) {
-            precondition(rawValue != 0)  // Reserved for TTY_OP_END.
+            precondition(rawValue != 0) // Reserved for TTY_OP_END.
             self._rawValue = rawValue
         }
 
@@ -217,15 +217,15 @@ extension SSHTerminalModes {
     }
 }
 
-extension SSHTerminalModes.Opcode: Hashable { }
+extension SSHTerminalModes.Opcode: Hashable {}
 
 extension SSHTerminalModes.Opcode: Comparable {
-    public static func <(lhs: SSHTerminalModes.Opcode, rhs: SSHTerminalModes.Opcode) -> Bool {
-        return lhs.rawValue < rhs.rawValue
+    public static func < (lhs: SSHTerminalModes.Opcode, rhs: SSHTerminalModes.Opcode) -> Bool {
+        lhs.rawValue < rhs.rawValue
     }
 }
 
-extension SSHTerminalModes.Opcode: RawRepresentable { }
+extension SSHTerminalModes.Opcode: RawRepresentable {}
 
 extension SSHTerminalModes.Opcode: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: UInt8) {
@@ -353,6 +353,7 @@ extension SSHTerminalModes.Opcode: CustomStringConvertible {
 }
 
 // MARK: OpcodeValue
+
 extension SSHTerminalModes {
     /// The value of an SSH terminal mode opcode.
     public struct OpcodeValue {
@@ -365,15 +366,15 @@ extension SSHTerminalModes {
     }
 }
 
-extension SSHTerminalModes.OpcodeValue: Hashable { }
+extension SSHTerminalModes.OpcodeValue: Hashable {}
 
 extension SSHTerminalModes.OpcodeValue: Comparable {
-    public static func <(lhs: SSHTerminalModes.OpcodeValue, rhs: SSHTerminalModes.OpcodeValue) -> Bool {
-        return lhs.rawValue < rhs.rawValue
+    public static func < (lhs: SSHTerminalModes.OpcodeValue, rhs: SSHTerminalModes.OpcodeValue) -> Bool {
+        lhs.rawValue < rhs.rawValue
     }
 }
 
-extension SSHTerminalModes.OpcodeValue: RawRepresentable { }
+extension SSHTerminalModes.OpcodeValue: RawRepresentable {}
 
 extension SSHTerminalModes.OpcodeValue: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: UInt32) {

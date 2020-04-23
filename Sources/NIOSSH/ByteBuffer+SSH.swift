@@ -14,7 +14,6 @@
 
 import NIO
 
-
 extension ByteBuffer {
     /// Gets an SSH boolean field from a `ByteBuffer`.
     ///
@@ -27,7 +26,7 @@ extension ByteBuffer {
         // > represents FALSE, and the value 1 represents TRUE.  All non-zero
         // > values MUST be interpreted as TRUE; however, applications MUST NOT
         // > store values other than 0 and 1.
-        return self.getInteger(at: offset, as: UInt8.self).map { $0 != 0 }
+        self.getInteger(at: offset, as: UInt8.self).map { $0 != 0 }
     }
 
     /// Gets an SSH boolean field from a `ByteBuffer`, advancing the reader index.
@@ -41,7 +40,7 @@ extension ByteBuffer {
         // > represents FALSE, and the value 1 represents TRUE.  All non-zero
         // > values MUST be interpreted as TRUE; however, applications MUST NOT
         // > store values other than 0 and 1.
-        return self.readInteger(as: UInt8.self).map { $0 != 0 }
+        self.readInteger(as: UInt8.self).map { $0 != 0 }
     }
 
     /// Writes an SSH boolean field from a `ByteBuffer`. Does not alter the writer index.
@@ -182,9 +181,9 @@ extension ByteBuffer {
             switch necessaryPaddingBytes {
             case 8...:
                 writtenBytes = self.writeInteger(rng.next(), as: UInt32.self)
-            case 4...7:
+            case 4 ... 7:
                 writtenBytes = self.writeInteger(rng.next(), as: UInt32.self)
-            case 2...3:
+            case 2 ... 3:
                 writtenBytes = self.writeInteger(rng.next(), as: UInt16.self)
             case 1:
                 writtenBytes = self.writeInteger(rng.next(), as: UInt8.self)
@@ -235,7 +234,7 @@ extension ByteBuffer {
     }
 
     /// A helper function that will rewind the reader index when nil is returned.
-    mutating func rewindReaderOnNil<T>(_ body: (inout ByteBuffer) -> Optional<T>) -> Optional<T> {
+    mutating func rewindReaderOnNil<T>(_ body: (inout ByteBuffer) -> T?) -> T? {
         let oldReaderIndex = self.readerIndex
 
         guard let result = body(&self) else {

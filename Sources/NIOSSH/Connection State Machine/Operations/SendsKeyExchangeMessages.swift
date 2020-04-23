@@ -24,7 +24,6 @@ extension SendsKeyExchangeMessages {
     mutating func writeKeyExchangeMessage(_ message: SSHMessage.KeyExchangeMessage, into buffer: inout ByteBuffer) throws {
         self.keyExchangeStateMachine.send(keyExchange: message)
         try self.serializer.serialize(message: .keyExchange(message), to: &buffer)
-
     }
 
     mutating func writeKeyExchangeInitMessage(_ message: SSHMessage.KeyExchangeECDHInitMessage, into buffer: inout ByteBuffer) throws {
@@ -43,4 +42,3 @@ extension SendsKeyExchangeMessages {
         self.serializer.addEncryption(result)
     }
 }
-

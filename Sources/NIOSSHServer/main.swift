@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Dispatch
 import Crypto
+import Dispatch
 import NIO
 import NIOSSH
 
@@ -31,7 +31,7 @@ final class ErrorHandler: ChannelInboundHandler {
 /// This delegate simply accepts a hardcoded password. For obvious reasons, don't deploy this!
 final class HardcodedPasswordDelegate: NIOSSHServerUserAuthenticationDelegate {
     var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods {
-        return .password
+        .password
     }
 
     func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
@@ -54,7 +54,7 @@ defer {
 }
 
 func sshChildChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
-    return channel.pipeline.addHandler(ExampleExecHandler())
+    channel.pipeline.addHandler(ExampleExecHandler())
 }
 
 // We need a host key. For now, generate it dynamically.
@@ -66,7 +66,6 @@ let bootstrap = ServerBootstrap(group: group)
     }
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
-
 
 let channel = try bootstrap.bind(host: "0.0.0.0", port: 2222).wait()
 

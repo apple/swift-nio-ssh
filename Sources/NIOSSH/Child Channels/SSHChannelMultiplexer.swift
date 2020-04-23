@@ -50,6 +50,7 @@ final class SSHChannelMultiplexer {
 }
 
 // MARK: Calls from child channels
+
 extension SSHChannelMultiplexer {
     /// An `SSHChildChannel` has issued a write.
     func writeFromChannel(_ message: SSHMessage, _ promise: EventLoopPromise<Void>?) {
@@ -90,6 +91,7 @@ extension SSHChannelMultiplexer {
 }
 
 // MARK: Calls from SSH handlers.
+
 extension SSHChannelMultiplexer {
     func receiveMessage(_ message: SSHMessage) throws {
         let channel: SSHChildChannel?
@@ -185,7 +187,7 @@ extension SSHChannelMultiplexer {
                                       initializer: initializer,
                                       localChannelID: channelID,
                                       targetWindowSize: 1 << 24,
-                                      initialOutboundWindowSize: 0)  // The initial outbound window size is presumed to be 0 until we're told otherwise.
+                                      initialOutboundWindowSize: 0) // The initial outbound window size is presumed to be 0 until we're told otherwise.
 
         self.channels[channelID] = channel
         return channel

@@ -45,11 +45,11 @@ extension SSHConnectionStateMachine {
             self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role,
                                                                        delegate: delegate,
                                                                        loop: loop,
-                                                                       sessionID: keyExchangeStateMachine.sessionID!)
+                                                                       sessionID: self.keyExchangeStateMachine.sessionID!)
         }
     }
 }
 
-extension SSHConnectionStateMachine.SentNewKeysState: AcceptsKeyExchangeMessages { }
+extension SSHConnectionStateMachine.SentNewKeysState: AcceptsKeyExchangeMessages {}
 
-extension SSHConnectionStateMachine.SentNewKeysState: SendsUserAuthMessages { }
+extension SSHConnectionStateMachine.SentNewKeysState: SendsUserAuthMessages {}

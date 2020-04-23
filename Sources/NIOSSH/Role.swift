@@ -12,7 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 /// The role of a given party in an SSH connection.
 public enum SSHConnectionRole {
     case client

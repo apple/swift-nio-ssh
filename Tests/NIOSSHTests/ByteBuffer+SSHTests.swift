@@ -12,11 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import XCTest
-import NIO
 import Crypto
+import NIO
 @testable import NIOSSH
-
+import XCTest
 
 final class ByteBufferSSHTests: XCTestCase {
     func testGettingBoolFromByteBuffer() {
@@ -48,52 +47,52 @@ final class ByteBufferSSHTests: XCTestCase {
 
     func testGettingSSHStringFromByteBuffer() {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeBytes([0, 0, 0, 0])  // SSH empty string
+        buffer.writeBytes([0, 0, 0, 0]) // SSH empty string
 
         let helloWorldLength = 12
         buffer.writeInteger(UInt32(helloWorldLength))
-        buffer.writeBytes("hello world!".utf8)  // Simple utf8 string
+        buffer.writeBytes("hello world!".utf8) // Simple utf8 string
 
         buffer.writeInteger(UInt32(5))
-        buffer.writeBytes(repeatElement(0, count: 5))  // All nulls string
+        buffer.writeBytes(repeatElement(0, count: 5)) // All nulls string
 
         buffer.writeInteger(UInt32(5))
-        buffer.writeBytes(repeatElement(42, count: 3))  // Short string
+        buffer.writeBytes(repeatElement(42, count: 3)) // Short string
 
         XCTAssertEqual(buffer.getSSHString(at: 0)?.array, [])
         XCTAssertEqual(buffer.getSSHString(at: 4)?.array, Array("hello world!".utf8))
         XCTAssertEqual(buffer.getSSHString(at: 4 + 4 + helloWorldLength)?.array, [0, 0, 0, 0, 0])
-        XCTAssertNil(buffer.getSSHString(at: 4 + 4 + helloWorldLength + 4 + 5))  // String is short.
+        XCTAssertNil(buffer.getSSHString(at: 4 + 4 + helloWorldLength + 4 + 5)) // String is short.
 
         buffer.clear()
-        buffer.writeInteger(UInt16(5))  // Short length
+        buffer.writeInteger(UInt16(5)) // Short length
         XCTAssertNil(buffer.getSSHString(at: 0))
     }
 
     func testReadingSSHStringFromByteBuffer() {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeBytes([0, 0, 0, 0])  // SSH empty string
+        buffer.writeBytes([0, 0, 0, 0]) // SSH empty string
 
         let helloWorldLength = 12
         buffer.writeInteger(UInt32(helloWorldLength))
-        buffer.writeBytes("hello world!".utf8)  // Simple utf8 string
+        buffer.writeBytes("hello world!".utf8) // Simple utf8 string
 
         buffer.writeInteger(UInt32(5))
-        buffer.writeBytes(repeatElement(0, count: 5))  // All nulls string
+        buffer.writeBytes(repeatElement(0, count: 5)) // All nulls string
 
         buffer.writeInteger(UInt32(5))
-        buffer.writeBytes(repeatElement(42, count: 3))  // Short string
+        buffer.writeBytes(repeatElement(42, count: 3)) // Short string
 
         XCTAssertEqual(buffer.readSSHString()?.array, [])
         XCTAssertEqual(buffer.readSSHString()?.array, Array("hello world!".utf8))
         XCTAssertEqual(buffer.readSSHString()?.array, [0, 0, 0, 0, 0])
 
         var previousReaderIndex = buffer.readerIndex
-        XCTAssertNil(buffer.readSSHString())  // String is short.
+        XCTAssertNil(buffer.readSSHString()) // String is short.
         XCTAssertEqual(buffer.readerIndex, previousReaderIndex)
 
         buffer.clear()
-        buffer.writeInteger(UInt16(5))  // Short length
+        buffer.writeInteger(UInt16(5)) // Short length
 
         previousReaderIndex = buffer.readerIndex
         XCTAssertNil(buffer.readSSHString())
@@ -101,7 +100,7 @@ final class ByteBufferSSHTests: XCTestCase {
     }
 
     func testSettingSSHBoolInBuffer() {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)  // forcing some resizes as we go
+        var buffer = ByteBufferAllocator().buffer(capacity: 0) // forcing some resizes as we go
 
         XCTAssertEqual(buffer.setSSHBoolean(false, at: 0), 1)
         XCTAssertEqual(buffer.setSSHBoolean(true, at: 1), 1)
@@ -119,9 +118,9 @@ final class ByteBufferSSHTests: XCTestCase {
     }
 
     func testSettingSSHStringInBufferWithCollection() {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)  // forcing some resizes as we go
+        var buffer = ByteBufferAllocator().buffer(capacity: 0) // forcing some resizes as we go
 
-        XCTAssertEqual(buffer.writeSSHString(Array<UInt8>()), 4)
+        XCTAssertEqual(buffer.writeSSHString([UInt8]()), 4)
         XCTAssertEqual(buffer.array, [0, 0, 0, 0])
 
         XCTAssertEqual(buffer.setSSHString(repeatElement(5, count: 3), at: 1), 7)
@@ -135,7 +134,7 @@ final class ByteBufferSSHTests: XCTestCase {
     func testSettingSSHStringInBufferWithByteBuffer() {
         var sourceBuffer = ByteBufferAllocator().buffer(capacity: 12)
         sourceBuffer.writeBytes([5, 5, 5])
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)  // forcing some resizes as we go
+        var buffer = ByteBufferAllocator().buffer(capacity: 0) // forcing some resizes as we go
 
         var zeroBuffer = ByteBufferAllocator().buffer(capacity: 100)
         XCTAssertEqual(buffer.writeSSHString(&zeroBuffer), 4)
@@ -156,7 +155,7 @@ final class ByteBufferSSHTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
         var written = 0
 
-        for i in 0..<100 {
+        for i in 0 ..< 100 {
             written += buffer.writeSSHPaddingBytes(count: i)
             XCTAssertEqual(buffer.readerIndex, 0)
             XCTAssertEqual(buffer.writerIndex, written)
@@ -224,7 +223,7 @@ final class ByteBufferSSHTests: XCTestCase {
         buffer.writeSSHSignature(signature)
 
         // Try reading short. This should always return nil, and never move the indices.
-        for sliceLength in 0..<buffer.readableBytes {
+        for sliceLength in 0 ..< buffer.readableBytes {
             var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
             XCTAssertNoThrow(XCTAssertNil(try slice.readSSHSignature()))
             XCTAssertEqual(slice.readerIndex, 0)
@@ -243,7 +242,7 @@ final class ByteBufferSSHTests: XCTestCase {
         buffer.writeSSHSignature(signature)
 
         // Try reading short. This should always return nil, and never move the indices.
-        for sliceLength in 0..<buffer.readableBytes {
+        for sliceLength in 0 ..< buffer.readableBytes {
             var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
             XCTAssertNoThrow(XCTAssertNil(try slice.readSSHSignature()))
             XCTAssertEqual(slice.readerIndex, 0)
@@ -261,7 +260,7 @@ final class ByteBufferSSHTests: XCTestCase {
         buffer.writeSSHHostKey(key.publicKey)
 
         // Try reading short. This should always return nil, and never move the indices.
-        for sliceLength in 0..<buffer.readableBytes {
+        for sliceLength in 0 ..< buffer.readableBytes {
             var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
             XCTAssertNoThrow(XCTAssertNil(try slice.readSSHHostKey()))
             XCTAssertEqual(slice.readerIndex, 0)
@@ -279,7 +278,7 @@ final class ByteBufferSSHTests: XCTestCase {
         buffer.writeSSHHostKey(key.publicKey)
 
         // Try reading short. This should always return nil, and never move the indices.
-        for sliceLength in 0..<buffer.readableBytes {
+        for sliceLength in 0 ..< buffer.readableBytes {
             var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
             XCTAssertNoThrow(XCTAssertNil(try slice.readSSHHostKey()))
             XCTAssertEqual(slice.readerIndex, 0)
@@ -290,9 +289,8 @@ final class ByteBufferSSHTests: XCTestCase {
     }
 }
 
-
 extension ByteBuffer {
     fileprivate var array: [UInt8] {
-        return self.getBytes(at: self.readerIndex, length: self.readableBytes)!
+        self.getBytes(at: self.readerIndex, length: self.readableBytes)!
     }
 }

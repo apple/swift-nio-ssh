@@ -14,7 +14,6 @@
 
 import NIO
 
-
 /// A scheme that protects an SSH transport.
 ///
 /// SSH supports a number of encryption schemes. These can be negotiated as part of the SSH handshake, and
@@ -94,11 +93,10 @@ protocol NIOSSHTransportProtection: AnyObject {
     func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws
 }
 
-
 extension NIOSSHTransportProtection {
     /// Obtains the block size for this specific instantiated cipher.
     var cipherBlockSize: Int {
         // We just delegate to the static.
-        return Self.cipherBlockSize
+        Self.cipherBlockSize
     }
 }
