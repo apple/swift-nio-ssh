@@ -51,8 +51,11 @@ let channel = try bootstrap.connect(host: parseResult.host, port: parseResult.po
 let exitStatusPromise = channel.eventLoop.makePromise(of: Int.self)
 let childChannel: Channel = try! channel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
     let promise = channel.eventLoop.makePromise(of: Channel.self)
-    sshHandler.createChannel(promise) { childChannel in
-        childChannel.pipeline.addHandlers([ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise), ErrorHandler()])
+    sshHandler.createChannel(promise) { childChannel, channelType in
+        guard channelType == .session else {
+            return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
+        }
+        return childChannel.pipeline.addHandlers([ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise), ErrorHandler()])
     }
     return promise.futureResult
 }.wait()

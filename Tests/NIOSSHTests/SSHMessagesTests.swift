@@ -402,15 +402,63 @@ final class SSHMessagesTests: XCTestCase {
 
     func testChannelOpen() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
-        let message = SSHMessage.channelOpen(.init(type: .session, senderChannel: 0, initialWindowSize: 42, maximumPacketSize: 24))
 
+        var message = SSHMessage.channelOpen(.init(type: .session, senderChannel: 0, initialWindowSize: 42, maximumPacketSize: 24))
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
+        try self.assertCorrectlyManagesPartialRead(message)
 
+        let address = try! SocketAddress(ipAddress: "10.0.0.1", port: 443)
+
+        message = SSHMessage.channelOpen(.init(type: .forwardedTCPIP(.init(hostListening: "localhost", portListening: 80, originatorAddress: address)), senderChannel: 0, initialWindowSize: 42, maximumPacketSize: 24))
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+        try self.assertCorrectlyManagesPartialRead(message)
+
+        message = SSHMessage.channelOpen(.init(type: .directTCPIP(.init(hostToConnectTo: "github.com", portToConnectTo: 443, originatorAddress: address)), senderChannel: 0, initialWindowSize: 42, maximumPacketSize: 24))
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+        try self.assertCorrectlyManagesPartialRead(message)
+
+        func writeBadMessage(into buffer: inout ByteBuffer, type: String, firstPort: UInt32, secondPort: UInt32) {
+            buffer.writeInteger(SSHMessage.ChannelOpenMessage.id)
+            buffer.writeSSHString(type.utf8)
+            buffer.writeInteger(UInt32(1))
+            buffer.writeInteger(UInt32(1))
+            buffer.writeInteger(UInt32(1))
+            buffer.writeSSHString("::1".utf8)
+            buffer.writeInteger(firstPort)
+            buffer.writeSSHString("::1".utf8)
+            buffer.writeInteger(secondPort)
+        }
+
+        buffer.clear()
+        writeBadMessage(into: &buffer, type: "forwarded-tcpip", firstPort: 65536, secondPort: 80)
+        XCTAssertThrowsError(try buffer.readSSHMessage()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .unknownPacketType)
+        }
+
+        buffer.clear()
+        writeBadMessage(into: &buffer, type: "forwarded-tcpip", firstPort: 80, secondPort: 65536)
+        XCTAssertThrowsError(try buffer.readSSHMessage()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .unknownPacketType)
+        }
+
+        buffer.clear()
+        writeBadMessage(into: &buffer, type: "direct-tcpip", firstPort: 65536, secondPort: 80)
+        XCTAssertThrowsError(try buffer.readSSHMessage()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .unknownPacketType)
+        }
+
+        buffer.clear()
+        writeBadMessage(into: &buffer, type: "direct-tcpip", firstPort: 80, secondPort: 65536)
+        XCTAssertThrowsError(try buffer.readSSHMessage()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .unknownPacketType)
+        }
+
+        buffer.clear()
         buffer.writeBytes([SSHMessage.ChannelOpenMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
-
-        try self.assertCorrectlyManagesPartialRead(message)
     }
 
     func testChannelOpenConfirmation() throws {
@@ -563,15 +611,13 @@ final class SSHMessagesTests: XCTestCase {
 
     func testRequestSuccess() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
-        var bucketOBytes = ByteBufferAllocator().buffer(capacity: 24)
-        bucketOBytes.writeBytes(0 ..< 24)
 
-        let message = SSHMessage.requestSuccess(.init(bytes: bucketOBytes))
+        var message = SSHMessage.requestSuccess(.init(boundPort: 6))
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
 
-        buffer.clear()
-        buffer.writeBytes([SSHMessage.RequestSuccessMessage.id] + Array(0 ..< 24))
+        message = SSHMessage.requestSuccess(.init(boundPort: nil))
+        buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
 
         // We don't use the partial read test here as it fails: this message is opaque

@@ -76,11 +76,11 @@ class BackToBackEmbeddedChannel {
     }
 
     func configureWithHarness(_ harness: TestHarness) throws {
-        let clientHandler = NIOSSHHandler(role: .client(.init(userAuthDelegate: harness.clientAuthDelegate)),
+        let clientHandler = NIOSSHHandler(role: .client(.init(userAuthDelegate: harness.clientAuthDelegate, globalRequestDelegate: harness.clientGlobalRequestDelegate)),
                                           allocator: self.client.allocator,
                                           inboundChildChannelInitializer: nil)
-        let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate)),
-                                          allocator: self.server.allocator) { channel in
+        let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate)),
+                                          allocator: self.server.allocator) { channel, _ in
             self.activeServerChannels.append(channel)
             channel.closeFuture.whenComplete { _ in self.activeServerChannels.removeAll(where: { $0 === channel }) }
             return channel.eventLoop.makeSucceededFuture(())
@@ -98,7 +98,7 @@ class BackToBackEmbeddedChannel {
 
     func createNewChannel() throws -> Channel {
         var clientChannel = Optional<Channel>.none
-        self.clientSSHHandler?.createChannel { channel in
+        self.clientSSHHandler?.createChannel { channel, _ in
             clientChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -116,7 +116,11 @@ class BackToBackEmbeddedChannel {
 struct TestHarness {
     var clientAuthDelegate: NIOSSHClientUserAuthenticationDelegate = InfinitePasswordDelegate()
 
+    var clientGlobalRequestDelegate: GlobalRequestDelegate?
+
     var serverAuthDelegate: NIOSSHServerUserAuthenticationDelegate = DenyThenAcceptDelegate(messagesToDeny: 0)
+
+    var serverGlobalRequestDelegate: GlobalRequestDelegate?
 
     var serverHostKeys: [NIOSSHPrivateKey] = [.init(ed25519Key: .init())]
 }
@@ -188,5 +192,137 @@ class EndToEndTests: XCTestCase {
         helper(SSHChannelRequestEvent.SignalRequest(signal: "USR1"))
         helper(ChannelSuccessEvent())
         helper(ChannelFailureEvent())
+    }
+
+    func testGlobalRequestWithDefaultDelegate() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        func helper(_ request: GlobalRequest.TCPForwardingRequest) throws -> GlobalRequest.GlobalRequestResponse {
+            let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.GlobalRequestResponse.self)
+            self.channel.clientSSHHandler?.sendTCPForwardingRequest(request, promise: promise)
+            try self.channel.interactInMemory()
+            return try promise.futureResult.wait()
+        }
+
+        // The default delegate rejects everything.
+        XCTAssertThrowsError(try helper(.listen(host: "localhost", port: 8765))) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .globalRequestRefused)
+        }
+        XCTAssertThrowsError(try helper(.cancel(host: "localhost", port: 8765))) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .globalRequestRefused)
+        }
+    }
+
+    func testGlobalRequestWithCustomDelegate() throws {
+        class CustomGlobalRequestDelegate: GlobalRequestDelegate {
+            var requests: [GlobalRequest.TCPForwardingRequest] = []
+
+            var port: Int? = 0
+
+            func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.GlobalRequestResponse>) {
+                self.requests.append(request)
+                let port = self.port
+                self.port = nil
+                promise.succeed(.init(boundPort: port))
+            }
+        }
+
+        let customDelegate = CustomGlobalRequestDelegate()
+        var harness = TestHarness()
+        harness.serverGlobalRequestDelegate = customDelegate
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        func helper(_ request: GlobalRequest.TCPForwardingRequest) throws -> GlobalRequest.GlobalRequestResponse {
+            let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.GlobalRequestResponse.self)
+            self.channel.clientSSHHandler?.sendTCPForwardingRequest(request, promise: promise)
+            try self.channel.interactInMemory()
+            return try promise.futureResult.wait()
+        }
+
+        // This delegate accepts things.
+        let firstResponse = try helper(.listen(host: "localhost", port: 8765))
+        let secondResponse = try helper(.cancel(host: "localhost", port: 8765))
+
+        XCTAssertEqual(firstResponse, GlobalRequest.GlobalRequestResponse(boundPort: 0))
+        XCTAssertEqual(secondResponse, GlobalRequest.GlobalRequestResponse(boundPort: nil))
+
+        XCTAssertEqual(customDelegate.requests, [.listen(host: "localhost", port: 8765), .cancel(host: "localhost", port: 8765)])
+    }
+
+    func testGlobalRequestTooEarlyIsDelayed() throws {
+        var completed = false
+        let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.GlobalRequestResponse.self)
+        promise.futureResult.whenComplete { _ in completed = true }
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+
+        // Issue a forwarding request early. This should be queued.
+        self.channel.clientSSHHandler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 2222), promise: promise)
+        XCTAssertFalse(completed)
+
+        // Activate. This will complete the forwarding request.
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        XCTAssertTrue(completed)
+    }
+
+    func testGlobalRequestsAreCancelledIfRemoved() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Enqueue a global request.
+        var err: Error?
+        let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.GlobalRequestResponse.self)
+        promise.futureResult.whenFailure { error in err = error }
+        self.channel.clientSSHHandler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 1234), promise: promise)
+        XCTAssertNil(err)
+
+        self.channel.client.close(promise: nil)
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(err as? ChannelError, .eof)
+    }
+
+    func testNeverStartedGlobalRequestsAreCancelledIfRemoved() throws {
+        var err: Error?
+        let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.GlobalRequestResponse.self)
+        promise.futureResult.whenFailure { error in err = error }
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+
+        // Enqueue a forwarding request
+        self.channel.clientSSHHandler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 1234), promise: promise)
+        XCTAssertNil(err)
+
+        // Now close the channel.
+        self.channel.client.close(promise: nil)
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(err as? ChannelError, .eof)
+    }
+
+    func testGlobalRequestAfterCloseFails() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Get an early ref to the handler.
+        let handler = self.channel.clientSSHHandler
+
+        // Close.
+        self.channel.client.close(promise: nil)
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Enqueue a global request.
+        var err: Error?
+        let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.GlobalRequestResponse.self)
+        promise.futureResult.whenFailure { error in err = error }
+        handler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 1234), promise: promise)
+        XCTAssertEqual(err as? ChannelError, .ioOnClosedChannel)
     }
 }

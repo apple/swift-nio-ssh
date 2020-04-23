@@ -107,6 +107,10 @@ extension NIOSSHError {
     }
 
     internal static let unsupportedGlobalRequest = NIOSSHError(type: .unsupportedGlobalRequest, diagnostics: nil)
+
+    internal static let unexpectedGlobalRequestResponse = NIOSSHError(type: .unexpectedGlobalRequestResponse, diagnostics: nil)
+
+    internal static let globalRequestRefused = NIOSSHError(type: .globalRequestRefused, diagnostics: nil)
 }
 
 // MARK: - NIOSSHError CustomStringConvertible conformance.
@@ -146,6 +150,8 @@ extension NIOSSHError {
             case invalidUserAuthSignature
             case unknownPacketType
             case unsupportedGlobalRequest
+            case unexpectedGlobalRequestResponse
+            case globalRequestRefused
         }
 
         private var base: Base
@@ -222,6 +228,12 @@ extension NIOSSHError {
 
         /// A global request was made and rejected due to being unsupported.
         public static let unsupportedGlobalRequest: ErrorType = .init(.unsupportedGlobalRequest)
+
+        /// We received a response to a global request that we were not expecting.
+        public static let unexpectedGlobalRequestResponse: ErrorType = .init(.unexpectedGlobalRequestResponse)
+
+        /// A global request was refused by the peer.
+        public static let globalRequestRefused: ErrorType = .init(.globalRequestRefused)
     }
 }
 

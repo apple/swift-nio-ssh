@@ -29,9 +29,9 @@ final class SSHChannelMultiplexer {
 
     private let allocator: ByteBufferAllocator
 
-    private var childChannelInitializer: ((Channel) -> EventLoopFuture<Void>)?
+    private var childChannelInitializer: SSHChildChannel.Initializer?
 
-    init(delegate: SSHMultiplexerDelegate, allocator: ByteBufferAllocator, childChannelInitializer: ((Channel) -> EventLoopFuture<Void>)?) {
+    init(delegate: SSHMultiplexerDelegate, allocator: ByteBufferAllocator, childChannelInitializer: SSHChildChannel.Initializer?) {
         self.channels = [:]
         self.channels.reserveCapacity(8)
         self.erroredChannels = []
@@ -144,10 +144,10 @@ extension SSHChannelMultiplexer {
         }
     }
 
-    func createChildChannel(_ promise: EventLoopPromise<Channel>? = nil, _ channelInitializer: ((Channel) -> EventLoopFuture<Void>)?) {
+    func createChildChannel(_ promise: EventLoopPromise<Channel>? = nil, channelType: SSHChannelType, _ channelInitializer: SSHChildChannel.Initializer?) {
         do {
             let channel = try self.openNewChannel(initializer: channelInitializer)
-            channel.configure(userPromise: promise)
+            channel.configure(userPromise: promise, channelType: channelType)
         } catch {
             promise?.fail(error)
         }
@@ -166,7 +166,7 @@ extension SSHChannelMultiplexer {
     }
 
     /// Opens a new channel and adds it to the multiplexer.
-    private func openNewChannel(initializer: ((Channel) -> EventLoopFuture<Void>)?) throws -> SSHChildChannel {
+    private func openNewChannel(initializer: SSHChildChannel.Initializer?) throws -> SSHChildChannel {
         guard let parentChannel = self.delegate?.channel else {
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Opening new channel after channel shutdown")
         }
