@@ -14,7 +14,6 @@
 
 import NIO
 
-
 /// A namespace for SSH channel request events.
 public enum SSHChannelRequestEvent {
     public struct PseudoTerminalRequest: Hashable {
@@ -27,25 +26,25 @@ public enum SSHChannelRequestEvent {
         /// The desired width of the terminal in characters. This overrides
         /// the pixel width when this value is non-zero.
         public var terminalCharacterWidth: Int {
-            return Int(self._terminalCharacterWidth)
+            Int(self._terminalCharacterWidth)
         }
 
         /// The desired height of the terminal in rows. This overrides the pixel height
         /// when this value is non-zero.
         public var terminalRowHeight: Int {
-            return Int(self._terminalRowHeight)
+            Int(self._terminalRowHeight)
         }
 
         /// The desired width of the terminal in pixels. This is overriden by the character
         /// width if that value is non-zero.
         public var terminalPixelWidth: Int {
-            return Int(self._terminalPixelWidth)
+            Int(self._terminalPixelWidth)
         }
 
         /// The desired height of the terminal in pixels. This is overridden by the row
         /// height if that value is non-zero.
         public var terminalPixelHeight: Int {
-            return Int(self._terminalPixelHeight)
+            Int(self._terminalPixelHeight)
         }
 
         /// The posix terminal modes.
@@ -138,13 +137,13 @@ public enum SSHChannelRequestEvent {
     public struct ExitStatus: Hashable {
         /// Whether this request should be replied to.
         public var wantReply: Bool {
-            return false
+            false
         }
 
         /// The exit status code.
         public var exitStatus: Int {
             get {
-                return Int(self._exitStatus)
+                Int(self._exitStatus)
             }
             set {
                 self._exitStatus = UInt32(newValue)
@@ -167,7 +166,7 @@ extension SSHChannelRequestEvent {
     /// Constructs a channel request event and wraps it up in an Any.
     ///
     /// This is usually used just prior to firing this into the pipeline.
-    internal static func fromMessage(_ message: SSHMessage.ChannelRequestMessage) -> Optional<Any> {
+    internal static func fromMessage(_ message: SSHMessage.ChannelRequestMessage) -> Any? {
         switch message.type {
         case .env(let name, let value):
             return EnvironmentRequest(wantReply: message.wantReply, name: name, value: value) as Any
@@ -183,22 +182,23 @@ extension SSHChannelRequestEvent {
 
 /// A channel success message was received in reply to a channel request.
 public struct ChannelSuccessEvent: Hashable {
-    public init() { }
+    public init() {}
 }
 
 /// A channel failure message was received in reply to a channel request.
 public struct ChannelFailureEvent: Hashable {
-    public init() { }
+    public init() {}
 }
 
 // MARK: Convert to messages
+
 extension SSHMessage {
     init(_ event: SSHChannelRequestEvent.ExecRequest, recipientChannel: UInt32) {
         let message = SSHMessage.ChannelRequestMessage(recipientChannel: recipientChannel, type: .exec(event.command), wantReply: event.wantReply)
         self = .channelRequest(message)
     }
 
-    init( _ event: SSHChannelRequestEvent.EnvironmentRequest, recipientChannel: UInt32) {
+    init(_ event: SSHChannelRequestEvent.EnvironmentRequest, recipientChannel: UInt32) {
         let message = SSHMessage.ChannelRequestMessage(recipientChannel: recipientChannel, type: .env(event.name, event.value), wantReply: event.wantReply)
         self = .channelRequest(message)
     }

@@ -20,51 +20,27 @@ protocol AcceptsChannelMessages {
 // This protocol doesn't do much right now, but in future we might need to support re-keying, and this is a good place to hook it in.
 
 extension AcceptsChannelMessages {
-    mutating func receiveChannelOpen(_ message: SSHMessage.ChannelOpenMessage) throws {
-        return
-    }
+    mutating func receiveChannelOpen(_: SSHMessage.ChannelOpenMessage) throws {}
 
-    mutating func receiveChannelOpenConfirmation(_ message: SSHMessage.ChannelOpenConfirmationMessage) throws {
-        return
-    }
+    mutating func receiveChannelOpenConfirmation(_: SSHMessage.ChannelOpenConfirmationMessage) throws {}
 
-    mutating func receiveChannelOpenFailure(_ message: SSHMessage.ChannelOpenFailureMessage) throws {
-        return
-    }
+    mutating func receiveChannelOpenFailure(_: SSHMessage.ChannelOpenFailureMessage) throws {}
 
-    mutating func receiveChannelEOF(_ message: SSHMessage.ChannelEOFMessage) throws {
-        return
-    }
+    mutating func receiveChannelEOF(_: SSHMessage.ChannelEOFMessage) throws {}
 
-    mutating func receiveChannelClose(_ message: SSHMessage.ChannelCloseMessage) throws {
-        return
-    }
+    mutating func receiveChannelClose(_: SSHMessage.ChannelCloseMessage) throws {}
 
-    mutating func receiveChannelWindowAdjust(_ message: SSHMessage.ChannelWindowAdjustMessage) throws {
-        return
-    }
+    mutating func receiveChannelWindowAdjust(_: SSHMessage.ChannelWindowAdjustMessage) throws {}
 
-    mutating func receiveChannelData(_ message: SSHMessage.ChannelDataMessage) throws {
-        return
-    }
+    mutating func receiveChannelData(_: SSHMessage.ChannelDataMessage) throws {}
 
-    mutating func receiveChannelExtendedData(_ message: SSHMessage.ChannelExtendedDataMessage) throws {
-        return
-    }
+    mutating func receiveChannelExtendedData(_: SSHMessage.ChannelExtendedDataMessage) throws {}
 
-    mutating func receiveChannelRequest(_ message: SSHMessage.ChannelRequestMessage) throws {
-        return
-    }
+    mutating func receiveChannelRequest(_: SSHMessage.ChannelRequestMessage) throws {}
 
-    mutating func receiveChannelSuccess(_ message: SSHMessage.ChannelSuccessMessage) throws {
-        return
-    }
+    mutating func receiveChannelSuccess(_: SSHMessage.ChannelSuccessMessage) throws {}
 
-    mutating func receiveChannelFailure(_ message: SSHMessage.ChannelFailureMessage) throws {
-        return
-    }
+    mutating func receiveChannelFailure(_: SSHMessage.ChannelFailureMessage) throws {}
 
-    mutating func receiveGlobalRequest(_ message: SSHMessage.GlobalRequestMessage) throws {
-        return
-    }
+    mutating func receiveGlobalRequest(_: SSHMessage.GlobalRequestMessage) throws {}
 }

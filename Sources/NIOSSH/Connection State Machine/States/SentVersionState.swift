@@ -14,7 +14,6 @@
 
 import NIO
 
-
 extension SSHConnectionStateMachine {
     /// The state of a state machine that has sent its version header.
     struct SentVersionState {
@@ -39,7 +38,4 @@ extension SSHConnectionStateMachine {
     }
 }
 
-
-extension SSHConnectionStateMachine.SentVersionState: AcceptsVersionMessages {
-
-}
+extension SSHConnectionStateMachine.SentVersionState: AcceptsVersionMessages {}

@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-protocol AcceptsVersionMessages { }
+protocol AcceptsVersionMessages {}
 
 extension AcceptsVersionMessages {
     func receiveVersionMessage(_ version: String) throws {
@@ -25,7 +25,7 @@ extension AcceptsVersionMessages {
         }
         let start = version.index(version.startIndex, offsetBy: 4)
         let end = version.index(start, offsetBy: 3)
-        guard version[start..<end] == "2.0" else {
+        guard version[start ..< end] == "2.0" else {
             throw NIOSSHError.unsupportedVersion(version)
         }
     }

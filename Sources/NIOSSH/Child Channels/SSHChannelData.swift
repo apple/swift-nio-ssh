@@ -14,7 +14,6 @@
 
 import NIO
 
-
 /// `SSHChannelData` is the data type that is passed around in `SSHChildChannel` objects.
 ///
 /// This is the baseline kind of data available for `SSHChildChannel` objects. It encapsulates
@@ -31,7 +30,7 @@ public struct SSHChannelData {
     }
 }
 
-extension SSHChannelData: Equatable { }
+extension SSHChannelData: Equatable {}
 
 extension SSHChannelData {
     /// The type of this channel data. Regular `.channel` data is the standard type of data on an `SSHChannel`,
@@ -57,7 +56,7 @@ extension SSHChannelData {
     }
 }
 
-extension SSHChannelData.DataType: Hashable { }
+extension SSHChannelData.DataType: Hashable {}
 
 extension SSHChannelData.DataType: CustomStringConvertible {
     public var description: String {

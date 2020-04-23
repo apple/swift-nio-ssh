@@ -12,10 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import XCTest
-import NIO
 import Crypto
+import NIO
 @testable import NIOSSH
+import XCTest
 
 final class SSHKeyExchangeStateMachineTests: XCTestCase {
     enum AssertionFailure: Error {
@@ -120,7 +120,6 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let message = SSHMessage.channelRequest(.init(recipientChannel: 1, type: .exec("uname"), wantReply: false))
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
 
-
         do {
             try client.encryptPacket(.init(message: message), to: &buffer)
             try server.decryptFirstBlock(&buffer)
@@ -155,18 +154,18 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             self.rawValue = rawValue
         }
 
-        static let beforeReceiveKeyExchangeClient      = HandshakeStages(rawValue: 1 << 0)
-        static let beforeReceiveKeyExchangeServer      = HandshakeStages(rawValue: 1 << 1)
-        static let beforeReceiveKeyExchangeInitServer  = HandshakeStages(rawValue: 1 << 2)
-        static let beforeSendingKeyExchangeInitClient  = HandshakeStages(rawValue: 1 << 3)
+        static let beforeReceiveKeyExchangeClient = HandshakeStages(rawValue: 1 << 0)
+        static let beforeReceiveKeyExchangeServer = HandshakeStages(rawValue: 1 << 1)
+        static let beforeReceiveKeyExchangeInitServer = HandshakeStages(rawValue: 1 << 2)
+        static let beforeSendingKeyExchangeInitClient = HandshakeStages(rawValue: 1 << 3)
         static let beforeReceiveKeyExchangeReplyClient = HandshakeStages(rawValue: 1 << 4)
         static let beforeSendingKeyExchangeReplyServer = HandshakeStages(rawValue: 1 << 5)
-        static let beforeSendingNewKeysClient          = HandshakeStages(rawValue: 1 << 6)
-        static let beforeSendingNewKeysServer          = HandshakeStages(rawValue: 1 << 7)
-        static let beforeReceiveNewKeysClient          = HandshakeStages(rawValue: 1 << 8)
-        static let beforeReceiveNewKeysServer          = HandshakeStages(rawValue: 1 << 9)
-        static let afterCompleteClient                 = HandshakeStages(rawValue: 1 << 10)
-        static let afterCompleteServer                 = HandshakeStages(rawValue: 1 << 11)
+        static let beforeSendingNewKeysClient = HandshakeStages(rawValue: 1 << 6)
+        static let beforeSendingNewKeysServer = HandshakeStages(rawValue: 1 << 7)
+        static let beforeReceiveNewKeysClient = HandshakeStages(rawValue: 1 << 8)
+        static let beforeReceiveNewKeysServer = HandshakeStages(rawValue: 1 << 9)
+        static let afterCompleteClient = HandshakeStages(rawValue: 1 << 10)
+        static let afterCompleteServer = HandshakeStages(rawValue: 1 << 11)
     }
 
     /// This function runs a full key exchange, in between each step sending the given message to both
@@ -187,7 +186,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeReceiveKeyExchangeServer, stateMachine: &server)
 
         // The server does not generate a response message, but the client does.
-        try assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeReceiveKeyExchangeInitServer, stateMachine: &server)
 
         let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
@@ -204,7 +203,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeReceiveNewKeysServer, stateMachine: &server)
 
         // Now the client receives the reply, and generates a newKeys message.
-        try assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeSendingNewKeysClient, stateMachine: &client)
         let clientOutboundProtection = client.sendNewKeys()
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeReceiveNewKeysClient, stateMachine: &client)
@@ -219,7 +218,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         XCTAssertTrue(clientInboundProtection === clientOutboundProtection)
         XCTAssertTrue(serverInboundProtection === serverOutboundProtection)
 
-        assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
+        self.assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
     }
 
     func testKeyExchange() throws {
@@ -235,7 +234,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         client.send(keyExchange: clientMessage)
 
         // The server does not generate a response message, but the client does.
-        try assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
         let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
         client.send(keyExchangeInit: ecdhInit)
 
@@ -245,7 +244,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // Now the client receives the reply, and generates a newKeys message.
-        try assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
         let clientOutboundProtection = client.sendNewKeys()
 
         // Both peers receive the newKeys messages.
@@ -256,7 +255,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         XCTAssertTrue(clientInboundProtection === clientOutboundProtection)
         XCTAssertTrue(serverInboundProtection === serverOutboundProtection)
 
-        assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
+        self.assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
     }
 
     func testKeyExchangeWithInvalidGuess() throws {
@@ -275,18 +274,18 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         var clientMessage = serverMessage
         clientMessage.keyExchangeAlgorithms = ["ecdsa-sha2-1.2.840.10045.3.1.1"] + serverMessage.keyExchangeAlgorithms
         clientMessage.firstKexPacketFollows = true
-        try assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
 
         // The server should now tolerate a guess for an invalid message. We shouldn't read it, so the fact that it's invalid is irrelevant.
         let message = SSHMessage.KeyExchangeECDHInitMessage(publicKey: allocator.buffer(capacity: 1024))
-        try assertGeneratesNoMessage(server.handle(keyExchangeInit: message))
+        try self.assertGeneratesNoMessage(server.handle(keyExchangeInit: message))
 
         // Now the server wants the correct message. To do that we need a key. It's just 32 random bytes, so let's use 4 pre-chosen 64-bit integers.
         var keyBuffer = allocator.buffer(capacity: 32)
-        keyBuffer.writeInteger(UInt64(0x0102030405060708))
-        keyBuffer.writeInteger(UInt64(0x090a0b0c0d0e0f10))
-        keyBuffer.writeInteger(UInt64(0x1112131415161718))
-        keyBuffer.writeInteger(UInt64(0x191a1b1c1d1e1f20))
+        keyBuffer.writeInteger(UInt64(0x0102_0304_0506_0708))
+        keyBuffer.writeInteger(UInt64(0x090A_0B0C_0D0E_0F10))
+        keyBuffer.writeInteger(UInt64(0x1112_1314_1516_1718))
+        keyBuffer.writeInteger(UInt64(0x191A_1B1C_1D1E_1F20))
         let realMessage = SSHMessage.KeyExchangeECDHInitMessage(publicKey: keyBuffer)
 
         let response = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: realMessage))
@@ -331,7 +330,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         client.send(keyExchange: clientMessage)
 
         // The server does not generate a response message, but the client does.
-        try assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
 
         let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
         client.send(keyExchangeInit: ecdhInit)
@@ -342,7 +341,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // Now the client receives the reply and newKeys, and generates a newKeys message.
-        try assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
         let clientInboundProtection = try assertNoThrowWithValue(client.handleNewKeys())
         let clientOutboundProtection = client.sendNewKeys()
 
@@ -353,7 +352,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         XCTAssertTrue(clientInboundProtection === clientOutboundProtection)
         XCTAssertTrue(serverInboundProtection === serverOutboundProtection)
 
-        assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
+        self.assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
     }
 
     func testKeyExchangeUsingP256HostKeysOnly() throws {
@@ -370,7 +369,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         client.send(keyExchange: clientMessage)
 
         // The server does not generate a response message, but the client does.
-        try assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
 
         let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
         client.send(keyExchangeInit: ecdhInit)
@@ -381,7 +380,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // Now the client receives the reply and newKeys, and generates a newKeys message.
-        try assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
         let clientInboundProtection = try assertNoThrowWithValue(client.handleNewKeys())
         let clientOutboundProtection = client.sendNewKeys()
 
@@ -392,12 +391,12 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         XCTAssertTrue(clientInboundProtection === clientOutboundProtection)
         XCTAssertTrue(serverInboundProtection === serverOutboundProtection)
 
-        assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
+        self.assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
     }
 
     func testKeyExchangeMessageCookieValidation() throws {
         var cookies: [ByteBuffer] = []
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             let allocator = ByteBufferAllocator()
             var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: Constants.version)
             let clientMessage = try assertGeneratesKeyExchangeMessage(client.startKeyExchange())
@@ -413,7 +412,6 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         }
     }
 }
-
 
 extension SSHKeyExchangeStateMachineTests {
     /// A simple function that passes a message to the state machine and erases the return value.

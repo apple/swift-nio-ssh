@@ -12,7 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 /// Keeps track of whether or not a `Channel` should be able to write based on flow control windows.
 struct OutboundFlowController {
     /// The current free space in the window.
@@ -23,7 +22,7 @@ struct OutboundFlowController {
 
     /// Whether the `Channel` should consider itself writable or not.
     internal var isWritable: Bool {
-        return UInt(self.freeWindowSpace) > self.bufferedBytes
+        UInt(self.freeWindowSpace) > self.bufferedBytes
     }
 
     internal init(initialWindowSize: UInt32) {
@@ -31,7 +30,6 @@ struct OutboundFlowController {
         self.bufferedBytes = 0
     }
 }
-
 
 extension OutboundFlowController {
     /// Notifies the flow controller that we have buffered some bytes to send to the network.
@@ -54,11 +52,10 @@ extension OutboundFlowController {
     }
 }
 
-
-extension OutboundFlowController: Hashable { }
+extension OutboundFlowController: Hashable {}
 
 extension OutboundFlowController: CustomDebugStringConvertible {
     var debugDescription: String {
-        return "OutboundFlowController(freeWindowSpace: \(self.freeWindowSpace), bufferedBytes: \(self.bufferedBytes), isWritable: \(self.isWritable))"
+        "OutboundFlowController(freeWindowSpace: \(self.freeWindowSpace), bufferedBytes: \(self.bufferedBytes), isWritable: \(self.isWritable))"
     }
 }

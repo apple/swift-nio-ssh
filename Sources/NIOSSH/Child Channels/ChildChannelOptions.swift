@@ -34,13 +34,13 @@ extension SSHChildChannelOptions.Types {
     public struct LocalChannelIdentifierOption: ChannelOption {
         public typealias Value = UInt32
 
-        public init() { }
+        public init() {}
     }
 
     /// `RemoteChannelIdentifierOption` allows users to query the channel number assigned by the remote peer for a given channel.
     public struct RemoteChannelIdentifierOption: ChannelOption {
         public typealias Value = UInt32?
 
-        public init() { }
+        public init() {}
     }
 }

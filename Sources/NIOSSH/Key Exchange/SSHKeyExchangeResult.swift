@@ -12,9 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
 import Crypto
-
+import NIO
 
 /// The result of a round of key exchange.
 ///
@@ -27,9 +26,7 @@ struct KeyExchangeResult {
     var keys: NIOSSHSessionKeys
 }
 
-
-extension KeyExchangeResult: Equatable { }
-
+extension KeyExchangeResult: Equatable {}
 
 /// The session keys generated as a result of a round of key exchange.
 ///
@@ -63,9 +60,7 @@ struct NIOSSHSessionKeys {
     var outboundMACKey: SymmetricKey
 }
 
-
-extension NIOSSHSessionKeys: Equatable { }
-
+extension NIOSSHSessionKeys: Equatable {}
 
 /// A helper structure that stores the expected key sizes for a key negotiation.
 ///

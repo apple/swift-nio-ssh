@@ -45,13 +45,12 @@ extension UserAuthenticationStateMachine {
     }
 }
 
-
 extension UserAuthenticationStateMachine {
     fileprivate static let protocolName = "userauth"
 }
 
-
 // MARK: Receiving Messages
+
 extension UserAuthenticationStateMachine {
     /// A ServiceRequest message was received from the remote peer.
     mutating func receiveServiceRequest(_ message: SSHMessage.ServiceRequestMessage) throws -> SSHMessage.ServiceAcceptMessage? {
@@ -189,8 +188,8 @@ extension UserAuthenticationStateMachine {
     }
 }
 
-
 // MARK: Sending Messages
+
 extension UserAuthenticationStateMachine {
     mutating func sendServiceRequest(_ message: SSHMessage.ServiceRequestMessage) {
         switch (self.delegate, self.state) {
@@ -226,7 +225,7 @@ extension UserAuthenticationStateMachine {
         }
     }
 
-    mutating func sendUserAuthRequest(_ message: SSHMessage.UserAuthRequestMessage) {
+    mutating func sendUserAuthRequest(_: SSHMessage.UserAuthRequestMessage) {
         switch (self.delegate, self.state) {
         case (.client, .awaitingNextRequest):
             self.state = .awaitingResponses(1)
@@ -246,7 +245,7 @@ extension UserAuthenticationStateMachine {
         }
     }
 
-    mutating func sendUserAuthPKOK(_ message: SSHMessage.UserAuthPKOKMessage) {
+    mutating func sendUserAuthPKOK(_: SSHMessage.UserAuthPKOKMessage) {
         switch (self.delegate, self.state) {
         case (.server, .idle),
              (.server, .awaitingServiceAcceptance):
@@ -272,7 +271,7 @@ extension UserAuthenticationStateMachine {
         self.sendUserAuthResponseMessage(success: true)
     }
 
-    mutating func sendUserAuthFailure(_ message: SSHMessage.UserAuthFailureMessage) {
+    mutating func sendUserAuthFailure(_: SSHMessage.UserAuthFailureMessage) {
         self.sendUserAuthResponseMessage(success: false)
     }
 
@@ -301,8 +300,8 @@ extension UserAuthenticationStateMachine {
     }
 }
 
-
 // MARK: Client authentication methods
+
 extension UserAuthenticationStateMachine {
     /// Called to begin authentication in the state machine.
     func beginAuthentication() -> SSHMessage.ServiceRequestMessage? {
@@ -340,22 +339,22 @@ extension UserAuthenticationStateMachine {
     }
 }
 
-
 // MARK: Interacting with client delegate
+
 extension UserAuthenticationStateMachine {
     fileprivate func requestNextAuthRequest(methods: NIOSSHAvailableUserAuthenticationMethods, delegate: NIOSSHClientUserAuthenticationDelegate) -> EventLoopFuture<SSHMessage.UserAuthRequestMessage?> {
-        let promise = self.loop.makePromise(of: Optional<NIOSSHUserAuthenticationOffer>.self)
+        let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOffer?.self)
         delegate.nextAuthenticationType(availableMethods: methods, nextChallengePromise: promise)
 
         // The explicit capture list is here to force a copy of the buffer, rather than capturing self.
         return promise.futureResult.flatMapThrowing { [sessionID = self.sessionID] request in
-            return try request.map { try SSHMessage.UserAuthRequestMessage(request: $0, sessionID: sessionID) }
+            try request.map { try SSHMessage.UserAuthRequestMessage(request: $0, sessionID: sessionID) }
         }
     }
 }
 
-
 // MARK: Interacting with server delegate
+
 extension UserAuthenticationStateMachine {
     fileprivate func nextAuthResponse(request: SSHMessage.UserAuthRequestMessage, delegate: NIOSSHServerUserAuthenticationDelegate) -> EventLoopFuture<NIOSSHUserAuthenticationResponseMessage> {
         switch request.method {
@@ -366,7 +365,7 @@ extension UserAuthenticationStateMachine {
             let supportedMethods = delegate.supportedAuthenticationMethods
 
             return promise.futureResult.map { outcome in
-                return .init(outcome, supportedMethods: supportedMethods)
+                .init(outcome, supportedMethods: supportedMethods)
             }
 
         case .publicKey(.known(key: let key, signature: .some(let signature))):
@@ -385,7 +384,7 @@ extension UserAuthenticationStateMachine {
             delegate.requestReceived(request: request, responsePromise: promise)
 
             return promise.futureResult.map { outcome in
-                return .init(outcome, supportedMethods: supportedMethods)
+                .init(outcome, supportedMethods: supportedMethods)
             }
 
         case .publicKey(.known(key: let key, signature: .none)):
@@ -404,7 +403,7 @@ extension UserAuthenticationStateMachine {
             let supportedMethods = delegate.supportedAuthenticationMethods
 
             return promise.futureResult.map { outcome in
-                return .init(outcome, supportedMethods: supportedMethods)
+                .init(outcome, supportedMethods: supportedMethods)
             }
         }
     }
