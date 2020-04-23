@@ -15,13 +15,14 @@
 import NIO
 import Crypto
 
-/// An SSH server host private key.
+/// An SSH private key.
 ///
-/// This object identifies a single SSH server. It is used as part of the SSH handshake and key exchange process,
-/// and is also presented to clients that want to validate that they are communicating with the appropriate server.
+/// This object identifies a single SSH entity, usually a server. It is used as part of the SSH handshake and key exchange process,
+/// and is also presented to clients that want to validate that they are communicating with the appropriate server. Clients use
+/// this key to sign data in order to validate their identity as part of user auth.
 ///
-/// Users cannot do much with this key, but NIO uses it internally.
-public struct NIOSSHHostPrivateKey {
+/// Users cannot do much with this key other than construct it, but NIO uses it internally.
+public struct NIOSSHPrivateKey {
     /// The actual key structure used to perform the key operations.
     internal var backingKey: BackingKey
 
@@ -49,7 +50,7 @@ public struct NIOSSHHostPrivateKey {
 }
 
 
-extension NIOSSHHostPrivateKey {
+extension NIOSSHPrivateKey {
     /// The various key types that can be used with NIOSSH.
     internal enum BackingKey {
         case ed25519(Curve25519.Signing.PrivateKey)
@@ -58,7 +59,7 @@ extension NIOSSHHostPrivateKey {
 }
 
 
-extension NIOSSHHostPrivateKey {
+extension NIOSSHPrivateKey {
     func sign<DigestBytes: Digest>(digest: DigestBytes) throws -> SSHSignature {
         switch self.backingKey {
         case .ed25519(let key):
@@ -67,20 +68,34 @@ extension NIOSSHHostPrivateKey {
             }
             return SSHSignature(backingSignature: .ed25519(.data(signature)))
         case .ecdsaP256(let key):
-            return try SSHSignature(backingSignature: .ecdsaP256(key.signature(for: digest)))
+            let signature = try digest.withUnsafeBytes { ptr in
+                try key.signature(for: ptr)
+            }
+            return SSHSignature(backingSignature: .ecdsaP256(signature))
+        }
+    }
+
+    func sign(_ payload: UserAuthSignablePayload) throws -> SSHSignature {
+        switch self.backingKey {
+        case .ed25519(let key):
+            let signature = try key.signature(for: payload.bytes.readableBytesView)
+            return SSHSignature(backingSignature: .ed25519(.data(signature)))
+        case .ecdsaP256(let key):
+            let signature = try key.signature(for: payload.bytes.readableBytesView)
+            return SSHSignature(backingSignature: .ecdsaP256(signature))
         }
     }
 }
 
 
-extension NIOSSHHostPrivateKey {
+extension NIOSSHPrivateKey {
     /// Obtains the public key for a corresponding private key.
-    internal var publicKey: NIOSSHHostPublicKey {
+    public var publicKey: NIOSSHPublicKey {
         switch self.backingKey {
         case .ed25519(let privateKey):
-            return NIOSSHHostPublicKey(backingKey: .ed25519(privateKey.publicKey))
+            return NIOSSHPublicKey(backingKey: .ed25519(privateKey.publicKey))
         case .ecdsaP256(let privateKey):
-            return NIOSSHHostPublicKey(backingKey: .ecdsaP256(privateKey.publicKey))
+            return NIOSSHPublicKey(backingKey: .ecdsaP256(privateKey.publicKey))
         }
     }
 }

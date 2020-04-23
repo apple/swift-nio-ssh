@@ -55,7 +55,7 @@ extension Curve25519KeyExchange {
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
     mutating func completeKeyExchangeServerSide(clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
-                                                serverHostKey: NIOSSHHostPrivateKey,
+                                                serverHostKey: NIOSSHPrivateKey,
                                                 initialExchangeBytes: inout ByteBuffer,
                                                 allocator: ByteBufferAllocator,
                                                 expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage) {
@@ -126,7 +126,7 @@ extension Curve25519KeyExchange {
 
     private mutating func finalizeKeyExchange(theirKeyBytes: ByteBuffer,
                                               initialExchangeBytes: inout ByteBuffer,
-                                              serverHostKey: NIOSSHHostPublicKey,
+                                              serverHostKey: NIOSSHPublicKey,
                                               allocator: ByteBufferAllocator,
                                               expectedKeySizes: ExpectedKeySizes) throws -> Curve25519KeyExchangeResult {
         self.theirKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: theirKeyBytes.readableBytesView)

@@ -21,7 +21,7 @@ import Crypto
 final class HostKeyTests: XCTestCase {
     func testBasicEd25519SigningFlow() throws {
         let edKey = Curve25519.Signing.PrivateKey()
-        let sshKey = NIOSSHHostPrivateKey(ed25519Key: edKey)
+        let sshKey = NIOSSHPrivateKey(ed25519Key: edKey)
 
         let digest = SHA256.hash(data: Array("hello, world!".utf8))
         let signature = try assertNoThrowWithValue(sshKey.sign(digest: digest))
@@ -39,7 +39,7 @@ final class HostKeyTests: XCTestCase {
 
     func testBasicECDSAP256SigningFlow() throws {
         let ecdsaKey = P256.Signing.PrivateKey()
-        let sshKey = NIOSSHHostPrivateKey(p256Key: ecdsaKey)
+        let sshKey = NIOSSHPrivateKey(p256Key: ecdsaKey)
 
         let digest = SHA256.hash(data: Array("hello, world!".utf8))
         let signature = try assertNoThrowWithValue(sshKey.sign(digest: digest))
@@ -57,12 +57,12 @@ final class HostKeyTests: XCTestCase {
 
     func testEd25519FailsVerificationWithDifferentKeys() throws {
         let edKey = Curve25519.Signing.PrivateKey()
-        let sshKey = NIOSSHHostPrivateKey(ed25519Key: edKey)
+        let sshKey = NIOSSHPrivateKey(ed25519Key: edKey)
 
         let digest = SHA256.hash(data: Array("hello, world!".utf8))
         let signature = try assertNoThrowWithValue(sshKey.sign(digest: digest))
 
-        let otherSSHKey = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let otherSSHKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         // Naturally, this should not verify.
         XCTAssertNoThrow(XCTAssertFalse(otherSSHKey.publicKey.isValidSignature(signature, for: digest)))
@@ -77,12 +77,12 @@ final class HostKeyTests: XCTestCase {
 
     func testECDASP256FailsVerificationWithDifferentKeys() throws {
         let ecdsaKey = P256.Signing.PrivateKey()
-        let sshKey = NIOSSHHostPrivateKey(p256Key: ecdsaKey)
+        let sshKey = NIOSSHPrivateKey(p256Key: ecdsaKey)
 
         let digest = SHA256.hash(data: Array("hello, world!".utf8))
         let signature = try assertNoThrowWithValue(sshKey.sign(digest: digest))
 
-        let otherSSHKey = NIOSSHHostPrivateKey(p256Key: .init())
+        let otherSSHKey = NIOSSHPrivateKey(p256Key: .init())
 
         // Naturally, this should not verify.
         XCTAssertNoThrow(XCTAssertFalse(otherSSHKey.publicKey.isValidSignature(signature, for: digest)))
@@ -97,12 +97,12 @@ final class HostKeyTests: XCTestCase {
 
     func testEd25519FailsVerificationWithWrongAlgorithms() throws {
         let edKey = Curve25519.Signing.PrivateKey()
-        let sshKey = NIOSSHHostPrivateKey(ed25519Key: edKey)
+        let sshKey = NIOSSHPrivateKey(ed25519Key: edKey)
 
         let digest = SHA256.hash(data: Array("hello, world!".utf8))
         let signature = try assertNoThrowWithValue(sshKey.sign(digest: digest))
 
-        let otherSSHKey = NIOSSHHostPrivateKey(p256Key: .init())
+        let otherSSHKey = NIOSSHPrivateKey(p256Key: .init())
 
         // Naturally, this should not verify.
         XCTAssertNoThrow(XCTAssertFalse(otherSSHKey.publicKey.isValidSignature(signature, for: digest)))
@@ -117,12 +117,12 @@ final class HostKeyTests: XCTestCase {
 
     func testECDASP256FailsVerificationWithWrongAlgorithms() throws {
         let ecdsaKey = P256.Signing.PrivateKey()
-        let sshKey = NIOSSHHostPrivateKey(p256Key: ecdsaKey)
+        let sshKey = NIOSSHPrivateKey(p256Key: ecdsaKey)
 
         let digest = SHA256.hash(data: Array("hello, world!".utf8))
         let signature = try assertNoThrowWithValue(sshKey.sign(digest: digest))
 
-        let otherSSHKey = NIOSSHHostPrivateKey(ed25519Key: .init())
+        let otherSSHKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         // Naturally, this should not verify.
         XCTAssertNoThrow(XCTAssertFalse(otherSSHKey.publicKey.isValidSignature(signature, for: digest)))

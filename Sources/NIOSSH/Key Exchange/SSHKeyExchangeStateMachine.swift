@@ -55,7 +55,7 @@ struct SSHKeyExchangeStateMachine {
         case newKeysSent(result: KeyExchangeResult, protection: NIOSSHTransportProtection, negotiated: NegotiationResult)
 
         /// We've completed the key exchange.
-        case complete
+        case complete(result: KeyExchangeResult)
     }
 
     private let allocator: ByteBufferAllocator
@@ -235,8 +235,8 @@ struct SSHKeyExchangeStateMachine {
         case .keysExchanged(result: let result, protection: let protection, negotiated: let negotiated):
             self.state = .newKeysReceived(result: result, protection: protection, negotiated: negotiated)
             return protection
-        case .newKeysSent(_, protection: let protection, _):
-            self.state = .complete
+        case .newKeysSent(result: let result, protection: let protection, _):
+            self.state = .complete(result: result)
             return protection
         case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .newKeysReceived, .complete:
             throw SSHKeyExchangeError.unexpectedMessage
@@ -248,8 +248,8 @@ struct SSHKeyExchangeStateMachine {
         case .keysExchanged(result: let result, protection: let protection, negotiated: let negotiated):
             self.state = .newKeysSent(result: result, protection: protection, negotiated: negotiated)
             return protection
-        case .newKeysReceived(_, protection: let protection, _):
-            self.state = .complete
+        case .newKeysReceived(result: let result, protection: let protection, _):
+            self.state = .complete(result: result)
             return protection
         case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .newKeysSent, .complete:
             // This is a precondition not a throw because we control the sending of this message.
@@ -370,10 +370,25 @@ extension SSHKeyExchangeStateMachine {
 
         var negotiatedHostKeyAlgorithm: Substring
 
-        func negotiatedHostKey(_ keys: [NIOSSHHostPrivateKey]) -> NIOSSHHostPrivateKey {
+        func negotiatedHostKey(_ keys: [NIOSSHPrivateKey]) -> NIOSSHPrivateKey {
             // This force-unwrap is safe: to fail to obtain it is a programming error, as we must have negotiated
             // the host key algorithm.
             return keys.first { $0.hostKeyAlgorithms.contains(self.negotiatedHostKeyAlgorithm) }!
+        }
+    }
+
+    /// Obtains the session ID, if we have one already.
+    var sessionID: ByteBuffer? {
+        switch self.state {
+        case .keyExchangeInitReceived(result: let result, _),
+             .keysExchanged(result: let result, _, _),
+             .newKeysSent(result: let result, _, _),
+             .newKeysReceived(result: let result, _, _),
+             .complete(result: let result):
+            return result.sessionID
+
+        case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent:
+            return nil
         }
     }
 }

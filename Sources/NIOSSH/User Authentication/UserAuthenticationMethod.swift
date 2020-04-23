@@ -11,6 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
+import NIO
 
 
 /// The user authentication modes available at this point in time.
@@ -75,7 +76,8 @@ extension NIOSSHAvailableUserAuthenticationMethods {
 extension NIOSSHAvailableUserAuthenticationMethods: Hashable { }
 
 
-/// A specific request for user authentication.
+/// A specific request for user authentication. This type is the one observed from the server side. The
+/// associated client side type is `NIOSSHUserAuthenticationOffer`.
 public struct NIOSSHUserAuthenticationRequest {
     public var username: String
 
@@ -101,8 +103,10 @@ extension NIOSSHUserAuthenticationRequest {
 
 extension NIOSSHUserAuthenticationRequest.Request {
     public struct PublicKey {
-        init() {
-            fatalError("PublicKeyRequest is currently unimplemented")
+        public var publicKey: NIOSSHPublicKey
+
+        public init(publicKey: NIOSSHPublicKey) {
+            self.publicKey = publicKey
         }
     }
 
@@ -133,35 +137,78 @@ extension NIOSSHUserAuthenticationRequest.Request.Password: Hashable { }
 extension NIOSSHUserAuthenticationRequest.Request.HostBased: Hashable { }
 
 
+/// A specific offer of user authentication. This type is the one used on the client side. The
+/// associated server side type is `NIOSSHUserAuthenticationRequest`.
+public struct NIOSSHUserAuthenticationOffer {
+    public var username: String
+
+    public var offer: Offer
+
+    public init(username: String, serviceName: String, offer: Offer) {
+        self.username = username
+        self.offer = offer
+    }
+}
+
+
+extension NIOSSHUserAuthenticationOffer {
+    public enum Offer {
+        case privateKey(PrivateKey)
+        case password(Password)
+        case hostBased(HostBased)
+        case none
+    }
+}
+
+
+
+extension NIOSSHUserAuthenticationOffer.Offer {
+    public struct PrivateKey {
+        public var privateKey: NIOSSHPrivateKey
+
+        public init(privateKey: NIOSSHPrivateKey) {
+            self.privateKey = privateKey
+        }
+    }
+
+    public struct Password {
+        public var password: String
+
+        public init(password: String) {
+            self.password = password
+        }
+    }
+
+    public struct HostBased {
+        init() {
+            fatalError("PublicKeyRequest is currently unimplemented")
+        }
+    }
+}
+
+
 extension SSHMessage.UserAuthRequestMessage {
-    init(request: NIOSSHUserAuthenticationRequest) {
+    init(request: NIOSSHUserAuthenticationOffer, sessionID: ByteBuffer) throws {
         // We only ever ask for the ssh-connection service.
         self.username = request.username
         self.service = "ssh-connection"
 
-        switch request.request {
-        case .publicKey:
-            fatalError("Unsupported")
+        switch request.offer {
+        case .privateKey(let privateKeyRequest):
+            let dataToSign = UserAuthSignablePayload(
+                sessionIdentifier: sessionID,
+                userName: self.username,
+                serviceName: self.service,
+                publicKey: privateKeyRequest.privateKey.publicKey
+            )
+            let signature = try privateKeyRequest.privateKey.sign(dataToSign)
+            self.method = .publicKey(.known(key: privateKeyRequest.privateKey.publicKey, signature: signature))
         case .password(let passwordRequest):
             self.method = .password(passwordRequest.password)
         case .hostBased:
             fatalError("Unsupported")
         case .none:
             self.method = .none
-        }
-    }
-}
-
-
-extension NIOSSHUserAuthenticationRequest {
-    init(_ message: SSHMessage.UserAuthRequestMessage) {
-        self.username = message.username
-
-        switch message.method {
-        case .password(let password):
-            self.request = .password(.init(password: password))
-        case .none:
-            self.request = .none
         }
     }
 }
@@ -178,6 +225,7 @@ public enum NIOSSHUserAuthenticationOutcome {
 enum NIOSSHUserAuthenticationResponseMessage {
     case success
     case failure(SSHMessage.UserAuthFailureMessage)
+    case publicKeyOK(SSHMessage.UserAuthPKOKMessage)
 }
 
 

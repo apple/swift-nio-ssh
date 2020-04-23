@@ -17,16 +17,16 @@ import NIO
 
 /// A straightforward `NIOSSHUserAuthenticationDelegate` that makes one attempt to sign in with a single username and password combination.
 public final class SimplePasswordDelegate {
-    private var authRequest: NIOSSHUserAuthenticationRequest?
+    private var authRequest: NIOSSHUserAuthenticationOffer?
 
     public init(username: String, password: String) {
-        self.authRequest = NIOSSHUserAuthenticationRequest(username: username, serviceName: "", request: .password(.init(password: password)))
+        self.authRequest = NIOSSHUserAuthenticationOffer(username: username, serviceName: "", offer: .password(.init(password: password)))
     }
 }
 
 
 extension SimplePasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
-    public func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationRequest?>) {
+    public func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
         if let authRequest = self.authRequest, availableMethods.contains(.password) {
             // We need to nil out our copy because any future calls must return nil
             self.authRequest = nil

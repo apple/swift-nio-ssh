@@ -99,6 +99,8 @@ extension NIOSSHError {
     internal static let creatingChannelAfterClosure = NIOSSHError(type: .creatingChannelAfterClosure, diagnostics: nil)
 
     internal static let tcpShutdown = NIOSSHError(type: .tcpShutdown, diagnostics: nil)
+
+    internal static let invalidUserAuthSignature = NIOSSHError(type: .invalidUserAuthSignature, diagnostics: nil)
 }
 
 
@@ -135,6 +137,7 @@ extension NIOSSHError {
             case flowControlViolation
             case creatingChannelAfterClosure
             case tcpShutdown
+            case invalidUserAuthSignature
         }
 
         private var base: Base
@@ -202,6 +205,9 @@ extension NIOSSHError {
 
         /// The TCP connection was shut down without cleanly closing the SSH channel.
         public static let tcpShutdown: ErrorType = .init(.tcpShutdown)
+
+        /// The signature provided in user authentication was invalid.
+        public static let invalidUserAuthSignature: ErrorType = .init(.invalidUserAuthSignature)
     }
 }
 
