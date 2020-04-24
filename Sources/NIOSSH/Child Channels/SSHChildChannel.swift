@@ -371,12 +371,20 @@ extension SSHChildChannel: Channel, ChannelCore {
             message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
         case let event as SSHChannelRequestEvent.ExitStatus:
             message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
-        case is SSHChannelRequestEvent.PseudoTerminalRequest:
-            promise?.fail(ChannelError.operationUnsupported)
-            return
-        case is SSHChannelRequestEvent.ShellRequest:
-            promise?.fail(ChannelError.operationUnsupported)
-            return
+        case let event as SSHChannelRequestEvent.PseudoTerminalRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.ShellRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.ExitSignal:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.SubsystemRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.WindowChangeRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.LocalFlowControlRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.SignalRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
         case is ChannelSuccessEvent:
             message = .channelSuccess(.init(recipientChannel: self.state.remoteChannelIdentifier!))
         case is ChannelFailureEvent:

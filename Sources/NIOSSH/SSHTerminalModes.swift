@@ -11,6 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
+import NIO
 
 /// This structure represents the SSH understanding of POSIX terminal modes.
 ///
@@ -379,5 +380,39 @@ extension SSHTerminalModes.OpcodeValue: RawRepresentable {}
 extension SSHTerminalModes.OpcodeValue: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: UInt32) {
         self.rawValue = value
+    }
+}
+
+extension ByteBuffer {
+    mutating func readSSHTerminalModes() throws -> SSHTerminalModes {
+        var mapping: [SSHTerminalModes.Opcode: SSHTerminalModes.OpcodeValue] = [:]
+        mapping.reserveCapacity(self.readableBytes / 5)
+
+        return try self.rewindReaderOnError { `self` in
+            // Opcodes 1 to 159 have a single uint32 argument.  Opcodes 160 to 255 are not yet
+            // defined, and cause parsing to stop (they should only be used after any other data).
+            // The stream is terminated by opcode TTY_OP_END (0x00).
+            while let opcode = self.readInteger(as: UInt8.self), (1 ..< 159).contains(opcode) {
+                guard let value = self.readInteger(as: UInt32.self) else {
+                    throw NIOSSHError.protocolViolation(protocolName: "ssh-connection", violation: "invalid encoded terminal modes")
+                }
+
+                mapping[SSHTerminalModes.Opcode(rawValue: opcode)] = SSHTerminalModes.OpcodeValue(rawValue: value)
+            }
+
+            return SSHTerminalModes(mapping)
+        }
+    }
+
+    @discardableResult
+    mutating func writeSSHTerminalModes(_ modes: SSHTerminalModes) -> Int {
+        var written = 0
+        for (mode, value) in modes.modeMapping {
+            written += self.writeInteger(mode.rawValue)
+            written += self.writeInteger(value.rawValue)
+        }
+
+        written += self.writeInteger(UInt8(0))
+        return written
     }
 }

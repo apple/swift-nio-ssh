@@ -271,8 +271,31 @@ extension SSHMessage {
         enum RequestType: Equatable {
             case env(String, String)
             case exec(String)
-            case exit(UInt32)
+            case exitStatus(UInt32)
+            case exitSignal(String, Bool, String, String)
+            case ptyReq(PtyReq)
+            case shell
+            case subsystem(String)
+            case windowChange(WindowChange)
+            case xonXoff(Bool)
+            case signal(String)
             case unknown
+        }
+
+        struct PtyReq: Equatable {
+            var termVariable: String
+            var characterWidth: UInt32
+            var rowHeight: UInt32
+            var pixelWidth: UInt32
+            var pixelHeight: UInt32
+            var terminalModes: SSHTerminalModes
+        }
+
+        struct WindowChange: Equatable {
+            var characterWidth: UInt32
+            var rowHeight: UInt32
+            var pixelWidth: UInt32
+            var pixelHeight: UInt32
         }
 
         var recipientChannel: UInt32
@@ -421,7 +444,7 @@ extension ByteBuffer {
                 }
                 return .channelClose(message)
             case SSHMessage.ChannelRequestMessage.id:
-                guard let message = self.readChannelRequestMessage() else {
+                guard let message = try self.readChannelRequestMessage() else {
                     return nil
                 }
                 return .channelRequest(message)
@@ -810,8 +833,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelRequestMessage() -> SSHMessage.ChannelRequestMessage? {
-        self.rewindReaderOnNil { `self` in
+    mutating func readChannelRequestMessage() throws -> SSHMessage.ChannelRequestMessage? {
+        try self.rewindOnNilOrError { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let typeRawValue = self.readSSHStringAsString()
@@ -834,7 +857,7 @@ extension ByteBuffer {
                 guard let status: UInt32 = self.readInteger() else {
                     return nil
                 }
-                type = .exit(status)
+                type = .exitStatus(status)
             case "env":
                 guard
                     let name = self.readSSHStringAsString(),
@@ -844,6 +867,64 @@ extension ByteBuffer {
                 }
 
                 type = .env(name, value)
+            case "exit-signal":
+                guard
+                    let signalName = self.readSSHStringAsString(),
+                    let coreDumped = self.readSSHBoolean(),
+                    let errorMessage = self.readSSHStringAsString(),
+                    let language = self.readSSHStringAsString()
+                else {
+                    return nil
+                }
+
+                type = .exitSignal(signalName, coreDumped, errorMessage, language)
+            case "pty-req":
+                guard
+                    let termVariable = self.readSSHStringAsString(),
+                    let termWidth = self.readInteger(as: UInt32.self),
+                    let termHeight = self.readInteger(as: UInt32.self),
+                    let pixelWidth = self.readInteger(as: UInt32.self),
+                    let pixelHeight = self.readInteger(as: UInt32.self),
+                    var encodedTerminalModes = self.readSSHString()
+                else {
+                    return nil
+                }
+
+                type = .ptyReq(.init(termVariable: termVariable,
+                                     characterWidth: termWidth,
+                                     rowHeight: termHeight,
+                                     pixelWidth: pixelWidth,
+                                     pixelHeight: pixelHeight,
+                                     terminalModes: try encodedTerminalModes.readSSHTerminalModes()))
+            case "shell":
+                type = .shell
+            case "subsystem":
+                guard let name = self.readSSHStringAsString() else {
+                    return nil
+                }
+                type = .subsystem(name)
+            case "window-change":
+                guard
+                    let termWidth = self.readInteger(as: UInt32.self),
+                    let termHeight = self.readInteger(as: UInt32.self),
+                    let pixelWidth = self.readInteger(as: UInt32.self),
+                    let pixelHeight = self.readInteger(as: UInt32.self)
+                else {
+                    return nil
+                }
+
+                type = .windowChange(.init(characterWidth: termWidth, rowHeight: termHeight, pixelWidth: pixelWidth, pixelHeight: pixelHeight))
+            case "xon-xoff":
+                guard let clientCanDo = self.readSSHBoolean() else {
+                    return nil
+                }
+                type = .xonXoff(clientCanDo)
+
+            case "signal":
+                guard let signalName = self.readSSHStringAsString() else {
+                    return nil
+                }
+                type = .signal(signalName)
             default:
                 type = .unknown
             }
@@ -1196,8 +1277,22 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHString("env".utf8)
         case .exec:
             writtenBytes += self.writeSSHString("exec".utf8)
-        case .exit:
+        case .exitStatus:
             writtenBytes += self.writeSSHString("exit-status".utf8)
+        case .exitSignal:
+            writtenBytes += self.writeSSHString("exit-signal".utf8)
+        case .ptyReq:
+            writtenBytes += self.writeSSHString("pty-req".utf8)
+        case .shell:
+            writtenBytes += self.writeSSHString("shell".utf8)
+        case .subsystem:
+            writtenBytes += self.writeSSHString("subsystem".utf8)
+        case .windowChange:
+            writtenBytes += self.writeSSHString("window-change".utf8)
+        case .xonXoff:
+            writtenBytes += self.writeSSHString("xon-xoff".utf8)
+        case .signal:
+            writtenBytes += self.writeSSHString("signal".utf8)
         case .unknown:
             preconditionFailure()
         }
@@ -1210,8 +1305,33 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHString(value.utf8)
         case .exec(let command):
             writtenBytes += self.writeSSHString(command.utf8)
-        case .exit(let status):
+        case .exitStatus(let status):
             writtenBytes += self.writeInteger(status)
+        case .exitSignal(let name, let coreDumped, let errorMessage, let language):
+            writtenBytes += self.writeSSHString(name.utf8)
+            writtenBytes += self.writeSSHBoolean(coreDumped)
+            writtenBytes += self.writeSSHString(errorMessage.utf8)
+            writtenBytes += self.writeSSHString(language.utf8)
+        case .ptyReq(let message):
+            writtenBytes += self.writeSSHString(message.termVariable.utf8)
+            writtenBytes += self.writeInteger(message.characterWidth)
+            writtenBytes += self.writeInteger(message.rowHeight)
+            writtenBytes += self.writeInteger(message.pixelWidth)
+            writtenBytes += self.writeInteger(message.pixelHeight)
+            writtenBytes += self.writeCompositeSSHString { $0.writeSSHTerminalModes(message.terminalModes) }
+        case .shell:
+            break
+        case .subsystem(let name):
+            writtenBytes += self.writeSSHString(name.utf8)
+        case .windowChange(let message):
+            writtenBytes += self.writeInteger(message.characterWidth)
+            writtenBytes += self.writeInteger(message.rowHeight)
+            writtenBytes += self.writeInteger(message.pixelWidth)
+            writtenBytes += self.writeInteger(message.pixelHeight)
+        case .xonXoff(let clientCanDo):
+            writtenBytes += self.writeSSHBoolean(clientCanDo)
+        case .signal(let name):
+            writtenBytes += self.writeSSHString(name.utf8)
         case .unknown:
             preconditionFailure()
         }

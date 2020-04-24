@@ -505,7 +505,7 @@ final class SSHMessagesTests: XCTestCase {
         XCTAssertEqual(try buffer.readSSHMessage(), message)
         try self.assertCorrectlyManagesPartialRead(message)
 
-        message = SSHMessage.channelRequest(.init(recipientChannel: 0, type: .exit(1), wantReply: true))
+        message = SSHMessage.channelRequest(.init(recipientChannel: 0, type: .exitStatus(1), wantReply: true))
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
         try self.assertCorrectlyManagesPartialRead(message)
