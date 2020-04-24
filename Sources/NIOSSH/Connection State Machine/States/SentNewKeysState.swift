@@ -43,11 +43,11 @@ extension SSHConnectionStateMachine {
             // We force unwrap the session ID here because it's programmer error to not have it at this stage.
             self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role,
                                                                        loop: loop,
-                                                                       sessionID: keyExchangeStateMachine.sessionID!)
+                                                                       sessionID: self.keyExchangeStateMachine.sessionID!)
         }
     }
 }
 
-extension SSHConnectionStateMachine.SentNewKeysState: AcceptsKeyExchangeMessages { }
+extension SSHConnectionStateMachine.SentNewKeysState: AcceptsKeyExchangeMessages {}
 
-extension SSHConnectionStateMachine.SentNewKeysState: SendsUserAuthMessages { }
+extension SSHConnectionStateMachine.SentNewKeysState: SendsUserAuthMessages {}

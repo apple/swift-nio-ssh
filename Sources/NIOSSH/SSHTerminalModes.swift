@@ -11,6 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
+import NIO
 
 /// This structure represents the SSH understanding of POSIX terminal modes.
 ///
@@ -25,20 +26,20 @@ public struct SSHTerminalModes {
     }
 }
 
-extension SSHTerminalModes: Hashable { }
-
+extension SSHTerminalModes: Hashable {}
 
 // MARK: Opcode
+
 extension SSHTerminalModes {
     /// A terminal mode opcode.
     public struct Opcode {
         /// The raw value of the terminal mode opcode.
         public var rawValue: UInt8 {
             get {
-                return self._rawValue
+                self._rawValue
             }
             set {
-                precondition(newValue != 0)  // Reserved for TTY_OP_END.
+                precondition(newValue != 0) // Reserved for TTY_OP_END.
                 self._rawValue = newValue
             }
         }
@@ -46,7 +47,7 @@ extension SSHTerminalModes {
         private var _rawValue: UInt8
 
         public init(rawValue: UInt8) {
-            precondition(rawValue != 0)  // Reserved for TTY_OP_END.
+            precondition(rawValue != 0) // Reserved for TTY_OP_END.
             self._rawValue = rawValue
         }
 
@@ -217,15 +218,15 @@ extension SSHTerminalModes {
     }
 }
 
-extension SSHTerminalModes.Opcode: Hashable { }
+extension SSHTerminalModes.Opcode: Hashable {}
 
 extension SSHTerminalModes.Opcode: Comparable {
-    public static func <(lhs: SSHTerminalModes.Opcode, rhs: SSHTerminalModes.Opcode) -> Bool {
-        return lhs.rawValue < rhs.rawValue
+    public static func < (lhs: SSHTerminalModes.Opcode, rhs: SSHTerminalModes.Opcode) -> Bool {
+        lhs.rawValue < rhs.rawValue
     }
 }
 
-extension SSHTerminalModes.Opcode: RawRepresentable { }
+extension SSHTerminalModes.Opcode: RawRepresentable {}
 
 extension SSHTerminalModes.Opcode: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: UInt8) {
@@ -353,6 +354,7 @@ extension SSHTerminalModes.Opcode: CustomStringConvertible {
 }
 
 // MARK: OpcodeValue
+
 extension SSHTerminalModes {
     /// The value of an SSH terminal mode opcode.
     public struct OpcodeValue {
@@ -365,18 +367,52 @@ extension SSHTerminalModes {
     }
 }
 
-extension SSHTerminalModes.OpcodeValue: Hashable { }
+extension SSHTerminalModes.OpcodeValue: Hashable {}
 
 extension SSHTerminalModes.OpcodeValue: Comparable {
-    public static func <(lhs: SSHTerminalModes.OpcodeValue, rhs: SSHTerminalModes.OpcodeValue) -> Bool {
-        return lhs.rawValue < rhs.rawValue
+    public static func < (lhs: SSHTerminalModes.OpcodeValue, rhs: SSHTerminalModes.OpcodeValue) -> Bool {
+        lhs.rawValue < rhs.rawValue
     }
 }
 
-extension SSHTerminalModes.OpcodeValue: RawRepresentable { }
+extension SSHTerminalModes.OpcodeValue: RawRepresentable {}
 
 extension SSHTerminalModes.OpcodeValue: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: UInt32) {
         self.rawValue = value
+    }
+}
+
+extension ByteBuffer {
+    mutating func readSSHTerminalModes() throws -> SSHTerminalModes {
+        var mapping: [SSHTerminalModes.Opcode: SSHTerminalModes.OpcodeValue] = [:]
+        mapping.reserveCapacity(self.readableBytes / 5)
+
+        return try self.rewindReaderOnError { `self` in
+            // Opcodes 1 to 159 have a single uint32 argument.  Opcodes 160 to 255 are not yet
+            // defined, and cause parsing to stop (they should only be used after any other data).
+            // The stream is terminated by opcode TTY_OP_END (0x00).
+            while let opcode = self.readInteger(as: UInt8.self), (1 ..< 159).contains(opcode) {
+                guard let value = self.readInteger(as: UInt32.self) else {
+                    throw NIOSSHError.protocolViolation(protocolName: "ssh-connection", violation: "invalid encoded terminal modes")
+                }
+
+                mapping[SSHTerminalModes.Opcode(rawValue: opcode)] = SSHTerminalModes.OpcodeValue(rawValue: value)
+            }
+
+            return SSHTerminalModes(mapping)
+        }
+    }
+
+    @discardableResult
+    mutating func writeSSHTerminalModes(_ modes: SSHTerminalModes) -> Int {
+        var written = 0
+        for (mode, value) in modes.modeMapping {
+            written += self.writeInteger(mode.rawValue)
+            written += self.writeInteger(value.rawValue)
+        }
+
+        written += self.writeInteger(UInt8(0))
+        return written
     }
 }

@@ -40,7 +40,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
     func channelActive(context: ChannelHandlerContext) {
         // We need to exec a thing.
         let execRequest = SSHChannelRequestEvent.ExecRequest(command: self.command, wantReply: false)
-        context.triggerUserOutboundEvent(execRequest).whenFailure { error in
+        context.triggerUserOutboundEvent(execRequest).whenFailure { _ in
             context.close(promise: nil)
         }
 
@@ -111,10 +111,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
     }
 }
 
-
-
 enum SSHClientError: Swift.Error {
     case passwordAuthenticationNotSupported
     case commandExecFailed
 }
-

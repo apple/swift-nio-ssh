@@ -17,7 +17,6 @@ import NIO
 @testable import NIOSSH
 import XCTest
 
-
 final class SSHEncryptedTrafficTests: XCTestCase {
     private var serializer: SSHPacketSerializer!
     private var parser: SSHPacketParser!
@@ -41,7 +40,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         XCTAssertNoThrow(try self.serializer.serialize(message: message, to: &self.buffer), file: file, line: line)
         self.parser.append(bytes: &self.buffer)
 
-        var packet: SSHMessage? = nil
+        var packet: SSHMessage?
         XCTAssertNoThrow(packet = try self.parser.nextPacket(), file: file, line: line)
         XCTAssertEqual(packet, message, file: file, line: line)
         XCTAssertNoThrow(XCTAssertNil(try self.parser.nextPacket(), file: file, line: line), file: file, line: line)
@@ -51,7 +50,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         self.buffer.clear()
         XCTAssertNoThrow(try self.serializer.serialize(message: message, to: &self.buffer), file: file, line: line)
 
-        var packet: SSHMessage? = nil
+        var packet: SSHMessage?
         while var slice = self.buffer.readSlice(length: 1) {
             self.parser.append(bytes: &slice)
             XCTAssertNoThrow(packet = try self.parser.nextPacket(), file: file, line: line)
@@ -114,9 +113,9 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer))
 
         // Mutate the buffer. We don't allow mutating the length because if we set the length to very long the parser returns nil instead.
-        let index = (4..<self.buffer.writerIndex).randomElement()!
+        let index = (4 ..< self.buffer.writerIndex).randomElement()!
         let currentValue = self.buffer.getInteger(at: index, as: UInt8.self)!
-        self.buffer.setInteger(currentValue ^ 0xff, at: index)  // Flip every bit
+        self.buffer.setInteger(currentValue ^ 0xFF, at: index) // Flip every bit
         self.parser.append(bytes: &self.buffer)
 
         XCTAssertThrowsError(try self.parser.nextPacket())
@@ -156,7 +155,6 @@ final class SSHEncryptedTrafficTests: XCTestCase {
     }
 }
 
-
 extension SSHEncryptedTrafficTests {
     fileprivate enum Protection {
         case aes128
@@ -188,13 +186,12 @@ extension SSHEncryptedTrafficTests {
         }
 
         private func generateKeys(keySize: SymmetricKeySize, ivSize: Int, macSize: SymmetricKeySize) -> NIOSSHSessionKeys {
-            return NIOSSHSessionKeys(initialInboundIV: .init(randomBytes: ivSize),
-                                     initialOutboundIV: .init(randomBytes: ivSize),
-                                     inboundEncryptionKey: SymmetricKey(size: keySize),
-                                     outboundEncryptionKey: SymmetricKey(size: keySize),
-                                     inboundMACKey: SymmetricKey(size: macSize),
-                                     outboundMACKey: SymmetricKey(size: macSize))
+            NIOSSHSessionKeys(initialInboundIV: .init(randomBytes: ivSize),
+                              initialOutboundIV: .init(randomBytes: ivSize),
+                              inboundEncryptionKey: SymmetricKey(size: keySize),
+                              outboundEncryptionKey: SymmetricKey(size: keySize),
+                              inboundMACKey: SymmetricKey(size: macSize),
+                              outboundMACKey: SymmetricKey(size: macSize))
         }
     }
 }
-

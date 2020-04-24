@@ -79,9 +79,9 @@ extension ChildChannelWindowManager {
     }
 }
 
-extension ChildChannelWindowManager.Increment: Hashable { }
+extension ChildChannelWindowManager.Increment: Hashable {}
 
-extension ChildChannelWindowManager.Increment: RawRepresentable { }
+extension ChildChannelWindowManager.Increment: RawRepresentable {}
 
 extension UInt32 {
     init(_ increment: ChildChannelWindowManager.Increment) {

@@ -14,7 +14,6 @@
 
 import NIO
 
-
 /// A `ChannelDuplexHandler` that implements the SSH protocol.
 ///
 /// SSH is a protocol originally designed to negotiate a secure transportation channel over
@@ -26,7 +25,7 @@ import NIO
 /// arbitrary secure multiplexed channels.
 public final class NIOSSHHandler {
     internal var channel: Channel? {
-        return self.context.map { $0.channel }
+        self.context.map { $0.channel }
     }
 
     /// The state machine that drives the connection.
@@ -62,13 +61,11 @@ public final class NIOSSHHandler {
     }
 }
 
-
-
 extension NIOSSHHandler: ChannelDuplexHandler {
     public typealias InboundIn = ByteBuffer
     public typealias OutboundOut = ByteBuffer
-    public typealias InboundOut = Never  // Temporary
-    public typealias OutboundIn = Never  // Temporary
+    public typealias InboundOut = Never // Temporary
+    public typealias OutboundIn = Never // Temporary
 
     public func handlerAdded(context: ChannelHandlerContext) {
         self.context = context
@@ -174,6 +171,7 @@ extension NIOSSHHandler: ChannelDuplexHandler {
 }
 
 // MARK: Create a child channel
+
 extension NIOSSHHandler {
     public func createChannel(_ promise: EventLoopPromise<Channel>? = nil, _ channelInitializer: ((Channel) -> EventLoopFuture<Void>)?) {
         self.pendingChannelInitializations.append((promise: promise, initializer: channelInitializer))
@@ -181,7 +179,7 @@ extension NIOSSHHandler {
     }
 
     private func createPendingChannelsIfPossible() {
-        guard self.stateMachine.canInitializeChildChannels && self.pendingChannelInitializations.count > 0 else {
+        guard self.stateMachine.canInitializeChildChannels, self.pendingChannelInitializations.count > 0 else {
             // No work to do
             return
         }
@@ -199,6 +197,7 @@ extension NIOSSHHandler {
 }
 
 // MARK: Functions called from the multiplexer
+
 extension NIOSSHHandler: SSHMultiplexerDelegate {
     func writeFromChildChannel(_ message: SSHMessage, _ promise: EventLoopPromise<Void>?) {
         guard let context = self.context else {

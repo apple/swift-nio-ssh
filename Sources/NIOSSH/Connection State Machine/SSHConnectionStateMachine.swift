@@ -193,7 +193,7 @@ struct SSHConnectionStateMachine {
             case .disconnect:
                 self.state = .receivedDisconnect
                 return .disconnect
-                
+
             default:
                 // TODO: enforce RFC 4253:
                 //
@@ -500,7 +500,6 @@ struct SSHConnectionStateMachine {
     }
 }
 
-
 extension SSHConnectionStateMachine {
     /// The result of spinning the state machine with an inbound message.
     ///
@@ -517,8 +516,8 @@ extension SSHConnectionStateMachine {
     }
 }
 
-
 // MARK: Helper properties
+
 extension SSHConnectionStateMachine {
     var canInitializeChildChannels: Bool {
         switch self.state {

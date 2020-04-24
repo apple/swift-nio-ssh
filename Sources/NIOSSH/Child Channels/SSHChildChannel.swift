@@ -15,7 +15,6 @@
 import NIO
 import NIOConcurrencyHelpers
 
-
 /// A NIO `Channel` that encapsulates a single SSH `Channel`.
 ///
 /// SSH is a multiplexed protocol. NIO reflects this reality by setting up `SSHChildChannel`s for transmitting data
@@ -25,7 +24,7 @@ import NIOConcurrencyHelpers
 final class SSHChildChannel {
     private var _pipeline: ChannelPipeline!
 
-    private let closePromise: EventLoopPromise<()>
+    private let closePromise: EventLoopPromise<Void>
 
     private let multiplexer: SSHChannelMultiplexer
 
@@ -80,6 +79,7 @@ final class SSHChildChannel {
     private var activationState: ActivationState
 
     // MARK: Stored properties for channel/channelcore conformance.
+
     public let allocator: ByteBufferAllocator
 
     public let parent: Channel?
@@ -144,58 +144,57 @@ final class SSHChildChannel {
     }
 }
 
-
 extension SSHChildChannel: Channel, ChannelCore {
     public var closeFuture: EventLoopFuture<Void> {
-        return self.closePromise.futureResult
+        self.closePromise.futureResult
     }
 
     public var pipeline: ChannelPipeline {
-        return self._pipeline
+        self._pipeline
     }
 
     public var localAddress: SocketAddress? {
-        return self.parent.flatMap { $0.localAddress }
+        self.parent.flatMap { $0.localAddress }
     }
 
     public var remoteAddress: SocketAddress? {
-        return self.parent.flatMap { $0.remoteAddress }
+        self.parent.flatMap { $0.remoteAddress }
     }
 
     func localAddress0() throws -> SocketAddress {
-        return try self.parent!._channelCore.localAddress0()
+        try self.parent!._channelCore.localAddress0()
     }
 
     func remoteAddress0() throws -> SocketAddress {
-        return try self.parent!._channelCore.localAddress0()
+        try self.parent!._channelCore.localAddress0()
     }
 
     func setOption<Option: ChannelOption>(_ option: Option, value: Option.Value) -> EventLoopFuture<Void> {
-        if eventLoop.inEventLoop {
+        if self.eventLoop.inEventLoop {
             do {
-                return eventLoop.makeSucceededFuture(try self.setOption0(option, value: value))
+                return self.eventLoop.makeSucceededFuture(try self.setOption0(option, value: value))
             } catch {
-                return eventLoop.makeFailedFuture(error)
+                return self.eventLoop.makeFailedFuture(error)
             }
         } else {
-            return eventLoop.submit { try self.setOption0(option, value: value) }
+            return self.eventLoop.submit { try self.setOption0(option, value: value) }
         }
     }
 
     public func getOption<Option: ChannelOption>(_ option: Option) -> EventLoopFuture<Option.Value> {
-        if eventLoop.inEventLoop {
+        if self.eventLoop.inEventLoop {
             do {
-                return eventLoop.makeSucceededFuture(try self.getOption0(option))
+                return self.eventLoop.makeSucceededFuture(try self.getOption0(option))
             } catch {
-                return eventLoop.makeFailedFuture(error)
+                return self.eventLoop.makeFailedFuture(error)
             }
         } else {
-            return eventLoop.submit { try self.getOption0(option) }
+            return self.eventLoop.submit { try self.getOption0(option) }
         }
     }
 
     private func setOption0<Option: ChannelOption>(_ option: Option, value: Option.Value) throws {
-        assert(eventLoop.inEventLoop)
+        assert(self.eventLoop.inEventLoop)
 
         switch option {
         case _ as ChannelOptions.Types.AutoReadOption:
@@ -208,7 +207,7 @@ extension SSHChildChannel: Channel, ChannelCore {
     }
 
     private func getOption0<Option: ChannelOption>(_ option: Option) throws -> Option.Value {
-        assert(eventLoop.inEventLoop)
+        assert(self.eventLoop.inEventLoop)
 
         switch option {
         case _ as SSHChildChannelOptions.Types.LocalChannelIdentifierOption:
@@ -225,15 +224,15 @@ extension SSHChildChannel: Channel, ChannelCore {
     }
 
     public var isWritable: Bool {
-        return self._isWritable.load()
+        self._isWritable.load()
     }
 
     public var isActive: Bool {
-        return self._isActive.load()
+        self._isActive.load()
     }
 
     public var _channelCore: ChannelCore {
-        return self
+        self
     }
 
     public func register0(promise: EventLoopPromise<Void>?) {
@@ -372,12 +371,20 @@ extension SSHChildChannel: Channel, ChannelCore {
             message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
         case let event as SSHChannelRequestEvent.ExitStatus:
             message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
-        case is SSHChannelRequestEvent.PseudoTerminalRequest:
-            promise?.fail(ChannelError.operationUnsupported)
-            return
-        case is SSHChannelRequestEvent.ShellRequest:
-            promise?.fail(ChannelError.operationUnsupported)
-            return
+        case let event as SSHChannelRequestEvent.PseudoTerminalRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.ShellRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.ExitSignal:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.SubsystemRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.WindowChangeRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.LocalFlowControlRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
+        case let event as SSHChannelRequestEvent.SignalRequest:
+            message = SSHMessage(event, recipientChannel: self.state.remoteChannelIdentifier!)
         case is ChannelSuccessEvent:
             message = .channelSuccess(.init(recipientChannel: self.state.remoteChannelIdentifier!))
         case is ChannelFailureEvent:
@@ -391,7 +398,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         self.writePendingToMultiplexer()
     }
 
-    public func channelRead0(_ data: NIOAny) {
+    public func channelRead0(_: NIOAny) {
         // do nothing
     }
 
@@ -399,7 +406,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         // do nothing
     }
 
-    internal func configure(userPromise: EventLoopPromise<Channel>?){
+    internal func configure(userPromise: EventLoopPromise<Channel>?) {
         // We need to configure this channel. This involves doing four things:
         // 1. Setting our autoRead state from the parent
         // 2. Calling the initializer, if provided.
@@ -453,7 +460,7 @@ extension SSHChildChannel: Channel, ChannelCore {
             let message = SSHMessage.ChannelOpenConfirmationMessage(recipientChannel: self.state.remoteChannelIdentifier!,
                                                                     senderChannel: self.state.localChannelIdentifier,
                                                                     initialWindowSize: self.windowManager.targetWindowSize,
-                                                                    maximumPacketSize: 1 << 24)  // This is a weirdly hard-coded choice.
+                                                                    maximumPacketSize: 1 << 24) // This is a weirdly hard-coded choice.
             self.processOutboundMessage(.channelOpenConfirmation(message), promise: nil)
             self.writePendingToMultiplexer()
         } else if !self.state.isClosed {
@@ -546,7 +553,7 @@ extension SSHChildChannel: Channel, ChannelCore {
 
         self.dropPendingReads()
         self.failPendingWrites(error: error)
-        self.failPendingOutboundEvents(error: error)  // These all go away, but we're going to use our own!
+        self.failPendingOutboundEvents(error: error) // These all go away, but we're going to use our own!
         if let promise = self.pendingClosePromise {
             self.pendingClosePromise = nil
             promise.fail(error)
@@ -559,7 +566,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         self.notifyChannelInactive()
 
         // Ok, we need to notify the network that we're done.
-        if self.state.isActiveOnNetwork && !self.state.sentClose {
+        if self.state.isActiveOnNetwork, !self.state.sentClose {
             let message = SSHMessage.ChannelCloseMessage(recipientChannel: self.state.remoteChannelIdentifier!)
             self.processOutboundMessage(.channelClose(message), promise: nil)
             self.writePendingToMultiplexer()
@@ -601,7 +608,8 @@ extension SSHChildChannel: Channel, ChannelCore {
     }
 }
 
-// MARK:- Functions used to manage pending reads and writes.
+// MARK: - Functions used to manage pending reads and writes.
+
 private extension SSHChildChannel {
     /// Drop all pending reads.
     private func dropPendingReads() {
@@ -630,12 +638,11 @@ private extension SSHChildChannel {
         case .eof:
             self.pipeline.fireUserInboundEventTriggered(ChannelEvent.inputClosed)
         }
-
     }
 
     /// Delivers all pending flushed writes to the parent channel.
     private func deliverPendingWrites() {
-        while self.pendingWritesFromChannel.hasMark && self.writabilityManager.windowSpaceOnNetwork > 0, var write = self.pendingWritesFromChannel.first {
+        while self.pendingWritesFromChannel.hasMark, self.writabilityManager.windowSpaceOnNetwork > 0, var write = self.pendingWritesFromChannel.first {
             let maxWriteLength = min(self.writabilityManager.windowSpaceOnNetwork, Int(self.peerMaxMessageSize))
             let (actualWrite, excess) = write.0.trim(maxLength: maxWriteLength)
             write.0 = actualWrite
@@ -667,7 +674,8 @@ private extension SSHChildChannel {
     }
 }
 
-// MARK:- Inbound message handling.
+// MARK: - Inbound message handling.
+
 extension SSHChildChannel {
     /// Called when a frame is received from the network.
     ///
@@ -828,6 +836,7 @@ extension SSHChildChannel {
 }
 
 // MARK: Outbound message handling.
+
 extension SSHChildChannel {
     /// Called to send a message to the network.
     ///
@@ -966,6 +975,7 @@ extension SSHChildChannel {
 }
 
 // MARK: General messages from the multiplexer
+
 extension SSHChildChannel {
     func receiveParentChannelReadComplete() {
         self.tryToRead()
@@ -996,8 +1006,8 @@ extension SSHChildChannel {
     }
 }
 
-
 // MARK: Activation state management
+
 extension SSHChildChannel {
     /// An enum to keep track of whether we've notified the channel of activation or not.
     private enum ActivationState {
@@ -1042,6 +1052,7 @@ extension SSHChildChannel {
 }
 
 // MARK: Outbound control event buffering
+
 extension SSHChildChannel {
     /// A representation of the potential buffered outbound channel operations.
     ///
@@ -1090,7 +1101,6 @@ extension SSHChildChannel {
         }
     }
 }
-
 
 extension SSHChildChannel {
     fileprivate enum PendingContent {

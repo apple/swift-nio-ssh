@@ -14,7 +14,6 @@
 
 import NIO
 
-
 /// A `NIOSSHClientUserAuthenticationDelegate` is an object that can provide a sequence of
 /// SSH user authentication methods based on the the acceptable list from the server.
 ///
@@ -27,4 +26,3 @@ import NIO
 public protocol NIOSSHClientUserAuthenticationDelegate {
     func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>)
 }
-

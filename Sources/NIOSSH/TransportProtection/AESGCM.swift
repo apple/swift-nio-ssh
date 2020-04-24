@@ -12,11 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
 import Crypto
-import NIOFoundationCompat
 import Foundation
-
+import NIO
+import NIOFoundationCompat
 
 /// A base class for the AES GCM transport protection implementations.
 ///
@@ -42,9 +41,9 @@ internal class AESGCMTransportProtection {
     }
 
     required init(initialKeys: NIOSSHSessionKeys) throws {
-        guard initialKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 &&
-              initialKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
-                throw NIOSSHError.invalidKeySize
+        guard initialKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8,
+            initialKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
+            throw NIOSSHError.invalidKeySize
         }
 
         self.outboundEncryptionKey = initialKeys.outboundEncryptionKey
@@ -54,20 +53,19 @@ internal class AESGCMTransportProtection {
     }
 }
 
-
 extension AESGCMTransportProtection: NIOSSHTransportProtection {
     static var cipherBlockSize: Int {
-        return 16
+        16
     }
 
     var macBytes: Int {
-        return 16
+        16
     }
 
     func updateKeys(_ newKeys: NIOSSHSessionKeys) throws {
-        guard newKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 &&
-              newKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
-                throw NIOSSHError.invalidKeySize
+        guard newKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8,
+            newKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
+            throw NIOSSHError.invalidKeySize
         }
 
         self.outboundEncryptionKey = newKeys.outboundEncryptionKey
@@ -76,10 +74,9 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         self.inboundNonce = try SSHAESGCMNonce(keyExchangeResult: newKeys.initialInboundIV)
     }
 
-    func decryptFirstBlock(_ source: inout ByteBuffer) throws {
+    func decryptFirstBlock(_: inout ByteBuffer) throws {
         // For us, decrypting the first block is very easy: do nothing. The length bytes are already
         // unencrypted!
-        return
     }
 
     func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws -> ByteBuffer {
@@ -92,9 +89,9 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
             guard let lengthView = source.readSlice(length: 4)?.readableBytesView,
                 let ciphertextView = source.readSlice(length: source.readableBytes - 16)?.readableBytesView,
                 let tagView = source.readSlice(length: 16)?.readableBytesView,
-                ciphertextView.count > 0 && ciphertextView.count % Self.cipherBlockSize == 0 else {
-                    // The only way this fails is if the payload doesn't match this encryption scheme.
-                    throw NIOSSHError.invalidEncryptedPacketLength
+                ciphertextView.count > 0, ciphertextView.count % Self.cipherBlockSize == 0 else {
+                // The only way this fails is if the payload doesn't match this encryption scheme.
+                throw NIOSSHError.invalidEncryptedPacketLength
             }
 
             // Ok, let's try to decrypt this data.
@@ -102,7 +99,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
             plaintext = try AES.GCM.open(sealedBox, using: self.inboundEncryptionKey, authenticating: lengthView)
 
             // All good! A quick sanity check to verify that the length of the plaintext is ok.
-            guard plaintext.count % Self.cipherBlockSize == 0 && plaintext.count == ciphertextView.count else {
+            guard plaintext.count % Self.cipherBlockSize == 0, plaintext.count == ciphertextView.count else {
                 throw NIOSSHError.invalidDecryptedPlaintextLength
             }
         }
@@ -189,19 +186,18 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
 ///
 /// This algorithm does not encrypt the length field, instead encoding it as associated data.
 final class AES128GCMOpenSSHTransportProtection: AESGCMTransportProtection {
-    static override var cipherName: String {
-        return "aes128-gcm@openssh.com"
+    override static var cipherName: String {
+        "aes128-gcm@openssh.com"
     }
 
-    static override var macName: String? {
-        return nil
+    override static var macName: String? {
+        nil
     }
 
-    static override var keySizes: ExpectedKeySizes {
-        return .init(ivSize: 12, encryptionKeySize: 16, macKeySize: 16)
+    override static var keySizes: ExpectedKeySizes {
+        .init(ivSize: 12, encryptionKeySize: 16, macKeySize: 16)
     }
 }
-
 
 /// An implementation of AES256 GCM in OpenSSH mode.
 ///
@@ -210,21 +206,20 @@ final class AES128GCMOpenSSHTransportProtection: AESGCMTransportProtection {
 ///
 /// This algorithm does not encrypt the length field, instead encoding it as associated data.
 final class AES256GCMOpenSSHTransportProtection: AESGCMTransportProtection {
-    static override var cipherName: String {
-        return "aes256-gcm@openssh.com"
+    override static var cipherName: String {
+        "aes256-gcm@openssh.com"
     }
 
-    static override var macName: String? {
-        return nil
+    override static var macName: String? {
+        nil
     }
 
-    static override var keySizes: ExpectedKeySizes {
-        return .init(ivSize: 12, encryptionKeySize: 32, macKeySize: 16)
+    override static var keySizes: ExpectedKeySizes {
+        .init(ivSize: 12, encryptionKeySize: 32, macKeySize: 16)
     }
 }
 
-
-// MARK:- SSHAESGCMNonce
+// MARK: - SSHAESGCMNonce
 
 /// A representation of the AES GCM Nonce as a weird hybrid integer for SSH.
 ///
@@ -266,7 +261,6 @@ struct SSHAESGCMNonce {
     }
 }
 
-
 extension SSHAESGCMNonce {
     mutating func increment() {
         // Here we implement the following requirement from RFC 5647:
@@ -286,8 +280,8 @@ extension SSHAESGCMNonce {
     }
 }
 
-
 // MARK: RandomAccessCollection conformace
+
 extension SSHAESGCMNonce: RandomAccessCollection {
     struct Index: Strideable, Comparable, Hashable {
         fileprivate var offset: Int
@@ -297,58 +291,57 @@ extension SSHAESGCMNonce: RandomAccessCollection {
         }
 
         func advanced(by n: Int) -> SSHAESGCMNonce.Index {
-            return Index(fromOffset: offset + n)
+            Index(fromOffset: self.offset + n)
         }
 
         func distance(to other: SSHAESGCMNonce.Index) -> Int {
-            return other.offset - self.offset
+            other.offset - self.offset
         }
 
-        static func <(lhs: SSHAESGCMNonce.Index, rhs: SSHAESGCMNonce.Index) -> Bool {
-            return lhs.offset < rhs.offset
+        static func < (lhs: SSHAESGCMNonce.Index, rhs: SSHAESGCMNonce.Index) -> Bool {
+            lhs.offset < rhs.offset
         }
     }
 
     var startIndex: SSHAESGCMNonce.Index {
-        return Index(fromOffset: 4)
+        Index(fromOffset: 4)
     }
 
     var endIndex: SSHAESGCMNonce.Index {
-        return Index(fromOffset: 16)
+        Index(fromOffset: 16)
     }
 
     subscript(position: SSHAESGCMNonce.Index) -> UInt8 {
         precondition(position.offset >= 4 && position.offset < MemoryLayout.size(ofValue: self.baseNonceRepresentation), "Invalid index!")
 
         return Swift.withUnsafeBytes(of: self.baseNonceRepresentation) { reprPointer in
-            return reprPointer[position.offset]
+            reprPointer[position.offset]
         }
     }
 
     func index(after i: SSHAESGCMNonce.Index) -> SSHAESGCMNonce.Index {
-        return Index(fromOffset: i.offset + 1)
+        Index(fromOffset: i.offset + 1)
     }
 }
 
-
 // MARK: ContiguousBytes conformance
+
 extension SSHAESGCMNonce: ContiguousBytes {
     func withUnsafeBytes<R>(_ body: (UnsafeRawBufferPointer) throws -> R) rethrows -> R {
-        return try Swift.withUnsafeBytes(of: self.baseNonceRepresentation) { reprPointer in
+        try Swift.withUnsafeBytes(of: self.baseNonceRepresentation) { reprPointer in
             let reprPointer = UnsafeRawBufferPointer(rebasing: reprPointer[4...])
             return try body(reprPointer)
         }
     }
 }
 
-
 // MARK: DataProtocol conformance
+
 extension SSHAESGCMNonce: DataProtocol {
     var regions: CollectionOfOne<SSHAESGCMNonce> {
-        return .init(self)
+        .init(self)
     }
 }
-
 
 extension ByteBuffer {
     /// Prepends the given Data to this ByteBuffer.
@@ -359,7 +352,6 @@ extension ByteBuffer {
         self.setBytes(data, at: self.readerIndex)
     }
 }
-
 
 extension Data {
     /// Removes the padding bytes from a Data object.
@@ -375,6 +367,6 @@ extension Data {
             throw NIOSSHError.excessPadding
         }
 
-        self = self[contentStartIndex..<contentEndIndex]
+        self = self[contentStartIndex ..< contentEndIndex]
     }
 }

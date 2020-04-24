@@ -12,7 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 extension SSHConnectionStateMachine {
     /// The state of a state machine that hasn't done any work yet.
     struct IdleState {

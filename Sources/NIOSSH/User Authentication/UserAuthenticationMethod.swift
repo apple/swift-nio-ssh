@@ -13,7 +13,6 @@
 //===----------------------------------------------------------------------===//
 import NIO
 
-
 /// The user authentication modes available at this point in time.
 public struct NIOSSHAvailableUserAuthenticationMethods: OptionSet {
     public var rawValue: UInt8
@@ -28,7 +27,6 @@ public struct NIOSSHAvailableUserAuthenticationMethods: OptionSet {
 
     public static let all: NIOSSHAvailableUserAuthenticationMethods = [.publicKey, .password, .hostBased]
 }
-
 
 extension NIOSSHAvailableUserAuthenticationMethods {
     internal init(_ message: SSHMessage.UserAuthFailureMessage) {
@@ -55,7 +53,7 @@ extension NIOSSHAvailableUserAuthenticationMethods {
         }
 
         // We need an array.
-        var methods = Array<Substring>()
+        var methods = [Substring]()
         methods.reserveCapacity(3)
 
         if self.contains(.password) {
@@ -72,9 +70,7 @@ extension NIOSSHAvailableUserAuthenticationMethods {
     }
 }
 
-
-extension NIOSSHAvailableUserAuthenticationMethods: Hashable { }
-
+extension NIOSSHAvailableUserAuthenticationMethods: Hashable {}
 
 /// A specific request for user authentication. This type is the one observed from the server side. The
 /// associated client side type is `NIOSSHUserAuthenticationOffer`.
@@ -89,7 +85,6 @@ public struct NIOSSHUserAuthenticationRequest {
     }
 }
 
-
 extension NIOSSHUserAuthenticationRequest {
     public enum Request {
         case publicKey(PublicKey)
@@ -98,8 +93,6 @@ extension NIOSSHUserAuthenticationRequest {
         case none
     }
 }
-
-
 
 extension NIOSSHUserAuthenticationRequest.Request {
     public struct PublicKey {
@@ -125,17 +118,15 @@ extension NIOSSHUserAuthenticationRequest.Request {
     }
 }
 
+extension NIOSSHUserAuthenticationRequest: Hashable {}
 
-extension NIOSSHUserAuthenticationRequest: Hashable { }
+extension NIOSSHUserAuthenticationRequest.Request: Hashable {}
 
-extension NIOSSHUserAuthenticationRequest.Request: Hashable { }
+extension NIOSSHUserAuthenticationRequest.Request.PublicKey: Hashable {}
 
-extension NIOSSHUserAuthenticationRequest.Request.PublicKey: Hashable { }
+extension NIOSSHUserAuthenticationRequest.Request.Password: Hashable {}
 
-extension NIOSSHUserAuthenticationRequest.Request.Password: Hashable { }
-
-extension NIOSSHUserAuthenticationRequest.Request.HostBased: Hashable { }
-
+extension NIOSSHUserAuthenticationRequest.Request.HostBased: Hashable {}
 
 /// A specific offer of user authentication. This type is the one used on the client side. The
 /// associated server side type is `NIOSSHUserAuthenticationRequest`.
@@ -150,7 +141,6 @@ public struct NIOSSHUserAuthenticationOffer {
     }
 }
 
-
 extension NIOSSHUserAuthenticationOffer {
     public enum Offer {
         case privateKey(PrivateKey)
@@ -159,8 +149,6 @@ extension NIOSSHUserAuthenticationOffer {
         case none
     }
 }
-
-
 
 extension NIOSSHUserAuthenticationOffer.Offer {
     public struct PrivateKey {
@@ -185,7 +173,6 @@ extension NIOSSHUserAuthenticationOffer.Offer {
         }
     }
 }
-
 
 extension SSHMessage.UserAuthRequestMessage {
     init(request: NIOSSHUserAuthenticationOffer, sessionID: ByteBuffer) throws {
@@ -213,7 +200,6 @@ extension SSHMessage.UserAuthRequestMessage {
     }
 }
 
-
 /// The outcome of a user authentication attempt.
 public enum NIOSSHUserAuthenticationOutcome {
     case success
@@ -221,13 +207,11 @@ public enum NIOSSHUserAuthenticationOutcome {
     case failure
 }
 
-
 enum NIOSSHUserAuthenticationResponseMessage {
     case success
     case failure(SSHMessage.UserAuthFailureMessage)
     case publicKeyOK(SSHMessage.UserAuthPKOKMessage)
 }
-
 
 extension NIOSSHUserAuthenticationResponseMessage {
     init(_ outcome: NIOSSHUserAuthenticationOutcome, supportedMethods: NIOSSHAvailableUserAuthenticationMethods) {

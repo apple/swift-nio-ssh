@@ -14,7 +14,6 @@
 
 import NIO
 
-
 /// An SSH payload that can be encrypted.
 ///
 /// This type exists to be used by `NIOSSHTransportProtection` implementations.
@@ -30,10 +29,9 @@ public struct NIOSSHEncryptablePayload {
     }
 }
 
-
 extension ByteBuffer {
     /// Write an encryptable payload to this `ByteBuffer`.
     public mutating func writeEncryptablePayload(_ payload: NIOSSHEncryptablePayload) -> Int {
-        return self.writeSSHMessage(payload.message)
+        self.writeSSHMessage(payload.message)
     }
 }

@@ -124,7 +124,7 @@ struct SSHKeyExchangeStateMachine {
                 let exchanger = self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
                 // Ok, we need to send the key exchange message.
-                let message = SSHMessage.keyExchangeInit(exchanger.initiateKeyExchangeClientSide(allocator: allocator))
+                let message = SSHMessage.keyExchangeInit(exchanger.initiateKeyExchangeClientSide(allocator: self.allocator))
                 self.state = .awaitingKeyExchangeInit(exchange: exchanger, negotiated: negotiated)
                 return SSHMultiMessage(message)
             case .server:
@@ -176,12 +176,13 @@ struct SSHKeyExchangeStateMachine {
                     clientKeyExchangeMessage: message,
                     serverHostKey: negotiated.negotiatedHostKey(configuration.hostKeys),
                     initialExchangeBytes: &self.initialExchangeBytes,
-                    allocator: self.allocator, expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes)
+                    allocator: self.allocator, expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes
+                )
 
                 let message = SSHMessage.keyExchangeReply(reply)
                 self.state = .keyExchangeInitReceived(result: result, negotiated: negotiated)
                 return SSHMultiMessage(message, .newKeys)
-        }
+            }
         case .idle, .keyExchangeSent, .keyExchangeInitReceived, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             throw SSHKeyExchangeError.unexpectedMessage
         }
@@ -206,8 +207,9 @@ struct SSHKeyExchangeStateMachine {
                 let result = try exchanger.receiveServerKeyExchangePayload(
                     serverKeyExchangeMessage: message,
                     initialExchangeBytes: &self.initialExchangeBytes,
-                    allocator: allocator,
-                    expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes)
+                    allocator: self.allocator,
+                    expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes
+                )
 
                 self.state = .keysExchanged(result: result, protection: try AES256GCMOpenSSHTransportProtection(initialKeys: result.keys), negotiated: negotiated)
                 return SSHMultiMessage(SSHMessage.newKeys)
@@ -338,9 +340,9 @@ struct SSHKeyExchangeStateMachine {
 
     private func expectingIncorrectGuess(_ kexMessage: SSHMessage.KeyExchangeMessage) -> Bool {
         // A guess is wrong if the key exchange algorithm and/or the host key algorithm differ from our preference.
-        return kexMessage.firstKexPacketFollows && (
+        kexMessage.firstKexPacketFollows && (
             kexMessage.keyExchangeAlgorithms.first != Self.supportedKeyExchangeAlgorithms.first ||
-            kexMessage.serverHostKeyAlgorithms.first != self.supportedHostKeyAlgorithms.first
+                kexMessage.serverHostKeyAlgorithms.first != self.supportedHostKeyAlgorithms.first
         )
     }
 
@@ -354,7 +356,6 @@ struct SSHKeyExchangeStateMachine {
         }
     }
 }
-
 
 extension SSHKeyExchangeStateMachine {
     // For now this is a static list.
@@ -373,7 +374,7 @@ extension SSHKeyExchangeStateMachine {
         func negotiatedHostKey(_ keys: [NIOSSHPrivateKey]) -> NIOSSHPrivateKey {
             // This force-unwrap is safe: to fail to obtain it is a programming error, as we must have negotiated
             // the host key algorithm.
-            return keys.first { $0.hostKeyAlgorithms.contains(self.negotiatedHostKeyAlgorithm) }!
+            keys.first { $0.hostKeyAlgorithms.contains(self.negotiatedHostKeyAlgorithm) }!
         }
     }
 

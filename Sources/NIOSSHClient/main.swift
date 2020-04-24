@@ -45,7 +45,6 @@ let bootstrap = ClientBootstrap(group: group)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
 
-
 let channel = try bootstrap.connect(host: parseResult.host, port: parseResult.port).wait()
 
 // Let's try creating a child channel.

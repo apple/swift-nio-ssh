@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
 import Crypto
+import NIO
 
 /// An SSH public key.
 ///
@@ -31,7 +31,6 @@ public struct NIOSSHPublicKey: Hashable {
     }
 }
 
-
 extension NIOSSHPublicKey {
     /// Verifies that a given `SSHSignature` was created by the holder of the private key associated with this
     /// public key.
@@ -48,7 +47,7 @@ extension NIOSSHPublicKey {
             }
         case (.ecdsaP256(let key), .ecdsaP256(let sig)):
             return digest.withUnsafeBytes { digestPtr in
-                return key.isValidSignature(sig, for: digestPtr)
+                key.isValidSignature(sig, for: digestPtr)
             }
         case (.ed25519, .ecdsaP256), (.ecdsaP256, .ed25519):
             return false
@@ -68,7 +67,6 @@ extension NIOSSHPublicKey {
         }
     }
 }
-
 
 extension NIOSSHPublicKey {
     /// The various key types that can be used with NIOSSH.
@@ -93,13 +91,12 @@ extension NIOSSHPublicKey {
     }
 
     internal static var knownAlgorithms: [String.UTF8View] {
-        return [Self.ed25519PublicKeyPrefix, Self.ecdsaP256PublicKeyPrefix]
+        [Self.ed25519PublicKeyPrefix, Self.ecdsaP256PublicKeyPrefix]
     }
 }
 
-
 extension NIOSSHPublicKey.BackingKey: Equatable {
-    static func ==(lhs: NIOSSHPublicKey.BackingKey, rhs: NIOSSHPublicKey.BackingKey) -> Bool {
+    static func == (lhs: NIOSSHPublicKey.BackingKey, rhs: NIOSSHPublicKey.BackingKey) -> Bool {
         // We implement equatable in terms of the key representation.
         switch (lhs, rhs) {
         case (.ed25519(let lhs), .ed25519(let rhs)):
@@ -111,7 +108,6 @@ extension NIOSSHPublicKey.BackingKey: Equatable {
         }
     }
 }
-
 
 extension NIOSSHPublicKey.BackingKey: Hashable {
     func hash(into hasher: inout Hasher) {
@@ -126,7 +122,6 @@ extension NIOSSHPublicKey.BackingKey: Hashable {
     }
 }
 
-
 extension ByteBuffer {
     /// Writes an SSH host key to this `ByteBuffer`.
     @discardableResult
@@ -140,7 +135,7 @@ extension ByteBuffer {
     }
 
     mutating func readSSHHostKey() throws -> NIOSSHPublicKey? {
-        return try self.rewindOnNilOrError { buffer in
+        try self.rewindOnNilOrError { buffer in
             // The wire format always begins with an SSH string containing the key format identifier. Let's grab that.
             guard var keyIdentifierBytes = buffer.readSSHString() else {
                 return nil

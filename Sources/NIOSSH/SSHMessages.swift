@@ -196,7 +196,7 @@ extension SSHMessage {
 
         // https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-11
         enum ChannelType: String {
-            case session = "session"
+            case session
         }
 
         var type: ChannelType
@@ -275,8 +275,31 @@ extension SSHMessage {
         enum RequestType: Equatable {
             case env(String, String)
             case exec(String)
-            case exit(UInt32)
+            case exitStatus(UInt32)
+            case exitSignal(String, Bool, String, String)
+            case ptyReq(PtyReq)
+            case shell
+            case subsystem(String)
+            case windowChange(WindowChange)
+            case xonXoff(Bool)
+            case signal(String)
             case unknown
+        }
+
+        struct PtyReq: Equatable {
+            var termVariable: String
+            var characterWidth: UInt32
+            var rowHeight: UInt32
+            var pixelWidth: UInt32
+            var pixelHeight: UInt32
+            var terminalModes: SSHTerminalModes
+        }
+
+        struct WindowChange: Equatable {
+            var characterWidth: UInt32
+            var rowHeight: UInt32
+            var pixelWidth: UInt32
+            var pixelHeight: UInt32
         }
 
         var recipientChannel: UInt32
@@ -307,7 +330,7 @@ extension ByteBuffer {
     /// This function will consume as many bytes as the message should require. If it cannot read enough bytes,
     /// it will return nil.
     mutating func readSSHMessage() throws -> SSHMessage? {
-        return try self.rewindOnNilOrError { `self` in
+        try self.rewindOnNilOrError { `self` in
             guard let type = self.readInteger(as: UInt8.self) else {
                 return nil
             }
@@ -425,7 +448,7 @@ extension ByteBuffer {
                 }
                 return .channelClose(message)
             case SSHMessage.ChannelRequestMessage.id:
-                guard let message = self.readChannelRequestMessage() else {
+                guard let message = try self.readChannelRequestMessage() else {
                     return nil
                 }
                 return .channelRequest(message)
@@ -446,7 +469,7 @@ extension ByteBuffer {
     }
 
     mutating func readDisconnectMessage() -> SSHMessage.DisconnectMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let reason = self.readInteger(as: UInt32.self),
                 let description = self.readSSHStringAsString(),
@@ -460,7 +483,7 @@ extension ByteBuffer {
     }
 
     mutating func readIgnoreMessage() -> SSHMessage.IgnoreMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard let data = self.readSSHString() else {
                 return nil
             }
@@ -470,7 +493,7 @@ extension ByteBuffer {
     }
 
     mutating func readUnimplementedMessage() -> SSHMessage.UnimplementedMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard let sequenceNumber = self.readInteger(as: UInt32.self) else {
                 return nil
             }
@@ -480,7 +503,7 @@ extension ByteBuffer {
     }
 
     mutating func readServiceRequestMessage() -> SSHMessage.ServiceRequestMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard let service = self.readSSHStringAsString() else {
                 return nil
             }
@@ -489,7 +512,7 @@ extension ByteBuffer {
     }
 
     mutating func readServiceAcceptMessage() -> SSHMessage.ServiceAcceptMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard let service = self.readSSHStringAsString() else {
                 return nil
             }
@@ -498,7 +521,7 @@ extension ByteBuffer {
     }
 
     mutating func readKeyExchangeMessage() -> SSHMessage.KeyExchangeMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let cookie = self.readSlice(length: 16),
                 let keyExchangeAlgorithms = self.readAlgorithms(),
@@ -532,13 +555,12 @@ extension ByteBuffer {
                          compressionAlgorithmsServerToClient: compressionAlgorithmsServerToClient,
                          languagesClientToServer: languagesClientToServer,
                          languagesServerToClient: languagesServerToClient,
-                         firstKexPacketFollows: firstKexPacketFollows
-            )
+                         firstKexPacketFollows: firstKexPacketFollows)
         }
     }
 
     mutating func readKeyExchangeECDHInitMessage() -> SSHMessage.KeyExchangeECDHInitMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard let publicKey = self.readSSHString() else {
                 return nil
             }
@@ -547,7 +569,7 @@ extension ByteBuffer {
     }
 
     mutating func readKeyExchangeECDHReplyMessage() throws -> SSHMessage.KeyExchangeECDHReplyMessage? {
-        return try self.rewindOnNilOrError { `self` in
+        try self.rewindOnNilOrError { `self` in
             guard
                 var hostKeyBytes = self.readSSHString(),
                 let hostKey = try hostKeyBytes.readSSHHostKey(),
@@ -563,7 +585,7 @@ extension ByteBuffer {
     }
 
     mutating func readAlgorithms() -> [Substring]? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard let string = self.readSSHStringAsString() else {
                 return nil
             }
@@ -572,7 +594,7 @@ extension ByteBuffer {
     }
 
     mutating func readUserAuthRequestMessage() throws -> SSHMessage.UserAuthRequestMessage? {
-        return try self.rewindOnNilOrError { `self` in
+        try self.rewindOnNilOrError { `self` in
             guard
                 let username = self.readSSHStringAsString(),
                 let service = self.readSSHStringAsString(),
@@ -641,7 +663,7 @@ extension ByteBuffer {
     }
 
     mutating func readUserAuthFailureMessage() -> SSHMessage.UserAuthFailureMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let authentications = self.readAlgorithms(),
                 let partialSuccess = self.readSSHBoolean()
@@ -654,7 +676,7 @@ extension ByteBuffer {
     }
 
     mutating func readUserAuthPKOKMessage() throws -> SSHMessage.UserAuthPKOKMessage? {
-        return try self.rewindOnNilOrError { `self` in
+        try self.rewindOnNilOrError { `self` in
             guard
                 let publicKeyType = self.readSSHString(),
                 var publicKeyBytes = self.readSSHString()
@@ -680,7 +702,7 @@ extension ByteBuffer {
     }
 
     mutating func readGlobalRequestMessage() throws -> SSHMessage.GlobalRequestMessage? {
-        return try self.rewindOnNilOrError { `self` in
+        try self.rewindReaderOnNilOrError { `self` in
             guard
                 let name = self.readSSHStringAsString(),
                 let wantReply = self.readSSHBoolean()
@@ -725,7 +747,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelOpenMessage() -> SSHMessage.ChannelOpenMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let typeRawValue = self.readSSHStringAsString(),
                 let type = SSHMessage.ChannelOpenMessage.ChannelType(rawValue: typeRawValue),
@@ -741,7 +763,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelOpenConfirmationMessage() -> SSHMessage.ChannelOpenConfirmationMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let senderChannel: UInt32 = self.readInteger(),
@@ -756,7 +778,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelOpenFailureMessage() -> SSHMessage.ChannelOpenFailureMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let reasonCode: UInt32 = self.readInteger(),
@@ -771,7 +793,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelWindowAdjustMessage() -> SSHMessage.ChannelWindowAdjustMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let bytesToAdd: UInt32 = self.readInteger()
@@ -784,7 +806,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelDataMessage() -> SSHMessage.ChannelDataMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let data = self.readSSHString()
@@ -797,7 +819,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelExtendedDataMessage() -> SSHMessage.ChannelExtendedDataMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let codeRawValue: UInt32 = self.readInteger(),
@@ -812,7 +834,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelEOFMessage() -> SSHMessage.ChannelEOFMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger()
             else {
@@ -824,7 +846,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelCloseMessage() -> SSHMessage.ChannelCloseMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger()
             else {
@@ -835,8 +857,8 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readChannelRequestMessage() -> SSHMessage.ChannelRequestMessage? {
-        return self.rewindReaderOnNil { `self` in
+    mutating func readChannelRequestMessage() throws -> SSHMessage.ChannelRequestMessage? {
+        try self.rewindOnNilOrError { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let typeRawValue = self.readSSHStringAsString()
@@ -859,7 +881,7 @@ extension ByteBuffer {
                 guard let status: UInt32 = self.readInteger() else {
                     return nil
                 }
-                type = .exit(status)
+                type = .exitStatus(status)
             case "env":
                 guard
                     let name = self.readSSHStringAsString(),
@@ -869,6 +891,64 @@ extension ByteBuffer {
                 }
 
                 type = .env(name, value)
+            case "exit-signal":
+                guard
+                    let signalName = self.readSSHStringAsString(),
+                    let coreDumped = self.readSSHBoolean(),
+                    let errorMessage = self.readSSHStringAsString(),
+                    let language = self.readSSHStringAsString()
+                else {
+                    return nil
+                }
+
+                type = .exitSignal(signalName, coreDumped, errorMessage, language)
+            case "pty-req":
+                guard
+                    let termVariable = self.readSSHStringAsString(),
+                    let termWidth = self.readInteger(as: UInt32.self),
+                    let termHeight = self.readInteger(as: UInt32.self),
+                    let pixelWidth = self.readInteger(as: UInt32.self),
+                    let pixelHeight = self.readInteger(as: UInt32.self),
+                    var encodedTerminalModes = self.readSSHString()
+                else {
+                    return nil
+                }
+
+                type = .ptyReq(.init(termVariable: termVariable,
+                                     characterWidth: termWidth,
+                                     rowHeight: termHeight,
+                                     pixelWidth: pixelWidth,
+                                     pixelHeight: pixelHeight,
+                                     terminalModes: try encodedTerminalModes.readSSHTerminalModes()))
+            case "shell":
+                type = .shell
+            case "subsystem":
+                guard let name = self.readSSHStringAsString() else {
+                    return nil
+                }
+                type = .subsystem(name)
+            case "window-change":
+                guard
+                    let termWidth = self.readInteger(as: UInt32.self),
+                    let termHeight = self.readInteger(as: UInt32.self),
+                    let pixelWidth = self.readInteger(as: UInt32.self),
+                    let pixelHeight = self.readInteger(as: UInt32.self)
+                else {
+                    return nil
+                }
+
+                type = .windowChange(.init(characterWidth: termWidth, rowHeight: termHeight, pixelWidth: pixelWidth, pixelHeight: pixelHeight))
+            case "xon-xoff":
+                guard let clientCanDo = self.readSSHBoolean() else {
+                    return nil
+                }
+                type = .xonXoff(clientCanDo)
+
+            case "signal":
+                guard let signalName = self.readSSHStringAsString() else {
+                    return nil
+                }
+                type = .signal(signalName)
             default:
                 type = .unknown
             }
@@ -878,7 +958,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelSuccessMessage() -> SSHMessage.ChannelSuccessMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger()
             else {
@@ -890,7 +970,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelFailureMessage() -> SSHMessage.ChannelFailureMessage? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger()
             else {
@@ -902,7 +982,7 @@ extension ByteBuffer {
     }
 
     private mutating func readSSHStringAsString() -> String? {
-        return self.rewindReaderOnNil { `self` in
+        self.rewindReaderOnNil { `self` in
             guard var bytes = self.readSSHString() else {
                 return nil
             }
@@ -1017,15 +1097,15 @@ extension ByteBuffer {
     }
 
     mutating func writeUnimplementedMessage(_ message: SSHMessage.UnimplementedMessage) -> Int {
-        return self.writeInteger(message.sequenceNumber)
+        self.writeInteger(message.sequenceNumber)
     }
 
     mutating func writeServiceRequestMessage(_ message: SSHMessage.ServiceRequestMessage) -> Int {
-        return self.writeSSHString(message.service.utf8)
+        self.writeSSHString(message.service.utf8)
     }
 
     mutating func writeServiceAcceptMessage(_ message: SSHMessage.ServiceAcceptMessage) -> Int {
-        return self.writeSSHString(message.service.utf8)
+        self.writeSSHString(message.service.utf8)
     }
 
     mutating func writeKeyExchangeMessage(_ message: SSHMessage.KeyExchangeMessage) -> Int {
@@ -1067,7 +1147,7 @@ extension ByteBuffer {
     }
 
     mutating func writeAlgorithms(_ algorithms: [Substring]) -> Int {
-        return self.writeSSHString(algorithms.joined(separator: ",").utf8)
+        self.writeSSHString(algorithms.joined(separator: ",").utf8)
     }
 
     mutating func writeUserAuthRequestMessage(_ message: SSHMessage.UserAuthRequestMessage) -> Int {
@@ -1234,8 +1314,22 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHString("env".utf8)
         case .exec:
             writtenBytes += self.writeSSHString("exec".utf8)
-        case .exit:
+        case .exitStatus:
             writtenBytes += self.writeSSHString("exit-status".utf8)
+        case .exitSignal:
+            writtenBytes += self.writeSSHString("exit-signal".utf8)
+        case .ptyReq:
+            writtenBytes += self.writeSSHString("pty-req".utf8)
+        case .shell:
+            writtenBytes += self.writeSSHString("shell".utf8)
+        case .subsystem:
+            writtenBytes += self.writeSSHString("subsystem".utf8)
+        case .windowChange:
+            writtenBytes += self.writeSSHString("window-change".utf8)
+        case .xonXoff:
+            writtenBytes += self.writeSSHString("xon-xoff".utf8)
+        case .signal:
+            writtenBytes += self.writeSSHString("signal".utf8)
         case .unknown:
             preconditionFailure()
         }
@@ -1248,8 +1342,33 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHString(value.utf8)
         case .exec(let command):
             writtenBytes += self.writeSSHString(command.utf8)
-        case .exit(let status):
+        case .exitStatus(let status):
             writtenBytes += self.writeInteger(status)
+        case .exitSignal(let name, let coreDumped, let errorMessage, let language):
+            writtenBytes += self.writeSSHString(name.utf8)
+            writtenBytes += self.writeSSHBoolean(coreDumped)
+            writtenBytes += self.writeSSHString(errorMessage.utf8)
+            writtenBytes += self.writeSSHString(language.utf8)
+        case .ptyReq(let message):
+            writtenBytes += self.writeSSHString(message.termVariable.utf8)
+            writtenBytes += self.writeInteger(message.characterWidth)
+            writtenBytes += self.writeInteger(message.rowHeight)
+            writtenBytes += self.writeInteger(message.pixelWidth)
+            writtenBytes += self.writeInteger(message.pixelHeight)
+            writtenBytes += self.writeCompositeSSHString { $0.writeSSHTerminalModes(message.terminalModes) }
+        case .shell:
+            break
+        case .subsystem(let name):
+            writtenBytes += self.writeSSHString(name.utf8)
+        case .windowChange(let message):
+            writtenBytes += self.writeInteger(message.characterWidth)
+            writtenBytes += self.writeInteger(message.rowHeight)
+            writtenBytes += self.writeInteger(message.pixelWidth)
+            writtenBytes += self.writeInteger(message.pixelHeight)
+        case .xonXoff(let clientCanDo):
+            writtenBytes += self.writeSSHBoolean(clientCanDo)
+        case .signal(let name):
+            writtenBytes += self.writeSSHString(name.utf8)
         case .unknown:
             preconditionFailure()
         }
@@ -1270,8 +1389,7 @@ extension ByteBuffer {
     }
 }
 
-
-// MARK:- MultiMessage
+// MARK: - MultiMessage
 
 /// `SSHMultiMessage` is a representation of one or more SSH messages. This wide struct is used
 /// to avoid allocating arrays internally in cases where we may need to represent multiple messages
@@ -1314,19 +1432,19 @@ extension SSHMultiMessage: RandomAccessCollection {
     }
 
     var startIndex: Index {
-        return Index(0)
+        Index(0)
     }
 
     var endIndex: Index {
-        return Index(self._count)
+        Index(self._count)
     }
 
     var count: Int {
-        return Int(self._count)
+        Int(self._count)
     }
 
     var first: SSHMessage? {
-        return self._first
+        self._first
     }
 
     subscript(position: Index) -> SSHMessage {
@@ -1341,23 +1459,23 @@ extension SSHMultiMessage: RandomAccessCollection {
     }
 }
 
-extension SSHMultiMessage.Index: Equatable { }
+extension SSHMultiMessage.Index: Equatable {}
 
 extension SSHMultiMessage.Index: Comparable {
-    static func <(lhs: Self, rhs: Self) -> Bool {
-        return lhs._baseIndex < rhs._baseIndex
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        lhs._baseIndex < rhs._baseIndex
     }
 }
 
 // We use Int as a stride type here just because it's easier.
 extension SSHMultiMessage.Index: Strideable {
     func advanced(by n: Int) -> SSHMultiMessage.Index {
-        return Self(UInt8(Int(self._baseIndex) + n))
+        Self(UInt8(Int(self._baseIndex) + n))
     }
 
     func distance(to other: SSHMultiMessage.Index) -> Int {
-        return Int(other._baseIndex - self._baseIndex)
+        Int(other._baseIndex - self._baseIndex)
     }
 }
 
-extension SSHMultiMessage: Equatable { }
+extension SSHMultiMessage: Equatable {}

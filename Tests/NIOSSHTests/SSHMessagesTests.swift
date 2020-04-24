@@ -108,7 +108,7 @@ final class SSHMessagesTests: XCTestCase {
     func testKeyExchangeMessage() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
         let message = SSHMessage.keyExchange(.init(
-            cookie: ByteBuffer.of(bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,]),
+            cookie: ByteBuffer.of(bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
             keyExchangeAlgorithms: [Substring("keyExchange1"), Substring("keyExchange2")],
             serverHostKeyAlgorithms: [Substring("serverHostKeyAlgorithms1"), Substring("serverHostKeyAlgorithms2")],
             encryptionAlgorithmsClientToServer: [Substring("encryptionAlgorithmsClientToServer1"), Substring("encryptionAlgorithmsClientToServer2")],
@@ -119,7 +119,8 @@ final class SSHMessagesTests: XCTestCase {
             compressionAlgorithmsServerToClient: [Substring("compressionAlgorithmsServerToClient1"), Substring("compressionAlgorithmsServerToClient2")],
             languagesClientToServer: [Substring("languagesClientToServer1"), Substring("languagesClientToServer2")],
             languagesServerToClient: [Substring("languagesServerToClient1"), Substring("languagesServerToClient2")],
-            firstKexPacketFollows: false))
+            firstKexPacketFollows: false
+        ))
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
@@ -213,23 +214,23 @@ final class SSHMessagesTests: XCTestCase {
     func testUserAuthRequestWithMismatchedKeyAndAlgorithm() throws {
         // This is a SSHMessage.userAuthRequest that has been tweaked to have an ed25519 key claiming to be a P256 key.
         let message: [UInt8] = [
-            50,  // Type: user auth request
-            0, 0, 0, 4,  // SSH String: 4 bytes
-                116, 101, 115, 116,  // username "test"
-            0, 0, 0, 14,  // SSH string: 14 bytes
-                115, 115, 104, 45, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110,  // Service name: "ssh-connection"
-            0, 0, 0, 9,  // SSH string: 9 bytes
-                112, 117, 98, 108, 105, 99, 107, 101, 121,  // Authorization type: "publickey"
-            0,  // SSH Bool: signature follows = false
-            0, 0, 0, 19,  // SSH String: 19 bytes
-                101, 99, 100, 115, 97, 45, 115, 104, 97, 50, 45, 110, 105, 115, 116, 112, 50, 53, 54,  // public key type: "ecdsa-sha2-nistp256"
-            0, 0, 0, 51,  // SSH String: 51 bytes
-                0, 0, 0, 11,  // SSH string: 11 bytes
-                    115, 115, 104, 45, 101, 100, 50, 53, 53, 49, 57,  // Key type: "ssh-ed25519"
-                0, 0, 0, 32,  // SSH string: 32 bytes
-                    118, 208, 190, 118, 231, 217, 30, 99, 140, 250, 52,  // raw key bytes
-                    55, 241, 233, 78, 43, 19, 110, 34, 206, 254, 170,
-                    38, 226, 210, 30, 134, 86, 144, 252, 193, 188
+            50, // Type: user auth request
+            0, 0, 0, 4, // SSH String: 4 bytes
+            116, 101, 115, 116, // username "test"
+            0, 0, 0, 14, // SSH string: 14 bytes
+            115, 115, 104, 45, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110, // Service name: "ssh-connection"
+            0, 0, 0, 9, // SSH string: 9 bytes
+            112, 117, 98, 108, 105, 99, 107, 101, 121, // Authorization type: "publickey"
+            0, // SSH Bool: signature follows = false
+            0, 0, 0, 19, // SSH String: 19 bytes
+            101, 99, 100, 115, 97, 45, 115, 104, 97, 50, 45, 110, 105, 115, 116, 112, 50, 53, 54, // public key type: "ecdsa-sha2-nistp256"
+            0, 0, 0, 51, // SSH String: 51 bytes
+            0, 0, 0, 11, // SSH string: 11 bytes
+            115, 115, 104, 45, 101, 100, 50, 53, 53, 49, 57, // Key type: "ssh-ed25519"
+            0, 0, 0, 32, // SSH string: 32 bytes
+            118, 208, 190, 118, 231, 217, 30, 99, 140, 250, 52, // raw key bytes
+            55, 241, 233, 78, 43, 19, 110, 34, 206, 254, 170,
+            38, 226, 210, 30, 134, 86, 144, 252, 193, 188,
         ]
 
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
@@ -243,23 +244,23 @@ final class SSHMessagesTests: XCTestCase {
     func testUserAuthRequestToleratesUnsupportedPublicKeyAlgorithms() throws {
         // This test ensures that userAuthRequest will tolerate an unsupported public key algorithm.
         let message: [UInt8] = [
-            50,  // Type: user auth request
-            0, 0, 0, 4,  // SSH String: 4 bytes
-                116, 101, 115, 116,  // username "test"
-            0, 0, 0, 14,  // SSH string: 14 bytes
-                115, 115, 104, 45, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110,  // Service name: "ssh-connection"
-            0, 0, 0, 9,  // SSH string: 9 bytes
-                112, 117, 98, 108, 105, 99, 107, 101, 121,  // Authorization type: "publickey"
-            1,  // SSH Bool: signature follows = true
-            0, 0, 0, 14,  // SSH String: 14 bytes
-                110, 111, 116, 45, 97, 45, 114, 101, 97, 108, 45, 107, 101, 121,  // public key type: "not-a-real-key"
-            0, 0, 0, 50,  // SSH String: 50 bytes
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,  // gibberish bytes: we shouldn't be parsing them. This is the "key"
-                19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-                36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
-            0, 0, 0, 30,  // SSH string: 30 bytes
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,  // gibberish bytes: this is a "signature"
-                19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29
+            50, // Type: user auth request
+            0, 0, 0, 4, // SSH String: 4 bytes
+            116, 101, 115, 116, // username "test"
+            0, 0, 0, 14, // SSH string: 14 bytes
+            115, 115, 104, 45, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110, // Service name: "ssh-connection"
+            0, 0, 0, 9, // SSH string: 9 bytes
+            112, 117, 98, 108, 105, 99, 107, 101, 121, // Authorization type: "publickey"
+            1, // SSH Bool: signature follows = true
+            0, 0, 0, 14, // SSH String: 14 bytes
+            110, 111, 116, 45, 97, 45, 114, 101, 97, 108, 45, 107, 101, 121, // public key type: "not-a-real-key"
+            0, 0, 0, 50, // SSH String: 50 bytes
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, // gibberish bytes: we shouldn't be parsing them. This is the "key"
+            19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+            36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+            0, 0, 0, 30, // SSH string: 30 bytes
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, // gibberish bytes: this is a "signature"
+            19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
         ]
 
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
@@ -272,20 +273,20 @@ final class SSHMessagesTests: XCTestCase {
     func testUserAuthRequestToleratesUnsupportedPublicKeyAlgorithmsWithoutSignatures() throws {
         // This test ensures that userAuthRequest will tolerate an unsupported public key algorithm without a singature.
         let message: [UInt8] = [
-            50,  // Type: user auth request
-            0, 0, 0, 4,  // SSH String: 4 bytes
-                116, 101, 115, 116,  // username "test"
-            0, 0, 0, 14,  // SSH string: 14 bytes
-                115, 115, 104, 45, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110,  // Service name: "ssh-connection"
-            0, 0, 0, 9,  // SSH string: 9 bytes
-                112, 117, 98, 108, 105, 99, 107, 101, 121,  // Authorization type: "publickey"
-            0,  // SSH Bool: signature follows = false
-            0, 0, 0, 14,  // SSH String: 14 bytes
-                110, 111, 116, 45, 97, 45, 114, 101, 97, 108, 45, 107, 101, 121,  // public key type: "not-a-real-key"
-            0, 0, 0, 50,  // SSH String: 50 bytes
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,  // gibberish bytes: we shouldn't be parsing them. This is the "key"
-                19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-                36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+            50, // Type: user auth request
+            0, 0, 0, 4, // SSH String: 4 bytes
+            116, 101, 115, 116, // username "test"
+            0, 0, 0, 14, // SSH string: 14 bytes
+            115, 115, 104, 45, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110, // Service name: "ssh-connection"
+            0, 0, 0, 9, // SSH string: 9 bytes
+            112, 117, 98, 108, 105, 99, 107, 101, 121, // Authorization type: "publickey"
+            0, // SSH Bool: signature follows = false
+            0, 0, 0, 14, // SSH String: 14 bytes
+            110, 111, 116, 45, 97, 45, 114, 101, 97, 108, 45, 107, 101, 121, // public key type: "not-a-real-key"
+            0, 0, 0, 50, // SSH String: 50 bytes
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, // gibberish bytes: we shouldn't be parsing them. This is the "key"
+            19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+            36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
         ]
 
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
@@ -309,16 +310,16 @@ final class SSHMessagesTests: XCTestCase {
     func testUserAuthPKOKWithMismatchedKeyAndAlgorithm() throws {
         // This is a SSHMessage.userAuthPKOK that has been tweaked to have an ed25519 key claiming to be a P256 key.
         let message: [UInt8] = [
-            60,  // Type: user auth PK OK
-            0, 0, 0, 19,  // SSH String: 19 bytes
-                101, 99, 100, 115, 97, 45, 115, 104, 97, 50, 45, 110, 105, 115, 116, 112, 50, 53, 54,  // public key type: "ecdsa-sha2-nistp256"
-            0, 0, 0, 51,  // SSH String: 51 bytes
-                0, 0, 0, 11,  // SSH String: 11 bytes
-                    115, 115, 104, 45, 101, 100, 50, 53, 53, 49, 57,  // key type: "ssh-ed25519"
-                0, 0, 0, 32,  // SSH String: 32 bytes
-                    199, 71, 224, 105, 163, 32, 57, 80, 25, 213, 160, 24, 221, 96,  // raw key bytes
-                    104, 162, 186, 156, 99, 159, 50, 153, 116, 91, 129, 87, 130,
-                    137, 185, 251, 199, 249
+            60, // Type: user auth PK OK
+            0, 0, 0, 19, // SSH String: 19 bytes
+            101, 99, 100, 115, 97, 45, 115, 104, 97, 50, 45, 110, 105, 115, 116, 112, 50, 53, 54, // public key type: "ecdsa-sha2-nistp256"
+            0, 0, 0, 51, // SSH String: 51 bytes
+            0, 0, 0, 11, // SSH String: 11 bytes
+            115, 115, 104, 45, 101, 100, 50, 53, 53, 49, 57, // key type: "ssh-ed25519"
+            0, 0, 0, 32, // SSH String: 32 bytes
+            199, 71, 224, 105, 163, 32, 57, 80, 25, 213, 160, 24, 221, 96, // raw key bytes
+            104, 162, 186, 156, 99, 159, 50, 153, 116, 91, 129, 87, 130,
+            137, 185, 251, 199, 249,
         ]
 
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
@@ -334,13 +335,13 @@ final class SSHMessagesTests: XCTestCase {
         // We don't tolerate these: they can only be sent to us if we sent a message out for this kind of key,
         // and naturally we never try to use keys we don't understand.
         let message: [UInt8] = [
-            60,  // Type: user auth PK OK
-            0, 0, 0, 14,  // SSH String: 14 bytes
-                110, 111, 116, 45, 97, 45, 114, 101, 97, 108, 45, 107, 101, 121,  // public key type: "not-a-real-key"
-            0, 0, 0, 50,  // SSH String: 50 bytes
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,  // gibberish bytes: we shouldn't be parsing them. This is the "key"
-                19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-                36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+            60, // Type: user auth PK OK
+            0, 0, 0, 14, // SSH String: 14 bytes
+            110, 111, 116, 45, 97, 45, 114, 101, 97, 108, 45, 107, 101, 121, // public key type: "not-a-real-key"
+            0, 0, 0, 50, // SSH String: 50 bytes
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, // gibberish bytes: we shouldn't be parsing them. This is the "key"
+            19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+            36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
         ]
 
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
@@ -516,7 +517,7 @@ final class SSHMessagesTests: XCTestCase {
         XCTAssertEqual(try buffer.readSSHMessage(), message)
         try self.assertCorrectlyManagesPartialRead(message)
 
-        message = SSHMessage.channelRequest(.init(recipientChannel: 0, type: .exit(1), wantReply: true))
+        message = SSHMessage.channelRequest(.init(recipientChannel: 0, type: .exitStatus(1), wantReply: true))
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
         try self.assertCorrectlyManagesPartialRead(message)
@@ -563,14 +564,14 @@ final class SSHMessagesTests: XCTestCase {
     func testRequestSuccess() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
         var bucketOBytes = ByteBufferAllocator().buffer(capacity: 24)
-        bucketOBytes.writeBytes(0..<24)
+        bucketOBytes.writeBytes(0 ..< 24)
 
         let message = SSHMessage.requestSuccess(.init(bytes: bucketOBytes))
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
 
         buffer.clear()
-        buffer.writeBytes([SSHMessage.RequestSuccessMessage.id] + Array(0..<24))
+        buffer.writeBytes([SSHMessage.RequestSuccessMessage.id] + Array(0 ..< 24))
         XCTAssertEqual(try buffer.readSSHMessage(), message)
 
         // We don't use the partial read test here as it fails: this message is opaque

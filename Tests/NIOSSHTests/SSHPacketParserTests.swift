@@ -24,7 +24,7 @@ final class SSHPacketParserTests: XCTestCase {
         var version = ByteBuffer.of(string: "SSH-2.0-OpenSSH_7.9\r\n")
         parser.append(bytes: &version)
 
-        var packet: SSHMessage? = nil
+        var packet: SSHMessage?
         XCTAssertNoThrow(packet = try parser.nextPacket(), file: file, line: line)
 
         switch packet {

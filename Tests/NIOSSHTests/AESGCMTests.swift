@@ -12,21 +12,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-import XCTest
-import NIO
 import Crypto
+import NIO
 import NIOFoundationCompat
 @testable import NIOSSH
-
+import XCTest
 
 final class AESGCMTests: XCTestCase {
     private func generateKeys(keySize: SymmetricKeySize) -> NIOSSHSessionKeys {
-        return NIOSSHSessionKeys(initialInboundIV: .init(randomBytes: 12),
-                                 initialOutboundIV: .init(randomBytes: 12),
-                                 inboundEncryptionKey: SymmetricKey(size: keySize),
-                                 outboundEncryptionKey: SymmetricKey(size: keySize),
-                                 inboundMACKey: SymmetricKey(size: .bits128),
-                                 outboundMACKey: SymmetricKey(size: .bits128))
+        NIOSSHSessionKeys(initialInboundIV: .init(randomBytes: 12),
+                          initialOutboundIV: .init(randomBytes: 12),
+                          inboundEncryptionKey: SymmetricKey(size: keySize),
+                          outboundEncryptionKey: SymmetricKey(size: keySize),
+                          inboundMACKey: SymmetricKey(size: .bits128),
+                          outboundMACKey: SymmetricKey(size: .bits128))
     }
 
     private var buffer: ByteBuffer!
@@ -292,7 +291,7 @@ final class AESGCMTests: XCTestCase {
         // or if it is not 4 bytes larger than a multiple of 16 (the block size and the tag size).
         // To verify this, we check all sizes smaller than 36 bytes, and then the non-block sizes
         // up to the next multiple of the block size (52 bytes).
-        let invalidSizes = Array(0..<36) + Array(37..<52)
+        let invalidSizes = Array(0 ..< 36) + Array(37 ..< 52)
 
         let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits128)))
         var buffer = ByteBufferAllocator().buffer(capacity: 52)
@@ -312,7 +311,7 @@ final class AESGCMTests: XCTestCase {
         // or if it is not 4 bytes larger than a multiple of 16 (the block size and the tag size).
         // To verify this, we check all sizes smaller than 36 bytes, and then the non-block sizes
         // up to the next multiple of the block size (52 bytes).
-        let invalidSizes = Array(0..<36) + Array(37..<52)
+        let invalidSizes = Array(0 ..< 36) + Array(37 ..< 52)
 
         let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits256)))
         var buffer = ByteBufferAllocator().buffer(capacity: 52)
@@ -333,7 +332,7 @@ final class AESGCMTests: XCTestCase {
         // For the zero-data packet, we will have 15 bytes of padding (plus the padding length), and we're going
         // to claim to have 16 bytes.
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeInteger(UInt32(36))  // We need the length bytes in order to authenticate them.
+        buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(16))
         buffer.writeBytes(repeatElement(0, count: 15))
 
@@ -362,7 +361,7 @@ final class AESGCMTests: XCTestCase {
         // For the zero-data packet, we will have 15 bytes of padding (plus the padding length), and we're going
         // to claim to have 16 bytes.
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeInteger(UInt32(36))  // We need the length bytes in order to authenticate them.
+        buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(16))
         buffer.writeBytes(repeatElement(0, count: 15))
 
@@ -391,7 +390,7 @@ final class AESGCMTests: XCTestCase {
         // are going to have 12 bytes of data, a 1 byte padding length field, and 3 bytes of padding. This is one
         // block size, which is acceptable.
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeInteger(UInt32(36))  // We need the length bytes in order to authenticate them.
+        buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(3))
         buffer.writeBytes(repeatElement(0, count: 15))
 
@@ -420,7 +419,7 @@ final class AESGCMTests: XCTestCase {
         // are going to have 12 bytes of data, a 1 byte padding length field, and 3 bytes of padding. This is one
         // block size, which is acceptable.
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeInteger(UInt32(36))  // We need the length bytes in order to authenticate them.
+        buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(3))
         buffer.writeBytes(repeatElement(0, count: 15))
 
@@ -471,22 +470,20 @@ final class AESGCMTests: XCTestCase {
     }
 }
 
-
 extension Array where Element == UInt8 {
     init(randomBytes: Int) {
         var rng = CSPRNG()
-        self = (0..<randomBytes).map { _ in rng.next() }
+        self = (0 ..< randomBytes).map { _ in rng.next() }
     }
 }
 
-
 extension NIOSSHSessionKeys {
     var inverted: NIOSSHSessionKeys {
-        return NIOSSHSessionKeys(initialInboundIV: self.initialOutboundIV,
-                                 initialOutboundIV: self.initialInboundIV,
-                                 inboundEncryptionKey: self.outboundEncryptionKey,
-                                 outboundEncryptionKey: self.inboundEncryptionKey,
-                                 inboundMACKey: self.outboundMACKey,
-                                 outboundMACKey: self.inboundMACKey)
+        NIOSSHSessionKeys(initialInboundIV: self.initialOutboundIV,
+                          initialOutboundIV: self.initialInboundIV,
+                          inboundEncryptionKey: self.outboundEncryptionKey,
+                          outboundEncryptionKey: self.inboundEncryptionKey,
+                          inboundMACKey: self.outboundMACKey,
+                          outboundMACKey: self.inboundMACKey)
     }
 }

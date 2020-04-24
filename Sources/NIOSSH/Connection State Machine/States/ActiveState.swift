@@ -12,7 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 extension SSHConnectionStateMachine {
     /// The state of a state machine that has completed user auth and key exchange and is
     /// doing real work.
@@ -33,6 +32,6 @@ extension SSHConnectionStateMachine {
     }
 }
 
-extension SSHConnectionStateMachine.ActiveState: AcceptsChannelMessages { }
+extension SSHConnectionStateMachine.ActiveState: AcceptsChannelMessages {}
 
-extension SSHConnectionStateMachine.ActiveState: SendsChannelMessages { }
+extension SSHConnectionStateMachine.ActiveState: SendsChannelMessages {}

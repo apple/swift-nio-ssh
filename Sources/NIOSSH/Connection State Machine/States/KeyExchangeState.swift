@@ -14,7 +14,6 @@
 
 import NIO
 
-
 extension SSHConnectionStateMachine {
     /// The state of a state machine that is actively engaged in a key exchange operation.
     struct KeyExchangeState {
@@ -39,6 +38,6 @@ extension SSHConnectionStateMachine {
     }
 }
 
-extension SSHConnectionStateMachine.KeyExchangeState: AcceptsKeyExchangeMessages { }
+extension SSHConnectionStateMachine.KeyExchangeState: AcceptsKeyExchangeMessages {}
 
-extension SSHConnectionStateMachine.KeyExchangeState: SendsKeyExchangeMessages { }
+extension SSHConnectionStateMachine.KeyExchangeState: SendsKeyExchangeMessages {}

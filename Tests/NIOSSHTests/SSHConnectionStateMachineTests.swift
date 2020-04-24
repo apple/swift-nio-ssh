@@ -12,11 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import XCTest
-import NIO
 import Crypto
+import NIO
 @testable import NIOSSH
-
+import XCTest
 
 final class ExplodingAuthDelegate: NIOSSHClientUserAuthenticationDelegate {
     enum Error: Swift.Error {
@@ -28,7 +27,6 @@ final class ExplodingAuthDelegate: NIOSSHClientUserAuthenticationDelegate {
         nextChallengePromise.fail(Error.kaboom)
     }
 }
-
 
 final class SSHConnectionStateMachineTests: XCTestCase {
     private func assertSuccessfulConnection(client: inout SSHConnectionStateMachine, server: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop) throws {
@@ -97,7 +95,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
             case .some(.possibleFutureMessage(let futureMessage)):
                 waitingForServerMessage = true
                 serverMessage = nil
-                
+
                 futureMessage.whenComplete { result in
                     waitingForServerMessage = false
 
@@ -199,8 +197,8 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
 
-        for message in channelMessages {
-            XCTAssertNoThrow(try assertForwardsToMultiplexer(message, sender: &client, receiver: &server, allocator: allocator, loop: loop))
+        for message in self.channelMessages {
+            XCTAssertNoThrow(try self.assertForwardsToMultiplexer(message, sender: &client, receiver: &server, allocator: allocator, loop: loop))
         }
     }
 
@@ -216,14 +214,14 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         XCTAssertFalse(server.disconnected)
 
         // Have the client send and the server receive a disconnection message.
-        try assertDisconnects(.disconnect(.init(reason: 0, description: "", tag: "")), sender: &client, receiver: &server, allocator: allocator, loop: loop)
+        try self.assertDisconnects(.disconnect(.init(reason: 0, description: "", tag: "")), sender: &client, receiver: &server, allocator: allocator, loop: loop)
 
         XCTAssertTrue(client.disconnected)
         XCTAssertTrue(server.disconnected)
 
         // Further messages are not sent.
-        for message in channelMessages {
-            XCTAssertNoThrow(try assertSendingIsProtocolError(message, sender: &client, allocator: allocator, loop: loop))
+        for message in self.channelMessages {
+            XCTAssertNoThrow(try self.assertSendingIsProtocolError(message, sender: &client, allocator: allocator, loop: loop))
         }
     }
 }

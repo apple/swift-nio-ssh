@@ -14,7 +14,6 @@
 
 import NIO
 
-
 extension SSHConnectionStateMachine {
     /// The state of a state machine that is actively engaged in a user authentication operation.
     struct UserAuthenticationState {
@@ -46,6 +45,6 @@ extension SSHConnectionStateMachine {
     }
 }
 
-extension SSHConnectionStateMachine.UserAuthenticationState: AcceptsUserAuthMessages { }
+extension SSHConnectionStateMachine.UserAuthenticationState: AcceptsUserAuthMessages {}
 
-extension SSHConnectionStateMachine.UserAuthenticationState: SendsUserAuthMessages { }
+extension SSHConnectionStateMachine.UserAuthenticationState: SendsUserAuthMessages {}

@@ -18,25 +18,26 @@ here="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 function replace_acceptable_years() {
     # this needs to replace all acceptable forms with 'YEARS'
-    sed -e 's/2017-201[89]/YEARS/' -e 's/2019/YEARS/'
+    sed -e 's/2017-201[89]/YEARS/' -e 's/2019-2020/YEARS/' -e 's/2019/YEARS/' -e 's/2020/YEARS/'
 }
 
-printf "=> Checking linux tests... "
+printf "=> Checking format... "
 FIRST_OUT="$(git status --porcelain)"
-ruby "$here/../scripts/generate_linux_tests.rb" > /dev/null
+swiftformat . > /dev/null 2>&1
 SECOND_OUT="$(git status --porcelain)"
 if [[ "$FIRST_OUT" != "$SECOND_OUT" ]]; then
-  printf "\033[0;31mmissing changes!\033[0m\n"
+  printf "\033[0;31mformatting issues!\033[0m\n"
   git --no-pager diff
   exit 1
 else
   printf "\033[0;32mokay.\033[0m\n"
 fi
 
-printf "=> Checking license headers... "
+printf "=> Checking license headers...\n"
 tmp=$(mktemp /tmp/.swift-nio-sanity_XXXXXX)
 
 for language in swift-or-c bash dtrace; do
+  printf "   * checking $language... "
   declare -a matching_files
   declare -a exceptions
   expections=( )

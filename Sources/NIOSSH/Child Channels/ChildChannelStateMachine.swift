@@ -12,7 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 /// A state machine that manages the state of child channels.
 ///
 /// Child channels move through a weird set of states, because they can "exist" before the protocol is aware of them. In particular, there
@@ -24,7 +23,6 @@ struct ChildChannelStateMachine {
         self.state = .idle(localChannelID: localChannelID)
     }
 }
-
 
 extension ChildChannelStateMachine {
     fileprivate enum State: Hashable {
@@ -75,6 +73,7 @@ extension ChildChannelStateMachine {
 }
 
 // MARK: Receiving frames
+
 extension ChildChannelStateMachine {
     mutating func receiveChannelOpen(_ message: SSHMessage.ChannelOpenMessage) {
         // The channel open message is a request to open the channel. Receiving one means this child channel is on the server side,
@@ -312,6 +311,7 @@ extension ChildChannelStateMachine {
 }
 
 // MARK: Sending frames
+
 extension ChildChannelStateMachine {
     mutating func sendChannelOpen(_ message: SSHMessage.ChannelOpenMessage) {
         // The channel open message is a request to open the channel. Sending one means this child channel is on the client side,
@@ -539,8 +539,8 @@ extension ChildChannelStateMachine {
     }
 }
 
-
 // MARK: Other state changes
+
 extension ChildChannelStateMachine {
     /// Called when TCP EOF is received. This forcibly shuts down the channel from any state.
     ///
@@ -566,8 +566,8 @@ extension ChildChannelStateMachine {
     }
 }
 
-
 // MARK: Helper computed properties
+
 extension ChildChannelStateMachine {
     /// Whether this channel is currently active on the network.
     var isActiveOnNetwork: Bool {

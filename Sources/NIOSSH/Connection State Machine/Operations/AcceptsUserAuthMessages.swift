@@ -16,7 +16,6 @@ protocol AcceptsUserAuthMessages {
     var userAuthStateMachine: UserAuthenticationStateMachine { get set }
 }
 
-
 extension AcceptsUserAuthMessages {
     mutating func receiveServiceRequest(_ message: SSHMessage.ServiceRequestMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let result = try self.userAuthStateMachine.receiveServiceRequest(message)
@@ -78,6 +77,6 @@ extension AcceptsUserAuthMessages {
     }
 
     private static func transform(_ result: SSHMessage.UserAuthRequestMessage?) -> SSHMultiMessage? {
-        return result.map { SSHMultiMessage(.userAuthRequest($0)) }
+        result.map { SSHMultiMessage(.userAuthRequest($0)) }
     }
 }

@@ -11,11 +11,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-import XCTest
-import NIO
-import Crypto
-@testable import NIOSSH
 
+import Crypto
+import NIO
+@testable import NIOSSH
+import XCTest
 
 /// An authentication delegate that yields passwords forever.
 final class InfinitePasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
@@ -57,7 +57,6 @@ final class DenyThenAcceptDelegate: NIOSSHServerUserAuthenticationDelegate {
     }
 }
 
-
 final class UserAuthenticationStateMachineTests: XCTestCase {
     var loop: EmbeddedEventLoop!
     var hostKey: NIOSSHPrivateKey!
@@ -69,7 +68,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
         // We use a SHA256-sized session ID, not that it matters much.
         var buffer = ByteBufferAllocator().buffer(capacity: 32)
-        buffer.writeBytes(0..<32)
+        buffer.writeBytes(0 ..< 32)
         self.sessionID = buffer
     }
 
@@ -296,7 +295,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
             XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
         }
         XCTAssertThrowsError(try stateMachine.receiveUserAuthFailure(.init(authentications: ["password"], partialSuccess: false))) { error in
-           XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
         }
     }
 
@@ -311,7 +310,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
             XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
         }
         XCTAssertThrowsError(try stateMachine.receiveUserAuthFailure(.init(authentications: ["password"], partialSuccess: false))) { error in
-           XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
         }
     }
 
@@ -335,7 +334,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
             XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
         }
         XCTAssertThrowsError(try stateMachine.receiveUserAuthFailure(.init(authentications: ["password"], partialSuccess: false))) { error in
-           XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
         }
     }
 
@@ -362,7 +361,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
             XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
         }
         XCTAssertThrowsError(try stateMachine.receiveUserAuthFailure(.init(authentications: ["password"], partialSuccess: false))) { error in
-           XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
+            XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
         }
     }
 
@@ -396,11 +395,11 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         // User asks a question, it fails.
         let authRequest = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .password("bar"))
         let failure = SSHMessage.UserAuthFailureMessage(authentications: ["password", "publickey", "hostbased"], partialSuccess: false)
-        try expectAuthRequestToFailSynchronously(request: authRequest, expecting: failure, stateMachine: &stateMachine)
+        try self.expectAuthRequestToFailSynchronously(request: authRequest, expecting: failure, stateMachine: &stateMachine)
         stateMachine.sendUserAuthFailure(failure)
 
         // User asks again, fails again.
-        try expectAuthRequestToFailSynchronously(request: authRequest, expecting: failure, stateMachine: &stateMachine)
+        try self.expectAuthRequestToFailSynchronously(request: authRequest, expecting: failure, stateMachine: &stateMachine)
         stateMachine.sendUserAuthFailure(failure)
     }
 
@@ -416,10 +415,10 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let authRequest = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .password("bar"))
         let failure = SSHMessage.UserAuthFailureMessage(authentications: ["password", "publickey", "hostbased"], partialSuccess: false)
 
-        for _ in 0..<10 {
-            try expectAuthRequestToFailSynchronously(request: authRequest, expecting: failure, stateMachine: &stateMachine)
+        for _ in 0 ..< 10 {
+            try self.expectAuthRequestToFailSynchronously(request: authRequest, expecting: failure, stateMachine: &stateMachine)
         }
-        for _ in 0..<10 {
+        for _ in 0 ..< 10 {
             stateMachine.sendUserAuthFailure(failure)
         }
     }
@@ -434,7 +433,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
         // We get a request.
         let authRequest = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .password("bar"))
-        try expectAuthRequestToSucceedSynchronously(request: authRequest, stateMachine: &stateMachine)
+        try self.expectAuthRequestToSucceedSynchronously(request: authRequest, stateMachine: &stateMachine)
         stateMachine.sendUserAuthSuccess()
     }
 
@@ -445,10 +444,10 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
         XCTAssertNoThrow(try self.serviceRequested(service: "ssh-userauth", nextMessage: serviceAccept, stateMachine: &stateMachine))
         stateMachine.sendServiceAccept(serviceAccept)
-        
+
         // We get a request, which succeeds.
         let authRequest = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .password("bar"))
-        try expectAuthRequestToSucceedSynchronously(request: authRequest, stateMachine: &stateMachine)
+        try self.expectAuthRequestToSucceedSynchronously(request: authRequest, stateMachine: &stateMachine)
         stateMachine.sendUserAuthSuccess()
 
         // Let's try getting another request. This will be ignored.
@@ -515,7 +514,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
         // We get a request.
         let authRequest = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .password("bar"))
-        try expectAuthRequestToSucceedSynchronously(request: authRequest, stateMachine: &stateMachine)
+        try self.expectAuthRequestToSucceedSynchronously(request: authRequest, stateMachine: &stateMachine)
 
         // And here too.
         XCTAssertThrowsError(try stateMachine.receiveServiceRequest(request)) { error in
@@ -650,16 +649,16 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         // User first issues a private key query. We auto-accept this, it doesn't affect the delegate.
         let query = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .publicKey(.known(key: self.hostKey.publicKey, signature: nil)))
         let response = SSHMessage.UserAuthPKOKMessage(key: self.hostKey.publicKey)
-        try expectAuthRequestToReturnPKOKSynchronously(request: query, expecting: response, stateMachine: &stateMachine)
+        try self.expectAuthRequestToReturnPKOKSynchronously(request: query, expecting: response, stateMachine: &stateMachine)
         stateMachine.sendUserAuthPKOK(response)
 
         // Now the user issues the actual query. This fails.
         let payload = UserAuthSignablePayload(sessionIdentifier: self.sessionID, userName: "foo", serviceName: "ssh-connection", publicKey: self.hostKey.publicKey)
         let signature = try self.hostKey.sign(payload)
         let request = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .publicKey(.known(key: self.hostKey.publicKey, signature: signature)))
-        try expectAuthRequestToFailSynchronously(request: request,
-                                                 expecting: .init(authentications: NIOSSHAvailableUserAuthenticationMethods.all.strings, partialSuccess: false),
-                                                 stateMachine: &stateMachine)
+        try self.expectAuthRequestToFailSynchronously(request: request,
+                                                      expecting: .init(authentications: NIOSSHAvailableUserAuthenticationMethods.all.strings, partialSuccess: false),
+                                                      stateMachine: &stateMachine)
         stateMachine.sendUserAuthFailure(.init(authentications: NIOSSHAvailableUserAuthenticationMethods.all.strings, partialSuccess: false))
 
         // Ok, let's do another query with a different key type. This time we won't bother with the little preamble dance, we'll just go straight to
@@ -668,7 +667,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let payload2 = UserAuthSignablePayload(sessionIdentifier: self.sessionID, userName: "foo", serviceName: "ssh-connection", publicKey: newKey.publicKey)
         let newSignature = try newKey.sign(payload2)
         let request2 = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .publicKey(.known(key: newKey.publicKey, signature: newSignature)))
-        try expectAuthRequestToSucceedSynchronously(request: request2, stateMachine: &stateMachine)
+        try self.expectAuthRequestToSucceedSynchronously(request: request2, stateMachine: &stateMachine)
         stateMachine.sendUserAuthSuccess()
     }
 
@@ -683,9 +682,9 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         // We're going to sign the wrong data.
         let signature = try self.hostKey.sign(digest: SHA256.hash(data: Array("this is not the data we should be signing".utf8)))
         let request = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .publicKey(.known(key: self.hostKey.publicKey, signature: signature)))
-        try expectAuthRequestToFailSynchronously(request: request,
-                                                 expecting: .init(authentications: NIOSSHAvailableUserAuthenticationMethods.all.strings, partialSuccess: false),
-                                                 stateMachine: &stateMachine)
+        try self.expectAuthRequestToFailSynchronously(request: request,
+                                                      expecting: .init(authentications: NIOSSHAvailableUserAuthenticationMethods.all.strings, partialSuccess: false),
+                                                      stateMachine: &stateMachine)
         stateMachine.sendUserAuthFailure(.init(authentications: NIOSSHAvailableUserAuthenticationMethods.all.strings, partialSuccess: false))
     }
 
