@@ -165,7 +165,7 @@ public enum SSHChannelRequestEvent {
     public struct ExitSignal: Hashable {
         /// Whether this request should be replied to.
         public var wantReply: Bool {
-            return false
+            false
         }
 
         /// The name of the signal, without the "SIG" prefix, e.g. "USR1".
@@ -205,31 +205,31 @@ public enum SSHChannelRequestEvent {
     public struct WindowChangeRequest: Hashable {
         /// Whether a reply to this window change request is desired.
         public var wantReply: Bool {
-            return false
+            false
         }
 
         /// The desired width of the terminal in characters. This overrides
         /// the pixel width when this value is non-zero.
         public var terminalCharacterWidth: Int {
-            return Int(self._terminalCharacterWidth)
+            Int(self._terminalCharacterWidth)
         }
 
         /// The desired height of the terminal in rows. This overrides the pixel height
         /// when this value is non-zero.
         public var terminalRowHeight: Int {
-            return Int(self._terminalRowHeight)
+            Int(self._terminalRowHeight)
         }
 
         /// The desired width of the terminal in pixels. This is overriden by the character
         /// width if that value is non-zero.
         public var terminalPixelWidth: Int {
-            return Int(self._terminalPixelWidth)
+            Int(self._terminalPixelWidth)
         }
 
         /// The desired height of the terminal in pixels. This is overridden by the row
         /// height if that value is non-zero.
         public var terminalPixelHeight: Int {
-            return Int(self._terminalPixelHeight)
+            Int(self._terminalPixelHeight)
         }
 
         fileprivate var _terminalCharacterWidth: UInt32
@@ -268,7 +268,7 @@ public enum SSHChannelRequestEvent {
     public struct LocalFlowControlRequest: Hashable {
         /// Whether a reply to this request is desired.
         public var wantReply: Bool {
-            return false
+            false
         }
 
         /// Whether the client is allowed to use local flow control.
@@ -283,7 +283,7 @@ public enum SSHChannelRequestEvent {
     public struct SignalRequest: Hashable {
         /// Whether a reply to this request is desired.
         public var wantReply: Bool {
-            return false
+            false
         }
 
         /// The name of the signal (without the "SIG" prefix), e.g. "USR1".

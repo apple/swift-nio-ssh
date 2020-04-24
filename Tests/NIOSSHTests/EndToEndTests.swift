@@ -12,10 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import XCTest
-import NIO
 import Crypto
+import NIO
 import NIOSSH
+import XCTest
 
 enum EndToEndTestError: Error {
     case unableToCreateChildChannel
@@ -29,11 +29,11 @@ class BackToBackEmbeddedChannel {
     private(set) var activeServerChannels: [Channel]
 
     var clientSSHHandler: NIOSSHHandler? {
-        return try? self.client.pipeline.handler(type: NIOSSHHandler.self).wait()
+        try? self.client.pipeline.handler(type: NIOSSHHandler.self).wait()
     }
 
     var serverSSHHandler: NIOSSHHandler? {
-        return try? self.client.pipeline.handler(type: NIOSSHHandler.self).wait()
+        try? self.client.pipeline.handler(type: NIOSSHHandler.self).wait()
     }
 
     init() {
@@ -125,7 +125,6 @@ struct TestHarness {
     var serverHostKeys: [NIOSSHPrivateKey] = [.init(ed25519Key: .init())]
 }
 
-
 final class UserEventExpecter: ChannelInboundHandler {
     typealias InboundIn = Any
 
@@ -136,7 +135,6 @@ final class UserEventExpecter: ChannelInboundHandler {
         context.fireUserInboundEventTriggered(event)
     }
 }
-
 
 class EndToEndTests: XCTestCase {
     var channel: BackToBackEmbeddedChannel!
@@ -173,7 +171,7 @@ class EndToEndTests: XCTestCase {
             XCTAssertNoThrow(try self.channel.interactInMemory())
 
             XCTAssertTrue(clientSent)
-            XCTAssertEqual(userEventRecorder.userEvents.last as? Optional<Event>, event)
+            XCTAssertEqual(userEventRecorder.userEvents.last as? Event?, event)
         }
 
         helper(SSHChannelRequestEvent.ExecRequest(command: "uname -a", wantReply: true))

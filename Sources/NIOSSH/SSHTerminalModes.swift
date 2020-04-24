@@ -383,29 +383,6 @@ extension SSHTerminalModes.OpcodeValue: ExpressibleByIntegerLiteral {
     }
 }
 
-
-extension SSHTerminalModes {
-    internal init(encoded: ByteBuffer) throws {
-        var encoded = encoded
-        var mapping: [SSHTerminalModes.Opcode: SSHTerminalModes.OpcodeValue] = [:]
-        mapping.reserveCapacity(encoded.readableBytes / 5)
-
-        // Opcodes 1 to 159 have a single uint32 argument.  Opcodes 160 to 255 are not yet
-        // defined, and cause parsing to stop (they should only be used after any other data).
-        // The stream is terminated by opcode TTY_OP_END (0x00).
-        while let opcode = encoded.readInteger(as: UInt8.self), (1..<159).contains(opcode) {
-            guard let value = encoded.readInteger(as: UInt32.self) else {
-                throw NIOSSHError.protocolViolation(protocolName: "ssh-connection", violation: "invalid encoded terminal modes")
-            }
-
-            mapping[SSHTerminalModes.Opcode(rawValue: opcode)] = SSHTerminalModes.OpcodeValue(rawValue: value)
-        }
-
-        self = SSHTerminalModes(mapping)
-    }
-}
-
-
 extension ByteBuffer {
     mutating func readSSHTerminalModes() throws -> SSHTerminalModes {
         var mapping: [SSHTerminalModes.Opcode: SSHTerminalModes.OpcodeValue] = [:]
@@ -415,7 +392,7 @@ extension ByteBuffer {
             // Opcodes 1 to 159 have a single uint32 argument.  Opcodes 160 to 255 are not yet
             // defined, and cause parsing to stop (they should only be used after any other data).
             // The stream is terminated by opcode TTY_OP_END (0x00).
-            while let opcode = self.readInteger(as: UInt8.self), (1..<159).contains(opcode) {
+            while let opcode = self.readInteger(as: UInt8.self), (1 ..< 159).contains(opcode) {
                 guard let value = self.readInteger(as: UInt32.self) else {
                     throw NIOSSHError.protocolViolation(protocolName: "ssh-connection", violation: "invalid encoded terminal modes")
                 }

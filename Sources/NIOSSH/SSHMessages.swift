@@ -834,7 +834,7 @@ extension ByteBuffer {
     }
 
     mutating func readChannelRequestMessage() throws -> SSHMessage.ChannelRequestMessage? {
-        return try self.rewindOnNilOrError { `self` in
+        try self.rewindOnNilOrError { `self` in
             guard
                 let recipientChannel: UInt32 = self.readInteger(),
                 let typeRawValue = self.readSSHStringAsString()
@@ -874,7 +874,7 @@ extension ByteBuffer {
                     let errorMessage = self.readSSHStringAsString(),
                     let language = self.readSSHStringAsString()
                 else {
-                        return nil
+                    return nil
                 }
 
                 type = .exitSignal(signalName, coreDumped, errorMessage, language)
