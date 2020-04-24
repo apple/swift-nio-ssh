@@ -12,7 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 /// An error thrown by NIOSSH.
 ///
 /// For extensibility purposes, `NIOSSHError`s are composed of two parts. The first part is an
@@ -29,18 +28,18 @@ public struct NIOSSHError: Error {
     private var diagnostics: String?
 }
 
+// MARK: - Internal helper functions for error construction.
 
-// MARK:- Internal helper functions for error construction.
 // These are never inlined as they are inherently cold path functions.
 extension NIOSSHError {
     @inline(never)
     internal static func invalidSSHMessage(reason: String) -> NIOSSHError {
-        return NIOSSHError(type: .invalidSSHMessage, diagnostics: reason)
+        NIOSSHError(type: .invalidSSHMessage, diagnostics: reason)
     }
 
     @inline(never)
     internal static func weakSharedSecret(exchangeAlgorithm: String) -> NIOSSHError {
-        return NIOSSHError(type: .weakSharedSecret, diagnostics: exchangeAlgorithm)
+        NIOSSHError(type: .weakSharedSecret, diagnostics: exchangeAlgorithm)
     }
 
     internal static let invalidNonceLength = NIOSSHError(type: .invalidNonceLength, diagnostics: nil)
@@ -57,17 +56,17 @@ extension NIOSSHError {
 
     @inline(never)
     internal static func unknownPublicKey(algorithm: String) -> NIOSSHError {
-        return NIOSSHError(type: .unknownPublicKey, diagnostics: algorithm)
+        NIOSSHError(type: .unknownPublicKey, diagnostics: algorithm)
     }
 
     @inline(never)
     internal static func unknownSignature(algorithm: String) -> NIOSSHError {
-        return NIOSSHError(type: .unknownSignature, diagnostics: algorithm)
+        NIOSSHError(type: .unknownSignature, diagnostics: algorithm)
     }
 
     @inline(never)
     internal static func invalidDomainParametersForKey(parameters: String) -> NIOSSHError {
-        return NIOSSHError(type: .invalidDomainParametersForKey, diagnostics: parameters)
+        NIOSSHError(type: .invalidDomainParametersForKey, diagnostics: parameters)
     }
 
     internal static let invalidExchangeHashSignature = NIOSSHError(type: .invalidExchangeHashSignature, diagnostics: nil)
@@ -76,24 +75,24 @@ extension NIOSSHError {
 
     @inline(never)
     internal static func protocolViolation(protocolName: String, violation: String) -> NIOSSHError {
-        return NIOSSHError(type: .protocolViolation, diagnostics: "Protocol \(protocolName) violated due to \(violation)")
+        NIOSSHError(type: .protocolViolation, diagnostics: "Protocol \(protocolName) violated due to \(violation)")
     }
 
     internal static let keyExchangeNegotiationFailure = NIOSSHError(type: .keyExchangeNegotiationFailure, diagnostics: nil)
 
     @inline(never)
     internal static func unsupportedVersion(_ version: String) -> NIOSSHError {
-        return NIOSSHError(type: .unsupportedVersion, diagnostics: "Version \(version) offered by the remote peer is not supported")
+        NIOSSHError(type: .unsupportedVersion, diagnostics: "Version \(version) offered by the remote peer is not supported")
     }
 
     @inline(never)
     internal static func channelSetupRejected(reasonCode: UInt32, reason: String) -> NIOSSHError {
-        return NIOSSHError(type: .channelSetupRejected, diagnostics: "Reason: \(reasonCode) \(reason)")
+        NIOSSHError(type: .channelSetupRejected, diagnostics: "Reason: \(reasonCode) \(reason)")
     }
 
     @inline(never)
     internal static func flowControlViolation(currentWindow: UInt32, increment: UInt32) -> NIOSSHError {
-        return NIOSSHError(type: .flowControlViolation, diagnostics: "Window size \(currentWindow), bad increment \(increment)")
+        NIOSSHError(type: .flowControlViolation, diagnostics: "Window size \(currentWindow), bad increment \(increment)")
     }
 
     internal static let creatingChannelAfterClosure = NIOSSHError(type: .creatingChannelAfterClosure, diagnostics: nil)
@@ -103,16 +102,16 @@ extension NIOSSHError {
     internal static let invalidUserAuthSignature = NIOSSHError(type: .invalidUserAuthSignature, diagnostics: nil)
 }
 
+// MARK: - NIOSSHError CustomStringConvertible conformance.
 
-// MARK:- NIOSSHError CustomStringConvertible conformance.
 extension NIOSSHError: CustomStringConvertible {
     public var description: String {
-        return "NIOSSHError.\(self.type.description)\(self.diagnostics.map { ": \($0)" } ?? "")"
+        "NIOSSHError.\(self.type.description)\(self.diagnostics.map { ": \($0)" } ?? "")"
     }
 }
 
+// MARK: - Definition of NIOSSHError.ErrorType
 
-// MARK:- Definition of NIOSSHError.ErrorType
 extension NIOSSHError {
     /// The types of NIOSSHError that can be encountered.
     public struct ErrorType {
@@ -211,14 +210,14 @@ extension NIOSSHError {
     }
 }
 
+// MARK: - NIOSSHError.ErrorType Hashable conformance
 
-// MARK:- NIOSSHError.ErrorType Hashable conformance
-extension NIOSSHError.ErrorType: Hashable { }
+extension NIOSSHError.ErrorType: Hashable {}
 
+// MARK: - NIOSSHError.ErrorType CustomStringConvertible conformance
 
-// MARK:- NIOSSHError.ErrorType CustomStringConvertible conformance
 extension NIOSSHError.ErrorType: CustomStringConvertible {
     public var description: String {
-        return String(describing: self.base)
+        String(describing: self.base)
     }
 }

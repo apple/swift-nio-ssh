@@ -39,7 +39,6 @@ struct CSPRNG: RandomNumberGenerator {
     }
 
     mutating func next() -> UInt64 {
-        return self.baseRNG.next()
+        self.baseRNG.next()
     }
 }
-

@@ -12,10 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Crypto
 import NIO
 import NIOFoundationCompat
-import Crypto
-
 
 struct Curve25519KeyExchange {
     private var previousSessionIdentifier: ByteBuffer?
@@ -30,7 +29,6 @@ struct Curve25519KeyExchange {
         self.previousSessionIdentifier = previousSessionIdentifier
     }
 }
-
 
 extension Curve25519KeyExchange {
     /// Initiates key exchange by producing an SSH message.
@@ -123,7 +121,6 @@ extension Curve25519KeyExchange {
         return KeyExchangeResult(kexResult)
     }
 
-
     private mutating func finalizeKeyExchange(theirKeyBytes: ByteBuffer,
                                               initialExchangeBytes: inout ByteBuffer,
                                               serverHostKey: NIOSSHPublicKey,
@@ -183,7 +180,6 @@ extension Curve25519KeyExchange {
         return Curve25519KeyExchangeResult(sessionID: sessionID, exchangeHash: exchangeHash, keys: keys)
     }
 
-
     private func generateKeys(sharedSecret: SharedSecret, exchangeHash: SHA256Digest, sessionID: ByteBuffer, expectedKeySizes: ExpectedKeySizes) -> NIOSSHSessionKeys {
         // Cool, now it's time to generate the keys. In my ideal world I'd have a mechanism to handle this digest securely, but this is
         // not available in CryptoKit so we're going to spill these keys all over the heap and the stack. This isn't ideal, but I don't
@@ -224,7 +220,6 @@ extension Curve25519KeyExchange {
                                      inboundMACKey: self.generateClientToServerMACKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.macKeySize),
                                      outboundMACKey: self.generateServerToClientMACKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.macKeySize))
         }
-
     }
 
     private func generateClientToServerIV(baseHasher: SHA256, sessionID: ByteBuffer, expectedKeySize: Int) -> [UInt8] {
@@ -265,7 +260,6 @@ extension Curve25519KeyExchange {
     }
 }
 
-
 extension Curve25519KeyExchange {
     /// The internal result of a key exchange operation.
     ///
@@ -279,14 +273,12 @@ extension Curve25519KeyExchange {
     }
 }
 
-
 extension KeyExchangeResult {
     fileprivate init(_ innerResult: Curve25519KeyExchange.Curve25519KeyExchangeResult) {
         self.keys = innerResult.keys
         self.sessionID = innerResult.sessionID
     }
 }
-
 
 extension SharedSecret {
     /// We need to check for the possibility that the peer's key is a point of low order.
@@ -296,24 +288,22 @@ extension SharedSecret {
         // CryptoKit doesn't want to let us look directly at this, so we need to exfiltrate a pointer.
         // For the sake of avoiding leaking information about the secret, we choose to do this in constant
         // time by ORing every byte together: if the result is zero, this point is invalid.
-        return self.withUnsafeBytes { dataPtr in
+        self.withUnsafeBytes { dataPtr in
             let allORed = dataPtr.reduce(UInt8(0)) { $0 | $1 }
             return allORed != 0
         }
     }
 }
 
-
 extension SymmetricKey {
     /// Creates a symmetric key by truncating a given digest.
     fileprivate static func truncatingDigest(_ digest: SHA256Digest, length: Int) -> SymmetricKey {
         assert(length <= SHA256Digest.byteCount)
         return digest.withUnsafeBytes { bodyPtr in
-            return SymmetricKey(data: UnsafeRawBufferPointer(rebasing: bodyPtr.prefix(length)))
+            SymmetricKey(data: UnsafeRawBufferPointer(rebasing: bodyPtr.prefix(length)))
         }
     }
 }
-
 
 extension SHA256 {
     fileprivate mutating func updateAsMPInt(sharedSecret: SharedSecret) {
@@ -398,7 +388,7 @@ extension SHA256 {
         /// The length to encode.
         var length: UInt8 {
             get {
-                return self.backingBytes.3
+                self.backingBytes.3
             }
             set {
                 self.backingBytes.3 = newValue
@@ -406,7 +396,7 @@ extension SHA256 {
         }
 
         // Remove the elementwise initializer.
-        init() { }
+        init() {}
 
         func update(hasher: inout SHA256) {
             withUnsafeBytes(of: self.backingBytes) { bytesPtr in
@@ -424,7 +414,6 @@ extension SHA256 {
         }
     }
 }
-
 
 extension SHA256 {
     fileprivate mutating func update(byte: UInt8) {

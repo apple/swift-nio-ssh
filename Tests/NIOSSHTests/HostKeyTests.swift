@@ -12,11 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import XCTest
-import NIO
 import Crypto
+import NIO
 @testable import NIOSSH
-
+import XCTest
 
 final class HostKeyTests: XCTestCase {
     func testBasicEd25519SigningFlow() throws {

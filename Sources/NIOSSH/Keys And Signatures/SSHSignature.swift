@@ -12,11 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Crypto
 import Foundation
 import NIO
 import NIOFoundationCompat
-import Crypto
-
 
 /// A representation of an SSH signature.
 ///
@@ -29,11 +28,10 @@ internal struct SSHSignature: Equatable {
     }
 }
 
-
 extension SSHSignature {
     /// The various signature types that can be used with NIOSSH.
     internal enum BackingSignature {
-        case ed25519(RawBytes)  // There is no structured Signature type for Curve25519, and we may want Data or ByteBuffer.
+        case ed25519(RawBytes) // There is no structured Signature type for Curve25519, and we may want Data or ByteBuffer.
         case ecdsaP256(P256.Signing.ECDSASignature)
 
         internal enum RawBytes {
@@ -49,9 +47,8 @@ extension SSHSignature {
     fileprivate static let ecdsaP256SignaturePrefix = "ecdsa-sha2-nistp256".utf8
 }
 
-
 extension SSHSignature.BackingSignature.RawBytes: Equatable {
-    static func ==(lhs: SSHSignature.BackingSignature.RawBytes, rhs: SSHSignature.BackingSignature.RawBytes) -> Bool {
+    static func == (lhs: SSHSignature.BackingSignature.RawBytes, rhs: SSHSignature.BackingSignature.RawBytes) -> Bool {
         switch (lhs, rhs) {
         case (.byteBuffer(let lhs), .byteBuffer(let rhs)):
             return lhs == rhs
@@ -65,9 +62,8 @@ extension SSHSignature.BackingSignature.RawBytes: Equatable {
     }
 }
 
-
 extension SSHSignature.BackingSignature: Equatable {
-    static func ==(lhs: SSHSignature.BackingSignature, rhs: SSHSignature.BackingSignature) -> Bool {
+    static func == (lhs: SSHSignature.BackingSignature, rhs: SSHSignature.BackingSignature) -> Bool {
         // We implement equatable in terms of the key representation.
         switch (lhs, rhs) {
         case (.ed25519(let lhs), .ed25519(let rhs)):
@@ -79,7 +75,6 @@ extension SSHSignature.BackingSignature: Equatable {
         }
     }
 }
-
 
 extension ByteBuffer {
     /// Writes an SSH host key to this `ByteBuffer`.
@@ -129,7 +124,7 @@ extension ByteBuffer {
     }
 
     mutating func readSSHSignature() throws -> SSHSignature? {
-        return try self.rewindOnNilOrError { buffer in
+        try self.rewindOnNilOrError { buffer in
             // The wire format always begins with an SSH string containing the signature format identifier. Let's grab that.
             guard var signatureIdentifierBytes = buffer.readSSHString() else {
                 return nil
@@ -170,8 +165,8 @@ extension ByteBuffer {
         // For ECDSA-P256, the key format is `mpint r` followed by `mpint s`.
         // We don't need them as mpints, so let's treat them as strings instead.
         guard var signatureBytes = self.readSSHString(),
-              let rBytes = signatureBytes.readSSHString(),
-              let sBytes = signatureBytes.readSSHString() else {
+            let rBytes = signatureBytes.readSSHString(),
+            let sBytes = signatureBytes.readSSHString() else {
             return nil
         }
 
@@ -182,14 +177,13 @@ extension ByteBuffer {
     }
 }
 
-
 /// A structure that helps store ECDSA signatures on the stack temporarily to avoid unnecessary memory allocation.
 ///
 /// CryptoKit would like to receive ECDSA signatures in the form of `r || s`, where `r` and `s` are both left-padded
 /// with zeros. We know that for P256 the ECDSA signature size is going to be 64 bytes, as each of the P256 points are
 /// 32 bytes wide. To avoid an unnecessary memory allocation, we use this data structure to provide some heap space to
 /// store this in.
-fileprivate struct ECDSASignatureHelper {
+private struct ECDSASignatureHelper {
     private var storage: (UInt64, UInt64, UInt64, UInt64, UInt64, UInt64, UInt64, UInt64) = (0, 0, 0, 0, 0, 0, 0, 0)
 
     fileprivate init(r: ByteBuffer, s: ByteBuffer) {
@@ -202,7 +196,7 @@ fileprivate struct ECDSASignatureHelper {
         let sByteStartingOffset = 32 - sByteView.count
 
         withUnsafeMutableBytes(of: &self.storage) { storagePtr in
-            let rPtr = UnsafeMutableRawBufferPointer(rebasing: storagePtr[rByteStartingOffset..<32])
+            let rPtr = UnsafeMutableRawBufferPointer(rebasing: storagePtr[rByteStartingOffset ..< 32])
             let sPtr = UnsafeMutableRawBufferPointer(rebasing: storagePtr[(sByteStartingOffset + 32)...])
 
             precondition(rPtr.count == rByteView.count)
@@ -214,12 +208,11 @@ fileprivate struct ECDSASignatureHelper {
     }
 
     func toECDSASignature() throws -> P256.Signing.ECDSASignature {
-        return try withUnsafeBytes(of: self.storage) { storagePtr in
-            return try P256.Signing.ECDSASignature(rawRepresentation: storagePtr)
+        try withUnsafeBytes(of: self.storage) { storagePtr in
+            try P256.Signing.ECDSASignature(rawRepresentation: storagePtr)
         }
     }
 }
-
 
 extension ByteBuffer {
     // A view onto the mpInt bytes. Strips off a leading 0 if it is present for

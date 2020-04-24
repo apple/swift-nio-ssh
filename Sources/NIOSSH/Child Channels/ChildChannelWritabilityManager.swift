@@ -36,19 +36,17 @@ struct ChildChannelWritabilityManager {
     }
 }
 
-
 extension ChildChannelWritabilityManager {
     /// Whether the `SSHChildChannel` should be writable.
     var isWritable: Bool {
-        return self.watermarkedController.isWritable && self.parentIsWritable
+        self.watermarkedController.isWritable && self.parentIsWritable
     }
 
     /// The number of bytes available in the flow control window on the network.
     var windowSpaceOnNetwork: Int {
-        return Int(self.watermarkedController.freeWindowSpace)
+        Int(self.watermarkedController.freeWindowSpace)
     }
 }
-
 
 extension ChildChannelWritabilityManager {
     /// A value representing a change in writability.
@@ -61,31 +59,30 @@ extension ChildChannelWritabilityManager {
     }
 }
 
-
 extension ChildChannelWritabilityManager {
     /// Notifies the flow controller that we have queued some bytes for writing to the network.
     mutating func bufferedBytes(_ bufferedBytes: Int) -> WritabilityChange {
-        return self.mayChangeWritability {
+        self.mayChangeWritability {
             $0.watermarkedController.bufferedBytes(bufferedBytes)
         }
     }
 
     /// Notifies the flow controller that we have successfully written some bytes to the network.
     mutating func wroteBytes(_ writtenBytes: Int) -> WritabilityChange {
-        return self.mayChangeWritability {
+        self.mayChangeWritability {
             $0.watermarkedController.wroteBytes(writtenBytes)
         }
     }
 
     /// Notifies the flow controller that the outbound flow control window has changed size.
     mutating func outboundWindowIncremented(_ increment: UInt32) throws -> WritabilityChange {
-        return try self.mayChangeWritability {
+        try self.mayChangeWritability {
             try $0.watermarkedController.outboundWindowIncremented(increment)
         }
     }
 
     mutating func parentWritabilityChanged(_ newWritability: Bool) -> WritabilityChange {
-        return self.mayChangeWritability {
+        self.mayChangeWritability {
             $0.parentIsWritable = newWritability
         }
     }
@@ -103,12 +100,10 @@ extension ChildChannelWritabilityManager {
     }
 }
 
-
-extension ChildChannelWritabilityManager: Hashable { }
-
+extension ChildChannelWritabilityManager: Hashable {}
 
 extension ChildChannelWritabilityManager: CustomDebugStringConvertible {
     var debugDescription: String {
-        return "ChildChannelWritabilityManager(parentIsWritable: \(self.parentIsWritable), watermarkedController: \(self.watermarkedController.debugDescription))"
+        "ChildChannelWritabilityManager(parentIsWritable: \(self.parentIsWritable), watermarkedController: \(self.watermarkedController.debugDescription))"
     }
 }

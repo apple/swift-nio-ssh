@@ -12,11 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import XCTest
-import NIO
 import Crypto
+import NIO
 @testable import NIOSSH
-
+import XCTest
 
 final class Curve25519KeyExchangeTests: XCTestCase {
     private func keyExchangeAgreed(_ first: KeyExchangeResult, _ second: KeyExchangeResult) {
@@ -71,7 +70,7 @@ final class Curve25519KeyExchangeTests: XCTestCase {
 
     func testBasicSuccessfulKeyExchangeWithPreviousSession() throws {
         var previousSessionIdentifier = ByteBufferAllocator().buffer(capacity: 1024)
-        previousSessionIdentifier.writeBytes(0...255)
+        previousSessionIdentifier.writeBytes(0 ... 255)
 
         var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: previousSessionIdentifier)
         var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: previousSessionIdentifier)
@@ -167,8 +166,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
         var serverInitialBytes = ByteBufferAllocator().buffer(capacity: 1024)
         var clientInitialBytes = serverInitialBytes
 
-        serverInitialBytes.writeBytes(0..<128)
-        clientInitialBytes.writeBytes(1..<129)
+        serverInitialBytes.writeBytes(0 ..< 128)
+        clientInitialBytes.writeBytes(1 ..< 129)
 
         let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
         let (_, serverResponse) = try assertNoThrowWithValue(

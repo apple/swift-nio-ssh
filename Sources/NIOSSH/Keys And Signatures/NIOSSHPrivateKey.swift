@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
 import Crypto
+import NIO
 
 /// An SSH private key.
 ///
@@ -26,7 +26,7 @@ public struct NIOSSHPrivateKey {
     /// The actual key structure used to perform the key operations.
     internal var backingKey: BackingKey
 
-    fileprivate init(backingKey: BackingKey) {
+    private init(backingKey: BackingKey) {
         self.backingKey = backingKey
     }
 
@@ -49,7 +49,6 @@ public struct NIOSSHPrivateKey {
     }
 }
 
-
 extension NIOSSHPrivateKey {
     /// The various key types that can be used with NIOSSH.
     internal enum BackingKey {
@@ -57,7 +56,6 @@ extension NIOSSHPrivateKey {
         case ecdsaP256(P256.Signing.PrivateKey)
     }
 }
-
 
 extension NIOSSHPrivateKey {
     func sign<DigestBytes: Digest>(digest: DigestBytes) throws -> SSHSignature {
@@ -86,7 +84,6 @@ extension NIOSSHPrivateKey {
         }
     }
 }
-
 
 extension NIOSSHPrivateKey {
     /// Obtains the public key for a corresponding private key.

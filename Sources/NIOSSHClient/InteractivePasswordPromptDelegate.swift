@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import Dispatch
+import Foundation
 import NIO
 import NIOSSH
 

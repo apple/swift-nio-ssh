@@ -14,7 +14,6 @@
 
 import NIO
 
-
 /// A `NIOSSHServerUserAuthenticationDelegate` is an object that can authorize users.
 ///
 /// This protocol defines the interface that will be used by the user authentication state

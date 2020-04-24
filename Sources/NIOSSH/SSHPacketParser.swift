@@ -15,7 +15,6 @@
 import NIO
 
 struct SSHPacketParser {
-
     enum State {
         case initialized
         case cleartextWaitingForLength
@@ -101,7 +100,7 @@ struct SSHPacketParser {
         if let cr = slice.firstIndex(of: 13), slice[cr.advanced(by: 1)] == 10 {
             let version = String(decoding: slice[slice.startIndex ..< cr], as: UTF8.self)
             // read \r\n
-            buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: cr).advanced(by: 2))
+            self.buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: cr).advanced(by: 2))
             return version
         }
         return nil
@@ -120,7 +119,7 @@ struct SSHPacketParser {
     }
 
     private mutating func parsePlaintext(length: UInt32) throws -> SSHMessage? {
-        return try buffer.rewindReaderOnError { buffer in
+        try self.buffer.rewindReaderOnError { buffer in
             guard var buffer = buffer.readSlice(length: Int(length) + MemoryLayout<UInt32>.size) else {
                 return nil
             }
@@ -139,7 +138,7 @@ struct SSHPacketParser {
     }
 
     private mutating func parseCiphertext(length: UInt32, protection: NIOSSHTransportProtection) throws -> SSHMessage? {
-        return try buffer.rewindReaderOnError { buffer in
+        try self.buffer.rewindReaderOnError { buffer in
             guard var buffer = buffer.readSlice(length: Int(length) + MemoryLayout<UInt32>.size) else {
                 return nil
             }
@@ -154,7 +153,6 @@ struct SSHPacketParser {
         }
     }
 }
-
 
 extension ByteBuffer {
     /// Given a ByteBuffer that is exactly the size of a packet with padding (i.e. the padding byte is first),

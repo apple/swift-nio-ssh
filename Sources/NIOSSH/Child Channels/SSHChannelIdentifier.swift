@@ -12,7 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 /// The identifier for a single SSH channel.
 ///
 /// An SSH channel is identified by a number on each end of the connection. These two numbers are not required
@@ -32,12 +31,12 @@ struct SSHChannelIdentifier {
     var peerChannelID: UInt32
 }
 
-extension SSHChannelIdentifier: Equatable { }
+extension SSHChannelIdentifier: Equatable {}
 
-extension SSHChannelIdentifier: Hashable { }
+extension SSHChannelIdentifier: Hashable {}
 
 extension SSHChannelIdentifier: CustomStringConvertible {
     var description: String {
-        return "SSHChannelIdentifier(local: \(self.localChannelID), peer: \(self.peerChannelID))"
+        "SSHChannelIdentifier(local: \(self.localChannelID), peer: \(self.peerChannelID))"
     }
 }
