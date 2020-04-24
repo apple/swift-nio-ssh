@@ -13,7 +13,6 @@
 //===----------------------------------------------------------------------===//
 import NIO
 
-
 /// A `GlobalRequestDelegate` is used by an SSH server to handle SSH global requests.
 ///
 /// These are requests for connection-wide SSH resources. Today the only global requests
@@ -49,4 +48,4 @@ public enum GlobalRequest {
 }
 
 /// The internal default global request delegate rejects all requests.
-internal struct DefaultGlobalRequestDelegate: GlobalRequestDelegate { }
+internal struct DefaultGlobalRequestDelegate: GlobalRequestDelegate {}

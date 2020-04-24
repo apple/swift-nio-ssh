@@ -702,7 +702,7 @@ extension ByteBuffer {
     }
 
     mutating func readGlobalRequestMessage() throws -> SSHMessage.GlobalRequestMessage? {
-        try self.rewindReaderOnNilOrError { `self` in
+        try self.rewindOnNilOrError { `self` in
             guard
                 let name = self.readSSHStringAsString(),
                 let wantReply = self.readSSHBoolean()

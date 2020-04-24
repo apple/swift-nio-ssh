@@ -103,7 +103,7 @@ extension NIOSSHError {
 
     @inline(never)
     internal static func unknownPacketType(diagnostic: String) -> NIOSSHError {
-        return NIOSSHError(type: .unknownPacketType, diagnostics: diagnostic)
+        NIOSSHError(type: .unknownPacketType, diagnostics: diagnostic)
     }
 
     internal static let unsupportedGlobalRequest = NIOSSHError(type: .unsupportedGlobalRequest, diagnostics: nil)

@@ -20,7 +20,7 @@ internal enum UserAuthDelegate {
         switch role {
         case .client(let config):
             self = .client(config.userAuthDelegate)
-        case (.server(let config)):
+        case .server(let config):
             self = .server(config.userAuthDelegate)
         }
     }
