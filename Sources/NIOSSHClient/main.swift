@@ -40,7 +40,7 @@ defer {
 
 let bootstrap = ClientBootstrap(group: group)
     .channelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .client, allocator: channel.allocator, clientUserAuthDelegate: InteractivePasswordPromptDelegate(username: parseResult.user, password: parseResult.password), serverUserAuthDelegate: nil, inboundChildChannelInitializer: nil), ErrorHandler()])
+        channel.pipeline.addHandlers([NIOSSHHandler(role: .client(.init(userAuthDelegate: InteractivePasswordPromptDelegate(username: parseResult.user, password: parseResult.password))), allocator: channel.allocator, inboundChildChannelInitializer: nil), ErrorHandler()])
     }
     .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)

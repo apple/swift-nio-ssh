@@ -40,9 +40,6 @@ public final class NIOSSHHandler {
     /// Whether there's a pending unflushed write.
     private var pendingWrite: Bool
 
-    /// The user-auth delegate for this connection.
-    private let authDelegate: UserAuthDelegate
-
     private var context: ChannelHandlerContext?
 
     // Must be optional as we need to pass it a reference to self.
@@ -55,11 +52,10 @@ public final class NIOSSHHandler {
     // we're attempting to initialize a channel before user auth is complete.
     private var pendingChannelInitializations: CircularBuffer<(promise: EventLoopPromise<Channel>?, initializer: ((Channel) -> EventLoopFuture<Void>)?)>
 
-    public init(role: SSHConnectionRole, allocator: ByteBufferAllocator, clientUserAuthDelegate: NIOSSHClientUserAuthenticationDelegate?, serverUserAuthDelegate: NIOSSHServerUserAuthenticationDelegate?, inboundChildChannelInitializer: ((Channel) -> EventLoopFuture<Void>)?) {
+    public init(role: SSHConnectionRole, allocator: ByteBufferAllocator, inboundChildChannelInitializer: ((Channel) -> EventLoopFuture<Void>)?) {
         self.stateMachine = SSHConnectionStateMachine(role: role)
         self.pendingWrite = false
         self.outboundFrameBuffer = allocator.buffer(capacity: 1024)
-        self.authDelegate = UserAuthDelegate(role: role, client: clientUserAuthDelegate, server: serverUserAuthDelegate)
         self.pendingChannelInitializations = CircularBuffer(initialCapacity: 4)
         self.multiplexer = SSHChannelMultiplexer(delegate: self, allocator: allocator, childChannelInitializer: inboundChildChannelInitializer)
     }
@@ -109,7 +105,7 @@ extension NIOSSHHandler: ChannelDuplexHandler {
         self.stateMachine.bufferInboundData(&data)
 
         do {
-            while let result = try self.stateMachine.processInboundMessage(allocator: context.channel.allocator, loop: context.eventLoop, userAuthDelegate: self.authDelegate) {
+            while let result = try self.stateMachine.processInboundMessage(allocator: context.channel.allocator, loop: context.eventLoop) {
                 try self.processInboundMessageResult(result, context: context)
             }
         } catch {
@@ -133,7 +129,7 @@ extension NIOSSHHandler: ChannelDuplexHandler {
         self.outboundFrameBuffer.clear()
 
         for message in multiMessage {
-            try self.stateMachine.processOutboundMessage(message, buffer: &self.outboundFrameBuffer, allocator: context.channel.allocator, loop: context.eventLoop, userAuthDelegate: self.authDelegate)
+            try self.stateMachine.processOutboundMessage(message, buffer: &self.outboundFrameBuffer, allocator: context.channel.allocator, loop: context.eventLoop)
             self.pendingWrite = true
         }
 

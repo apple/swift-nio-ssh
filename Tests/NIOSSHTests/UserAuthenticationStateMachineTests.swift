@@ -216,7 +216,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testBasicHappyClientFlow() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
         stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
@@ -231,7 +231,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testBasicSadClientFlow() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
         stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
@@ -250,7 +250,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testBasicSadThenHappyClientFlow() throws {
         let delegate = InfinitePasswordDelegate()
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
         stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
@@ -270,7 +270,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testAuthMessagesAfterSuccessAreIgnored() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
         stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
@@ -289,7 +289,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testUnsolicitedResponseBeforeInitIsInvalid() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertThrowsError(try stateMachine.receiveUserAuthSuccess()) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
@@ -301,7 +301,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testUnsolicitedResponseAfterInitBeforeSendingIsInvalid() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         // Let's request the first message but not deliver it.
         _ = stateMachine.beginAuthentication()
@@ -316,7 +316,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testUnsolicitedResponseAfterFailureBeforeNextRequestIsInvalid() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
         stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
@@ -340,7 +340,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testUnsolicitedResponseAfterCompleteFailureIsInvalid() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
         stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
@@ -366,7 +366,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testServersMayNotReceiveUserAuthSuccessMessages() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyAllServerAuthDelegate()), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyAllServerAuthDelegate())), loop: self.loop, sessionID: self.sessionID)
 
         // Deliver a user auth success message
         XCTAssertThrowsError(try stateMachine.receiveUserAuthSuccess()) { error in
@@ -375,7 +375,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testServersMayNotReceiveUserAuthFailureMessages() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyAllServerAuthDelegate()), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyAllServerAuthDelegate())), loop: self.loop, sessionID: self.sessionID)
 
         // Deliver a user auth failure message
         let message = SSHMessage.UserAuthFailureMessage(authentications: [], partialSuccess: false)
@@ -385,7 +385,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testBasicServerRejections() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyAllServerAuthDelegate()), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyAllServerAuthDelegate())), loop: self.loop, sessionID: self.sessionID)
 
         // Begin by doing the service accept dance.
         let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
@@ -404,7 +404,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testManyAuthRequestsInFlightAtOnce() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyAllServerAuthDelegate()), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyAllServerAuthDelegate())), loop: self.loop, sessionID: self.sessionID)
 
         // Begin by doing the service accept dance.
         let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
@@ -424,7 +424,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testSimpleServerHappyPath() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyThenAcceptDelegate(messagesToDeny: 0)), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 0))), loop: self.loop, sessionID: self.sessionID)
 
         // Begin by doing the service accept dance.
         let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
@@ -438,7 +438,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testServerIgnoresMessagesAfterSuccess() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyThenAcceptDelegate(messagesToDeny: 0)), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 0))), loop: self.loop, sessionID: self.sessionID)
 
         // Begin by doing the service accept dance.
         let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
@@ -457,7 +457,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testClientRejectsUserAuthRequests() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
         let authRequest = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .password("bar"))
 
         XCTAssertThrowsError(try stateMachine.receiveUserAuthRequest(authRequest)) { error in
@@ -479,12 +479,12 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testBeginningAuthenticationOnServersDoesNothing() throws {
-        let stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyThenAcceptDelegate(messagesToDeny: 0)), loop: self.loop, sessionID: self.sessionID)
+        let stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 0))), loop: self.loop, sessionID: self.sessionID)
         XCTAssertNil(stateMachine.beginAuthentication())
     }
 
     func testRejectUnexpectedServices() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyThenAcceptDelegate(messagesToDeny: 0)), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 0))), loop: self.loop, sessionID: self.sessionID)
 
         let request = SSHMessage.ServiceRequestMessage(service: "ssh-connection")
         XCTAssertThrowsError(try stateMachine.receiveServiceRequest(request)) { error in
@@ -493,7 +493,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testRepeatedServiceRequestsDontWork() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyThenAcceptDelegate(messagesToDeny: 0)), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 0))), loop: self.loop, sessionID: self.sessionID)
 
         // Begin by doing the service accept dance.
         let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
@@ -529,7 +529,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testClientsRejectUserAuthRequests() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertThrowsError(try stateMachine.receiveServiceRequest(.init(service: "ssh-userauth"))) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
@@ -538,7 +538,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testClientsRejectUnexpectedAuthServices() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
         stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
@@ -551,7 +551,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testClientsRejectServiceAcceptOutOfSequence() throws {
         let delegate = SimplePasswordDelegate(username: "foo", password: "bar")
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         // Before we start the client rejects service accepts.
         let accept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
@@ -597,7 +597,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testServerRejectsServiceAccepts() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyAllServerAuthDelegate()), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyAllServerAuthDelegate())), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertThrowsError(try stateMachine.receiveServiceAccept(.init(service: "ssh-userauth"))) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
@@ -605,7 +605,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testUserAuthRequestsMustAskForSSHConnection() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyAllServerAuthDelegate()), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyAllServerAuthDelegate())), loop: self.loop, sessionID: self.sessionID)
 
         // Begin by doing the service accept dance.
         let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
@@ -620,7 +620,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testUserAuthBeforeServiceAcceptIsRejected() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyAllServerAuthDelegate()), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyAllServerAuthDelegate())), loop: self.loop, sessionID: self.sessionID)
 
         // User asks a question too early.
         let authRequest = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .password("bar"))
@@ -639,7 +639,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testPrivateKeyServerAuthFlow() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyThenAcceptDelegate(messagesToDeny: 1)), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))), loop: self.loop, sessionID: self.sessionID)
 
         // Begin by doing the service accept dance.
         let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
@@ -672,7 +672,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
     }
 
     func testServerPerformsValidationsOnSignatures() throws {
-        var stateMachine = UserAuthenticationStateMachine(role: .server([self.hostKey]), delegate: .server(DenyThenAcceptDelegate(messagesToDeny: 0)), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 0))), loop: self.loop, sessionID: self.sessionID)
 
         // Begin by doing the service accept dance.
         let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
@@ -690,7 +690,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
     func testPrivateKeyClientAuthFlow() throws {
         let delegate = InfinitePrivateKeyDelegate()
-        var stateMachine = UserAuthenticationStateMachine(role: .client, delegate: .client(delegate), loop: self.loop, sessionID: self.sessionID)
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate)), loop: self.loop, sessionID: self.sessionID)
 
         XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
         stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))

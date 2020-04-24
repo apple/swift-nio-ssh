@@ -16,20 +16,12 @@ internal enum UserAuthDelegate {
     case server(NIOSSHServerUserAuthenticationDelegate)
     case client(NIOSSHClientUserAuthenticationDelegate)
 
-    init(role: SSHConnectionRole, client: NIOSSHClientUserAuthenticationDelegate?, server: NIOSSHServerUserAuthenticationDelegate?) {
-        switch (role, client, server) {
-        case (.client, .some(let delegate), .none):
-            self = .client(delegate)
-        case (.server, .none, .some(let delegate)):
-            self = .server(delegate)
-        case (.client, .none, _):
-            preconditionFailure("Must provide user auth delegate for client authentication")
-        case (.client, _, .some):
-            preconditionFailure("Clients may not have server user auth delegates")
-        case (.server, _, .none):
-            preconditionFailure("Must provide user auth delegate for server authentication")
-        case (.server, _, .some):
-            preconditionFailure("Servers may not have client user auth delegates")
+    init(role: SSHConnectionRole) {
+        switch role {
+        case .client(let config):
+            self = .client(config.userAuthDelegate)
+        case .server(let config):
+            self = .server(config.userAuthDelegate)
         }
     }
 }

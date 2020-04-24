@@ -87,8 +87,7 @@ struct SSHConnectionStateMachine {
     }
 
     mutating func processInboundMessage(allocator: ByteBufferAllocator,
-                                        loop: EventLoop,
-                                        userAuthDelegate: UserAuthDelegate) throws -> StateMachineInboundProcessResult? {
+                                        loop: EventLoop) throws -> StateMachineInboundProcessResult? {
         switch self.state {
         case .idle:
             preconditionFailure("Received messages before sending our first message.")
@@ -131,7 +130,7 @@ struct SSHConnectionStateMachine {
                 return result
             case .newKeys:
                 try state.receiveNewKeysMessage()
-                let newState = ReceivedNewKeysState(keyExchangeState: state, delegate: userAuthDelegate, loop: loop)
+                let newState = ReceivedNewKeysState(keyExchangeState: state, loop: loop)
                 let possibleMessage = newState.userAuthStateMachine.beginAuthentication()
                 self.state = .receivedNewKeys(newState)
 
@@ -337,8 +336,7 @@ struct SSHConnectionStateMachine {
     mutating func processOutboundMessage(_ message: SSHMessage,
                                          buffer: inout ByteBuffer,
                                          allocator: ByteBufferAllocator,
-                                         loop: EventLoop,
-                                         userAuthDelegate: UserAuthDelegate) throws {
+                                         loop: EventLoop) throws {
         switch self.state {
         case .idle(var state):
             switch message {
@@ -371,7 +369,7 @@ struct SSHConnectionStateMachine {
                 self.state = .keyExchange(kex)
             case .newKeys:
                 try kex.writeNewKeysMessage(into: &buffer)
-                self.state = .sentNewKeys(.init(keyExchangeState: kex, delegate: userAuthDelegate, loop: loop))
+                self.state = .sentNewKeys(.init(keyExchangeState: kex, loop: loop))
 
             case .disconnect:
                 try kex.serializer.serialize(message: message, to: &buffer)

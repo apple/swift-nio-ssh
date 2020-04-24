@@ -100,6 +100,13 @@ extension NIOSSHError {
     internal static let tcpShutdown = NIOSSHError(type: .tcpShutdown, diagnostics: nil)
 
     internal static let invalidUserAuthSignature = NIOSSHError(type: .invalidUserAuthSignature, diagnostics: nil)
+
+    @inline(never)
+    internal static func unknownPacketType(diagnostic: String) -> NIOSSHError {
+        NIOSSHError(type: .unknownPacketType, diagnostics: diagnostic)
+    }
+
+    internal static let unsupportedGlobalRequest = NIOSSHError(type: .unsupportedGlobalRequest, diagnostics: nil)
 }
 
 // MARK: - NIOSSHError CustomStringConvertible conformance.
@@ -137,6 +144,8 @@ extension NIOSSHError {
             case creatingChannelAfterClosure
             case tcpShutdown
             case invalidUserAuthSignature
+            case unknownPacketType
+            case unsupportedGlobalRequest
         }
 
         private var base: Base
@@ -207,6 +216,12 @@ extension NIOSSHError {
 
         /// The signature provided in user authentication was invalid.
         public static let invalidUserAuthSignature: ErrorType = .init(.invalidUserAuthSignature)
+
+        /// An packet type that we don't recognise was received.
+        public static let unknownPacketType: ErrorType = .init(.unknownPacketType)
+
+        /// A global request was made and rejected due to being unsupported.
+        public static let unsupportedGlobalRequest: ErrorType = .init(.unsupportedGlobalRequest)
     }
 }
 

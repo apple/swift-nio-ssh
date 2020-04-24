@@ -173,8 +173,8 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
     private func assertSendingExtraMessageFails(message: SSHMessage, allowedStages: HandshakeStages) throws {
         let allocator = ByteBufferAllocator()
 
-        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: Constants.version)
-        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server([.init(ed25519Key: .init())]), remoteVersion: Constants.version)
+        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())), remoteVersion: Constants.version)
+        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())), remoteVersion: Constants.version)
 
         // Both sides begin by generating a key exchange message.
         let serverMessage = try assertGeneratesKeyExchangeMessage(server.startKeyExchange())
@@ -224,8 +224,8 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
     func testKeyExchange() throws {
         let allocator = ByteBufferAllocator()
 
-        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: Constants.version)
-        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server([.init(ed25519Key: .init())]), remoteVersion: Constants.version)
+        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())), remoteVersion: Constants.version)
+        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())), remoteVersion: Constants.version)
 
         // Both sides begin by generating a key exchange message.
         let serverMessage = try assertGeneratesKeyExchangeMessage(server.startKeyExchange())
@@ -262,7 +262,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This test verifies that the server will tolerate an invalid guessed negotiation. For this reason we only drive a server,
         // as our code never actually guesses.
         let allocator = ByteBufferAllocator()
-        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server([.init(ed25519Key: .init())]), remoteVersion: Constants.version)
+        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())), remoteVersion: Constants.version)
 
         // Server generates a key exchange message.
         let serverMessage = try assertGeneratesKeyExchangeMessage(server.startKeyExchange())
@@ -297,7 +297,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This test verifies that the state machine forbids extra key exchange messages.
         // We get the key exchange message out of the server because it's a pain to build by hand.
         let allocator = ByteBufferAllocator()
-        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server([.init(ed25519Key: .init())]), remoteVersion: Constants.version)
+        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())), remoteVersion: Constants.version)
         let serverMessage = try assertGeneratesKeyExchangeMessage(server.startKeyExchange())
         try self.assertSendingExtraMessageFails(message: SSHMessage.keyExchange(serverMessage), allowedStages: [.beforeReceiveKeyExchangeClient, .beforeReceiveKeyExchangeServer])
     }
@@ -320,8 +320,8 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This test runs a full key exchange but the server races its newKeys message right behind the ecdh reply.
         let allocator = ByteBufferAllocator()
 
-        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: Constants.version)
-        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server([.init(ed25519Key: .init())]), remoteVersion: Constants.version)
+        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())), remoteVersion: Constants.version)
+        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())), remoteVersion: Constants.version)
 
         // Both sides begin by generating a key exchange message.
         let serverMessage = try assertGeneratesKeyExchangeMessage(server.startKeyExchange())
@@ -359,8 +359,8 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This test runs a full key exchange but the server races its newKeys message right behind the ecdh reply.
         let allocator = ByteBufferAllocator()
 
-        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: Constants.version)
-        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server([.init(p256Key: .init())]), remoteVersion: Constants.version)
+        var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())), remoteVersion: Constants.version)
+        var server = SSHKeyExchangeStateMachine(allocator: allocator, role: .server(.init(hostKeys: [.init(p256Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())), remoteVersion: Constants.version)
 
         // Both sides begin by generating a key exchange message.
         let serverMessage = try assertGeneratesKeyExchangeMessage(server.startKeyExchange())
@@ -398,7 +398,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         var cookies: [ByteBuffer] = []
         for _ in 0 ..< 5 {
             let allocator = ByteBufferAllocator()
-            var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client, remoteVersion: Constants.version)
+            var client = SSHKeyExchangeStateMachine(allocator: allocator, role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())), remoteVersion: Constants.version)
             let clientMessage = try assertGeneratesKeyExchangeMessage(client.startKeyExchange())
             cookies.append(clientMessage.cookie)
         }
