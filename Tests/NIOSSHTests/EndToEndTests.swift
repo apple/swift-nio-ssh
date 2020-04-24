@@ -76,15 +76,11 @@ class BackToBackEmbeddedChannel {
     }
 
     func configureWithHarness(_ harness: TestHarness) throws {
-        let clientHandler = NIOSSHHandler(role: .client,
+        let clientHandler = NIOSSHHandler(role: .client(.init(userAuthDelegate: harness.clientAuthDelegate)),
                                           allocator: self.client.allocator,
-                                          clientUserAuthDelegate: harness.clientAuthDelegate,
-                                          serverUserAuthDelegate: nil,
                                           inboundChildChannelInitializer: nil)
-        let serverHandler = NIOSSHHandler(role: .server(harness.serverHostKeys),
-                                          allocator: self.server.allocator,
-                                          clientUserAuthDelegate: nil,
-                                          serverUserAuthDelegate: harness.serverAuthDelegate) { channel in
+        let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate)),
+                                          allocator: self.server.allocator) { channel in
             self.activeServerChannels.append(channel)
             channel.closeFuture.whenComplete { _ in self.activeServerChannels.removeAll(where: { $0 === channel }) }
             return channel.eventLoop.makeSucceededFuture(())
