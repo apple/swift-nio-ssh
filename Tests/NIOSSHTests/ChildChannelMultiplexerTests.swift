@@ -1169,8 +1169,12 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
 
         // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        // Sorry for the unsafe code, but otherwise this test takes _ages_.
         var buffer = channel.allocator.buffer(capacity: (1 << 24) + 1)
-        buffer.writeBytes(repeatElement(0, count: (1 << 24) + 1))
+        buffer.writeWithUnsafeMutableBytes(minimumWritableBytes: (1 << 24) + 1) { ptr in
+            memset(ptr.baseAddress!, 0, (1 << 24) + 1)
+            return (1 << 24) + 1
+        }
 
         // We're going to write one byte short.
         XCTAssertEqual(harness.flushedMessages.count, 1)
