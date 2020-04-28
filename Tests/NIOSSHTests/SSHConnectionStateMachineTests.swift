@@ -224,4 +224,21 @@ final class SSHConnectionStateMachineTests: XCTestCase {
             XCTAssertNoThrow(try self.assertSendingIsProtocolError(message, sender: &client, allocator: allocator, loop: loop))
         }
     }
+
+    func testDisconnectedReturnsNil() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
+
+        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
+        try self.assertDisconnects(.disconnect(.init(reason: 0, description: "", tag: "")), sender: &client, receiver: &server, allocator: allocator, loop: loop)
+
+        // Ok, in disconnected state. At this time, any attempt to process the connection should return nil.
+        var junkBuffer = allocator.buffer(capacity: 1024)
+        junkBuffer.writeBytes(0 ... 255)
+        server.bufferInboundData(&junkBuffer)
+
+        XCTAssertNoThrow(try XCTAssertNil(server.processInboundMessage(allocator: allocator, loop: loop)))
+    }
 }
