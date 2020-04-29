@@ -329,7 +329,7 @@ struct SSHConnectionStateMachine {
 
         case .receivedDisconnect, .sentDisconnect:
             // We do no further I/O in these states.
-            return .noMessage
+            return nil
         }
     }
 
