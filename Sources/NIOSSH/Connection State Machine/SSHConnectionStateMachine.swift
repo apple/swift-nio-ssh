@@ -163,7 +163,7 @@ struct SSHConnectionStateMachine {
                 // > o  Specific key exchange method messages (30 to 49).
                 //
                 // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                return .noMessage
+                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
             }
         case .sentNewKeys(var state):
             guard let message = try state.parser.nextPacket() else {
@@ -215,7 +215,7 @@ struct SSHConnectionStateMachine {
                 // > o  Specific key exchange method messages (30 to 49).
                 //
                 // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                return .noMessage
+                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
             }
 
         case .receivedNewKeys(var state):
