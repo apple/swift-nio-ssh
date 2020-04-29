@@ -97,7 +97,7 @@ struct SSHPacketParser {
     private mutating func readVersion() throws -> String? {
         // Looking for a string ending with \r\n
         let slice = self.buffer.readableBytesView
-        if let cr = slice.firstIndex(of: 13), slice[cr.advanced(by: 1)] == 10 {
+        if let cr = slice.firstIndex(of: 13), cr.advanced(by: 1) < slice.endIndex, slice[cr.advanced(by: 1)] == 10 {
             let version = String(decoding: slice[slice.startIndex ..< cr], as: UTF8.self)
             // read \r\n
             self.buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: cr).advanced(by: 2))
