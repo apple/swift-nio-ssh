@@ -59,4 +59,8 @@ final class FuzzResultTests: XCTestCase {
     func testOne() {
         self.runTest(base64EncodedTestData: "AAoKDQ==")
     }
+
+    func testTwo() {
+        self.runTest(base64EncodedTestData: "U1NILTIuMAAAsA0KAAAADQtR+ABpY3VkdDY1ACA=")
+    }
 }
