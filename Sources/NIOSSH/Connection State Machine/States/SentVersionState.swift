@@ -26,11 +26,14 @@ extension SSHConnectionStateMachine {
         /// The packet serializer used by this state machine.
         var serializer: SSHPacketSerializer
 
+        var protectionSchemes: [NIOSSHTransportProtection.Type]
+
         private let allocator: ByteBufferAllocator
 
         init(idleState state: IdleState, allocator: ByteBufferAllocator) {
             self.role = state.role
             self.serializer = state.serializer
+            self.protectionSchemes = state.protectionSchemes
 
             self.parser = SSHPacketParser(allocator: allocator)
             self.allocator = allocator

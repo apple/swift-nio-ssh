@@ -62,12 +62,14 @@ struct SSHKeyExchangeStateMachine {
     private let role: SSHConnectionRole
     private var state: State
     private var initialExchangeBytes: ByteBuffer
+    private var protectionSchemes: [NIOSSHTransportProtection.Type]
 
-    init(allocator: ByteBufferAllocator, role: SSHConnectionRole, remoteVersion: String) {
+    init(allocator: ByteBufferAllocator, role: SSHConnectionRole, remoteVersion: String, protectionSchemes: [NIOSSHTransportProtection.Type]) {
         self.allocator = allocator
         self.role = role
         self.initialExchangeBytes = allocator.buffer(capacity: 1024)
         self.state = .idle
+        self.protectionSchemes = protectionSchemes
 
         switch self.role {
         case .client:
@@ -84,15 +86,17 @@ struct SSHKeyExchangeStateMachine {
     private func createKeyExchangeMessage() -> SSHMessage {
         var rng = CSPRNG()
 
-        // TODO: default to aes256 since keys size and algorithm are hardcoded for now
+        let encryptionAlgorithms = self.supportedEncryptionAlgorithms
+        let macAlgorithms = self.supportedMacAlgorithms
+
         return .keyExchange(.init(
             cookie: rng.randomCookie(allocator: self.allocator),
             keyExchangeAlgorithms: Self.supportedKeyExchangeAlgorithms,
             serverHostKeyAlgorithms: self.supportedHostKeyAlgorithms,
-            encryptionAlgorithmsClientToServer: ["aes256-gcm@openssh.com"],
-            encryptionAlgorithmsServerToClient: ["aes256-gcm@openssh.com"],
-            macAlgorithmsClientToServer: ["hmac-sha2-256"],
-            macAlgorithmsServerToClient: ["hmac-sha2-256"],
+            encryptionAlgorithmsClientToServer: encryptionAlgorithms,
+            encryptionAlgorithmsServerToClient: encryptionAlgorithms,
+            macAlgorithmsClientToServer: macAlgorithms,
+            macAlgorithmsServerToClient: macAlgorithms,
             compressionAlgorithmsClientToServer: ["none"],
             compressionAlgorithmsServerToClient: ["none"],
             languagesClientToServer: [],
@@ -120,7 +124,7 @@ struct SSHKeyExchangeStateMachine {
                 self.addKeyExchangeInitMessagesToExchangeBytes(clientsMessage: ourMessage, serversMessage: message)
 
                 // verify algorithms
-                let negotiated = try self.negotiatedKeyExchangeAlgorithm(peerKeyExchangeAlgorithms: message.keyExchangeAlgorithms, peerHostKeyAlgorithms: message.serverHostKeyAlgorithms)
+                let negotiated = try self.negotiatedAlgorithms(message)
                 let exchanger = self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
                 // Ok, we need to send the key exchange message.
@@ -131,7 +135,7 @@ struct SSHKeyExchangeStateMachine {
                 // Write their message in first, then ours.
                 self.addKeyExchangeInitMessagesToExchangeBytes(clientsMessage: message, serversMessage: ourMessage)
 
-                let negotiated = try self.negotiatedKeyExchangeAlgorithm(peerKeyExchangeAlgorithms: message.keyExchangeAlgorithms, peerHostKeyAlgorithms: message.serverHostKeyAlgorithms)
+                let negotiated = try self.negotiatedAlgorithms(message)
                 let exchanger = self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
                 // Ok, we're waiting for them to go. They might be sending a wrong guess, which we want to ignore.
@@ -176,7 +180,7 @@ struct SSHKeyExchangeStateMachine {
                     clientKeyExchangeMessage: message,
                     serverHostKey: negotiated.negotiatedHostKey(configuration.hostKeys),
                     initialExchangeBytes: &self.initialExchangeBytes,
-                    allocator: self.allocator, expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes
+                    allocator: self.allocator, expectedKeySizes: negotiated.negotiatedProtection.keySizes
                 )
 
                 let message = SSHMessage.keyExchangeReply(reply)
@@ -208,10 +212,10 @@ struct SSHKeyExchangeStateMachine {
                     serverKeyExchangeMessage: message,
                     initialExchangeBytes: &self.initialExchangeBytes,
                     allocator: self.allocator,
-                    expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes
+                    expectedKeySizes: negotiated.negotiatedProtection.keySizes
                 )
 
-                self.state = .keysExchanged(result: result, protection: try AES256GCMOpenSSHTransportProtection(initialKeys: result.keys), negotiated: negotiated)
+                self.state = .keysExchanged(result: result, protection: try negotiated.negotiatedProtection.init(initialKeys: result.keys), negotiated: negotiated)
                 return SSHMultiMessage(SSHMessage.newKeys)
             case .server:
                 preconditionFailure("Servers cannot enter key exchange init sent.")
@@ -225,7 +229,7 @@ struct SSHKeyExchangeStateMachine {
         switch self.state {
         case .keyExchangeInitReceived(result: let result, negotiated: let negotiated):
             precondition(self.role.isServer, "Clients cannot enter key exchange init received")
-            self.state = .keysExchanged(result: result, protection: try AES256GCMOpenSSHTransportProtection(initialKeys: result.keys), negotiated: negotiated)
+            self.state = .keysExchanged(result: result, protection: try negotiated.negotiatedProtection.init(initialKeys: result.keys), negotiated: negotiated)
         case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             // This is a precondition not a throw because we control the sending of this message.
             preconditionFailure("Cannot send ECDH key exchange message in state \(self.state)")
@@ -259,7 +263,27 @@ struct SSHKeyExchangeStateMachine {
         }
     }
 
-    private func negotiatedKeyExchangeAlgorithm(peerKeyExchangeAlgorithms: [Substring], peerHostKeyAlgorithms: [Substring]) throws -> NegotiationResult {
+    private func negotiatedAlgorithms(_ message: SSHMessage.KeyExchangeMessage) throws -> NegotiationResult {
+        let (keyExchange, hostKey) = try self.negotiatedKeyExchangeAlgorithm(peerKeyExchangeAlgorithms: message.keyExchangeAlgorithms,
+                                                                             peerHostKeyAlgorithms: message.serverHostKeyAlgorithms)
+        let (clientEncryption, clientMAC) = try self.negotiatedTransportProtection(peerEncryptionAlgorithms: message.encryptionAlgorithmsClientToServer, peerMacAlgorithms: message.macAlgorithmsClientToServer)
+        let (serverEncryption, serverMAC) = try self.negotiatedTransportProtection(peerEncryptionAlgorithms: message.encryptionAlgorithmsServerToClient, peerMacAlgorithms: message.macAlgorithmsServerToClient)
+
+        // We only support symmetrical negotiation results.
+        guard clientEncryption == serverEncryption, clientMAC == serverMAC else {
+            throw NIOSSHError.keyExchangeNegotiationFailure
+        }
+
+        // Ok, now we need to find the right transport protection scheme. This can technically fail.
+        guard let scheme = self.protectionSchemes.first(where: { $0.cipherName == clientEncryption && ($0.macName == nil || $0.macName! == clientMAC) }) else {
+            throw NIOSSHError.keyExchangeNegotiationFailure
+        }
+
+        // Great, we have a protection scheme. Build the negotiation result.
+        return NegotiationResult(negotiatedKeyExchangeAlgorithm: keyExchange, negotiatedHostKeyAlgorithm: hostKey, negotiatedProtection: scheme)
+    }
+
+    private func negotiatedKeyExchangeAlgorithm(peerKeyExchangeAlgorithms: [Substring], peerHostKeyAlgorithms: [Substring]) throws -> (keyExchange: Substring, hostKey: Substring) {
         // From RFC 4253:
         //
         // > The first algorithm MUST be the preferred (and guessed) algorithm.  If
@@ -312,12 +336,46 @@ struct SSHKeyExchangeStateMachine {
                 }
 
                 // Got one! This one works.
-                return NegotiationResult(negotiatedKeyExchangeAlgorithm: algorithm, negotiatedHostKeyAlgorithm: hostKeyAlgorithm)
+                return (keyExchange: algorithm, hostKey: hostKeyAlgorithm)
             }
         }
 
         // Completed the loop with usable protocols, we have to throw.
         throw NIOSSHError.keyExchangeNegotiationFailure
+    }
+
+    private func negotiatedTransportProtection(peerEncryptionAlgorithms: [Substring], peerMacAlgorithms: [Substring]) throws -> (encryption: Substring, mac: Substring) {
+        // Ok, rephrase as client and server instead of us and them.
+        let clientEncryptionAlgorithms: [Substring]
+        let serverEncryptionAlgorithms: [Substring]
+        let clientMACAlgorithms: [Substring]
+        let serverMACAlgorithms: [Substring]
+
+        switch self.role {
+        case .client:
+            clientEncryptionAlgorithms = self.supportedEncryptionAlgorithms
+            clientMACAlgorithms = self.supportedMacAlgorithms
+            serverEncryptionAlgorithms = peerEncryptionAlgorithms
+            serverMACAlgorithms = peerMacAlgorithms
+        case .server:
+            clientEncryptionAlgorithms = peerEncryptionAlgorithms
+            clientMACAlgorithms = peerMacAlgorithms
+            serverEncryptionAlgorithms = self.supportedEncryptionAlgorithms
+            serverMACAlgorithms = self.supportedMacAlgorithms
+        }
+
+        // Ok, the algorithm is that we choose the first encryption and MAC algorithm in the client's list that
+        // is in the server's list as well.
+        guard let encryption = clientEncryptionAlgorithms.first(where: { serverEncryptionAlgorithms.contains($0) }) else {
+            throw NIOSSHError.keyExchangeNegotiationFailure
+        }
+
+        // Ok great, now work out what we negotiated as a MAC.
+        guard let mac = clientMACAlgorithms.first(where: { serverMACAlgorithms.contains($0) }) else {
+            throw NIOSSHError.keyExchangeNegotiationFailure
+        }
+
+        return (encryption, mac)
     }
 
     private mutating func addKeyExchangeInitMessagesToExchangeBytes(clientsMessage: SSHMessage.KeyExchangeMessage, serversMessage: SSHMessage.KeyExchangeMessage) {
@@ -346,13 +404,32 @@ struct SSHKeyExchangeStateMachine {
         )
     }
 
-    // The host key algorithms supported by this peer, in order of preferences..
+    // The host key algorithms supported by this peer, in order of preference.
     private var supportedHostKeyAlgorithms: [Substring] {
         switch self.role {
         case .client:
             return Self.supportedServerHostKeyAlgorithms
         case .server(let configuration):
             return configuration.hostKeys.flatMap { $0.hostKeyAlgorithms }
+        }
+    }
+
+    /// The encryption algorithms supported by this peer, in order of preference.
+    private var supportedEncryptionAlgorithms: [Substring] {
+        self.protectionSchemes.map { Substring($0.cipherName) }
+    }
+
+    /// The MAC algorithms supported by this peer, in order of preference.
+    private var supportedMacAlgorithms: [Substring] {
+        let schemes = self.protectionSchemes.compactMap { $0.macName.map { Substring($0) } }
+
+        // We do a weird thing here: if there are no MAC schemes, we lie and put one in. This is
+        // because some schemes (such as AES-GCM in OpenSSH mode) ignore the MAC negotiation.
+        // Worse case, we fail out later in the handshake because the peer actually wanted it.
+        if schemes.isEmpty {
+            return ["hmac-sha2-256"]
+        } else {
+            return schemes
         }
     }
 }
@@ -370,6 +447,8 @@ extension SSHKeyExchangeStateMachine {
         var negotiatedKeyExchangeAlgorithm: Substring
 
         var negotiatedHostKeyAlgorithm: Substring
+
+        var negotiatedProtection: NIOSSHTransportProtection.Type
 
         func negotiatedHostKey(_ keys: [NIOSSHPrivateKey]) -> NIOSSHPrivateKey {
             // This force-unwrap is safe: to fail to obtain it is a programming error, as we must have negotiated
