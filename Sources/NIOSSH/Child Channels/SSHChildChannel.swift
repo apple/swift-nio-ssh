@@ -90,9 +90,13 @@ final class SSHChildChannel {
 
     private let _isActive: NIOAtomic<Bool>
 
-    private var initializer: ((Channel) -> EventLoopFuture<Void>)?
+    typealias Initializer = (Channel, SSHChannelType) -> EventLoopFuture<Void>
+
+    private var initializer: Initializer?
 
     private var didClose = false
+
+    private var type: SSHChannelType?
 
     /// A promise from the user that will be fired when the channel goes active.
     private var userActivatePromise: EventLoopPromise<Channel>?
@@ -100,7 +104,7 @@ final class SSHChildChannel {
     internal convenience init(allocator: ByteBufferAllocator,
                               parent: Channel,
                               multiplexer: SSHChannelMultiplexer,
-                              initializer: ((Channel) -> EventLoopFuture<Void>)?,
+                              initializer: Initializer?,
                               localChannelID: UInt32,
                               targetWindowSize: Int32,
                               initialOutboundWindowSize: UInt32) {
@@ -116,7 +120,7 @@ final class SSHChildChannel {
     private init(allocator: ByteBufferAllocator,
                  parent: Channel,
                  multiplexer: SSHChannelMultiplexer,
-                 initializer: ((Channel) -> EventLoopFuture<Void>)?,
+                 initializer: Initializer?,
                  initialState: ChildChannelStateMachine,
                  targetWindowSize: Int32,
                  initialOutboundWindowSize: UInt32) {
@@ -214,6 +218,10 @@ extension SSHChildChannel: Channel, ChannelCore {
             return self.state.localChannelIdentifier as! Option.Value
         case _ as SSHChildChannelOptions.Types.RemoteChannelIdentifierOption:
             return self.state.remoteChannelIdentifier as! Option.Value
+        case _ as SSHChildChannelOptions.Types.SSHChannelTypeOption:
+            // This force-unwrap is safe: we set type before we call the initializer, so
+            // users can only get this after this value is set.
+            return self.type! as! Option.Value
         case _ as ChannelOptions.Types.AutoReadOption:
             return self.autoRead as! Option.Value
         case _ as ChannelOptions.Types.AllowRemoteHalfClosureOption:
@@ -406,7 +414,9 @@ extension SSHChildChannel: Channel, ChannelCore {
         // do nothing
     }
 
-    internal func configure(userPromise: EventLoopPromise<Channel>?) {
+    internal func configure(userPromise: EventLoopPromise<Channel>?, channelType: SSHChannelType) {
+        self.type = channelType
+
         // We need to configure this channel. This involves doing four things:
         // 1. Setting our autoRead state from the parent
         // 2. Calling the initializer, if provided.
@@ -416,7 +426,7 @@ extension SSHChildChannel: Channel, ChannelCore {
             self.autoRead = autoRead
             let initializer = self.initializer
             self.initializer = nil
-            return initializer?(self) ?? self.eventLoop.makeSucceededFuture(())
+            return initializer?(self, channelType) ?? self.eventLoop.makeSucceededFuture(())
         }.map {
             self.initializerComplete(userPromise: userPromise)
         }
@@ -464,8 +474,8 @@ extension SSHChildChannel: Channel, ChannelCore {
             self.processOutboundMessage(.channelOpenConfirmation(message), promise: nil)
             self.writePendingToMultiplexer()
         } else if !self.state.isClosed {
-            // We need to request the channel.
-            let message = SSHMessage.ChannelOpenMessage(type: .session,
+            // We need to request the channel. We must have the channel by now.
+            let message = SSHMessage.ChannelOpenMessage(type: .init(self.type!),
                                                         senderChannel: self.state.localChannelIdentifier,
                                                         initialWindowSize: self.windowManager.targetWindowSize,
                                                         maximumPacketSize: 1 << 24)
@@ -724,7 +734,7 @@ extension SSHChildChannel {
 
         // If we got through the state machine, this is a channel opening maneuver. We can
         // now kick off the initializer. Inbound channels never have user promises.
-        self.configure(userPromise: nil)
+        self.configure(userPromise: nil, channelType: SSHChannelType(message))
     }
 
     private func handleInboundChannelOpenConfirmation(_ message: SSHMessage.ChannelOpenConfirmationMessage) throws {

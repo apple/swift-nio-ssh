@@ -23,6 +23,9 @@ public struct SSHChildChannelOptions {
 
     /// - seealso: `RemoteChannelIdentifierOption`.
     public static let remoteChannelIdentifier: SSHChildChannelOptions.Types.RemoteChannelIdentifierOption = .init()
+
+    /// - seealso: `SSHChannelTypeOption`.
+    public static let sshChannelType: SSHChildChannelOptions.Types.SSHChannelTypeOption = .init()
 }
 
 extension SSHChildChannelOptions {
@@ -40,6 +43,13 @@ extension SSHChildChannelOptions.Types {
     /// `RemoteChannelIdentifierOption` allows users to query the channel number assigned by the remote peer for a given channel.
     public struct RemoteChannelIdentifierOption: ChannelOption {
         public typealias Value = UInt32?
+
+        public init() {}
+    }
+
+    /// `SSHChannelTypeOption` allows users to query the type of the channel they're currently using.
+    public struct SSHChannelTypeOption: ChannelOption {
+        public typealias Value = SSHChannelType
 
         public init() {}
     }

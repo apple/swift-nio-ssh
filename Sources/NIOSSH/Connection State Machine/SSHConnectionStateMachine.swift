@@ -37,9 +37,9 @@ struct SSHConnectionStateMachine {
         /// The SSH connection is active.
         case active(ActiveState)
 
-        case receivedDisconnect
+        case receivedDisconnect(SSHConnectionRole)
 
-        case sentDisconnect
+        case sentDisconnect(SSHConnectionRole)
     }
 
     /// The state of this state machine.
@@ -109,7 +109,7 @@ struct SSHConnectionStateMachine {
                 return .emitMessage(message)
 
             case .disconnect:
-                self.state = .receivedDisconnect
+                self.state = .receivedDisconnect(state.role)
                 return .disconnect
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "transport", violation: "Did not receive version message")
@@ -144,7 +144,7 @@ struct SSHConnectionStateMachine {
                     return .noMessage
                 }
             case .disconnect:
-                self.state = .receivedDisconnect
+                self.state = .receivedDisconnect(state.role)
                 return .disconnect
             default:
                 // TODO: enforce RFC 4253:
@@ -195,7 +195,7 @@ struct SSHConnectionStateMachine {
                     return .noMessage
                 }
             case .disconnect:
-                self.state = .receivedDisconnect
+                self.state = .receivedDisconnect(state.role)
                 return .disconnect
 
             default:
@@ -232,7 +232,7 @@ struct SSHConnectionStateMachine {
                 return result
 
             case .disconnect:
-                self.state = .receivedDisconnect
+                self.state = .receivedDisconnect(state.role)
                 return .disconnect
 
             case .serviceAccept, .userAuthRequest, .userAuthSuccess, .userAuthFailure:
@@ -276,7 +276,7 @@ struct SSHConnectionStateMachine {
                 return result
 
             case .disconnect:
-                self.state = .receivedDisconnect
+                self.state = .receivedDisconnect(state.role)
                 return .disconnect
 
             default:
@@ -314,14 +314,19 @@ struct SSHConnectionStateMachine {
             case .channelFailure(let message):
                 try state.receiveChannelFailure(message)
             case .globalRequest(let message):
-                // For now on global request messages we ignore or reject.
                 try state.receiveGlobalRequest(message)
-                if message.wantReply {
-                    self.state = .active(state)
-                    return .emitMessage(SSHMultiMessage(.requestFailure))
-                }
+                self.state = .active(state)
+                return .globalRequest(message)
+            case .requestSuccess(let message):
+                try state.receiveRequestSuccess(message)
+                self.state = .active(state)
+                return .globalRequestResponse(.success(message))
+            case .requestFailure:
+                try state.receiveRequestFailure()
+                self.state = .active(state)
+                return .globalRequestResponse(.failure)
             case .disconnect:
-                self.state = .receivedDisconnect
+                self.state = .receivedDisconnect(state.role)
                 return .disconnect
 
             default:
@@ -349,7 +354,7 @@ struct SSHConnectionStateMachine {
                 self.state = .sentVersion(.init(idleState: state, allocator: allocator))
             case .disconnect:
                 try state.serializer.serialize(message: message, to: &buffer)
-                self.state = .sentDisconnect
+                self.state = .sentDisconnect(state.role)
             default:
                 preconditionFailure("First message sent must be version, not \(message)")
             }
@@ -377,7 +382,7 @@ struct SSHConnectionStateMachine {
 
             case .disconnect:
                 try kex.serializer.serialize(message: message, to: &buffer)
-                self.state = .sentDisconnect
+                self.state = .sentDisconnect(kex.role)
 
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
@@ -400,7 +405,7 @@ struct SSHConnectionStateMachine {
 
             case .disconnect:
                 try kex.serializer.serialize(message: message, to: &buffer)
-                self.state = .sentDisconnect
+                self.state = .sentDisconnect(kex.role)
 
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
@@ -419,7 +424,7 @@ struct SSHConnectionStateMachine {
 
             case .disconnect:
                 try state.serializer.serialize(message: message, to: &buffer)
-                self.state = .sentDisconnect
+                self.state = .sentDisconnect(state.role)
 
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Sent unexpected message type: \(message)")
@@ -455,7 +460,7 @@ struct SSHConnectionStateMachine {
 
             case .disconnect:
                 try state.serializer.serialize(message: message, to: &buffer)
-                self.state = .sentDisconnect
+                self.state = .sentDisconnect(state.role)
 
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Sent unexpected message type: \(message)")
@@ -487,9 +492,15 @@ struct SSHConnectionStateMachine {
                 try state.writeChannelSuccess(message, into: &buffer)
             case .channelFailure(let message):
                 try state.writeChannelFailure(message, into: &buffer)
+            case .globalRequest(let message):
+                try state.writeGlobalRequest(message, into: &buffer)
+            case .requestSuccess(let message):
+                try state.writeRequestSuccess(message, into: &buffer)
+            case .requestFailure:
+                try state.writeRequestFailure(into: &buffer)
             case .disconnect:
                 try state.serializer.serialize(message: message, to: &buffer)
-                self.state = .sentDisconnect
+                self.state = .sentDisconnect(state.role)
                 return
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Sent unexpected message type: \(message)")
@@ -515,15 +526,22 @@ extension SSHConnectionStateMachine {
         case emitMessage(SSHMultiMessage)
         case possibleFutureMessage(EventLoopFuture<SSHMultiMessage?>)
         case forwardToMultiplexer(SSHMessage)
+        case globalRequestResponse(GlobalRequestResponse)
+        case globalRequest(SSHMessage.GlobalRequestMessage)
         case disconnect
         case noMessage
+
+        enum GlobalRequestResponse {
+            case success(SSHMessage.RequestSuccessMessage)
+            case failure
+        }
     }
 }
 
 // MARK: Helper properties
 
 extension SSHConnectionStateMachine {
-    var canInitializeChildChannels: Bool {
+    var isActive: Bool {
         switch self.state {
         case .active:
             return true
@@ -538,6 +556,29 @@ extension SSHConnectionStateMachine {
             return true
         case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication, .active:
             return false
+        }
+    }
+
+    var role: SSHConnectionRole {
+        switch self.state {
+        case .idle(let state):
+            return state.role
+        case .sentVersion(let state):
+            return state.role
+        case .keyExchange(let state):
+            return state.role
+        case .receivedNewKeys(let state):
+            return state.role
+        case .sentNewKeys(let state):
+            return state.role
+        case .userAuthentication(let state):
+            return state.role
+        case .active(let state):
+            return state.role
+        case .receivedDisconnect(let role):
+            return role
+        case .sentDisconnect(let role):
+            return role
         }
     }
 }

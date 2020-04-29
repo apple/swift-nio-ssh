@@ -114,4 +114,5 @@ final class ExampleExecHandler: ChannelDuplexHandler {
 enum SSHClientError: Swift.Error {
     case passwordAuthenticationNotSupported
     case commandExecFailed
+    case invalidChannelType
 }

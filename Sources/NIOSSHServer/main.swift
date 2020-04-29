@@ -53,8 +53,21 @@ defer {
     try! group.syncShutdownGracefully()
 }
 
-func sshChildChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
-    channel.pipeline.addHandler(ExampleExecHandler())
+func sshChildChannelInitializer(_ channel: Channel, _ channelType: SSHChannelType) -> EventLoopFuture<Void> {
+    switch channelType {
+    case .session:
+        return channel.pipeline.addHandler(ExampleExecHandler())
+    case .directTCPIP(let target):
+        let (ours, theirs) = GlueHandler.matchedPair()
+
+        return channel.pipeline.addHandlers([DataToBufferCodec(), ours]).flatMap {
+            createOutboundConnection(targetHost: target.targetHost, targetPort: target.targetPort, loop: channel.eventLoop)
+        }.flatMap { targetChannel in
+            targetChannel.pipeline.addHandler(theirs)
+        }
+    case .forwardedTCPIP:
+        return channel.eventLoop.makeFailedFuture(SSHServerError.invalidChannelType)
+    }
 }
 
 // We need a host key. For now, generate it dynamically.
@@ -62,7 +75,7 @@ let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
 let bootstrap = ServerBootstrap(group: group)
     .childChannelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .server(.init(hostKeys: [hostKey], userAuthDelegate: HardcodedPasswordDelegate())), allocator: channel.allocator, inboundChildChannelInitializer: sshChildChannelInitializer(_:)), ErrorHandler()])
+        channel.pipeline.addHandlers([NIOSSHHandler(role: .server(.init(hostKeys: [hostKey], userAuthDelegate: HardcodedPasswordDelegate(), globalRequestDelegate: RemotePortForwarderGlobalRequestDelegate())), allocator: channel.allocator, inboundChildChannelInitializer: sshChildChannelInitializer(_:_:)), ErrorHandler()])
     }
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)

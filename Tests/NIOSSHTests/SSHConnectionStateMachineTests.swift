@@ -83,7 +83,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
                         }
                     }
                 }
-            case .some(.forwardToMultiplexer), .some(.disconnect):
+            case .some(.forwardToMultiplexer), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect):
                 fatalError("Currently unsupported")
             }
 
@@ -110,7 +110,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
                         }
                     }
                 }
-            case .some(.forwardToMultiplexer), .some(.disconnect):
+            case .some(.forwardToMultiplexer), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect):
                 fatalError("Currently unsupported")
             }
 
@@ -133,7 +133,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         switch result {
         case .some(.forwardToMultiplexer(let forwardedMessage)):
             XCTAssertEqual(forwardedMessage, message)
-        case .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .some(.disconnect), .none:
+        case .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect), .none:
             XCTFail("Unexpected result: \(String(describing: result))")
         }
     }
@@ -158,8 +158,43 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         case .some(.disconnect):
             // Good
             break
-        case .some(.forwardToMultiplexer), .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .none:
+        case .some(.forwardToMultiplexer), .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .some(.globalRequest), .some(.globalRequestResponse), .none:
             XCTFail("Unexpected result: \(String(describing: result))")
+        }
+    }
+
+    private func assertTriggersGlobalRequest(_ message: SSHMessage, sender: inout SSHConnectionStateMachine, receiver: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop) throws {
+        var tempBuffer = allocator.buffer(capacity: 1024)
+        XCTAssertNoThrow(try sender.processOutboundMessage(message, buffer: &tempBuffer, allocator: allocator, loop: loop))
+        XCTAssert(tempBuffer.readableBytes > 0)
+
+        receiver.bufferInboundData(&tempBuffer)
+        let result = try assertNoThrowWithValue(receiver.processInboundMessage(allocator: allocator, loop: loop))
+
+        switch result {
+        case .some(.globalRequest(let receivedMessage)):
+            // Good
+            XCTAssertEqual(.globalRequest(receivedMessage), message)
+        case .some(.forwardToMultiplexer), .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .some(.globalRequestResponse), .some(.disconnect), .none:
+            XCTFail("Unexpected result: \(String(describing: result))")
+        }
+    }
+
+    private func assertTriggersGlobalRequestResponse(_ message: SSHMessage, sender: inout SSHConnectionStateMachine, receiver: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult.GlobalRequestResponse? {
+        var tempBuffer = allocator.buffer(capacity: 1024)
+        XCTAssertNoThrow(try sender.processOutboundMessage(message, buffer: &tempBuffer, allocator: allocator, loop: loop))
+        XCTAssert(tempBuffer.readableBytes > 0)
+
+        receiver.bufferInboundData(&tempBuffer)
+        let result = try assertNoThrowWithValue(receiver.processInboundMessage(allocator: allocator, loop: loop))
+
+        switch result {
+        case .some(.globalRequestResponse(let response)):
+            // Good
+            return response
+        case .some(.forwardToMultiplexer), .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .some(.globalRequest), .some(.disconnect), .none:
+            XCTFail("Unexpected result: \(String(describing: result))")
+            return nil
         }
     }
 
@@ -171,8 +206,8 @@ final class SSHConnectionStateMachineTests: XCTestCase {
 
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
 
-        XCTAssertTrue(client.canInitializeChildChannels)
-        XCTAssertTrue(server.canInitializeChildChannels)
+        XCTAssertTrue(client.isActive)
+        XCTAssertTrue(server.isActive)
     }
 
     // Messages that are usable once child channels are allowed.
@@ -240,5 +275,56 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         server.bufferInboundData(&junkBuffer)
 
         XCTAssertNoThrow(try XCTAssertNil(server.processInboundMessage(allocator: allocator, loop: loop)))
+    }
+
+    func testGlobalRequestCanBeSent() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
+
+        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
+
+        var message = SSHMessage.GlobalRequestMessage(wantReply: true, type: .tcpipForward("foo", 66))
+        try self.assertTriggersGlobalRequest(.globalRequest(message), sender: &client, receiver: &server, allocator: allocator, loop: loop)
+
+        message = SSHMessage.GlobalRequestMessage(wantReply: false, type: .cancelTcpipForward("foo", 66))
+        try self.assertTriggersGlobalRequest(.globalRequest(message), sender: &client, receiver: &server, allocator: allocator, loop: loop)
+    }
+
+    func testGlobalRequestResponsesTriggerResponse() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
+
+        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
+
+        // Deliver a request success message.
+        var response = try self.assertTriggersGlobalRequestResponse(
+            .requestSuccess(.init(boundPort: 6)), sender: &server, receiver: &client, allocator: allocator, loop: loop
+        )
+        guard case .some(.success(let firstResponse)) = response, firstResponse.boundPort == 6 else {
+            XCTFail("Unexpected response: \(String(describing: response))")
+            return
+        }
+
+        // Now without a port.
+        response = try self.assertTriggersGlobalRequestResponse(
+            .requestSuccess(.init(boundPort: nil)), sender: &server, receiver: &client, allocator: allocator, loop: loop
+        )
+        guard case .some(.success(let secondResponse)) = response, secondResponse.boundPort == nil else {
+            XCTFail("Unexpected response: \(String(describing: response))")
+            return
+        }
+
+        // Now a failure.
+        response = try self.assertTriggersGlobalRequestResponse(
+            .requestFailure, sender: &server, receiver: &client, allocator: allocator, loop: loop
+        )
+        guard case .some(.failure) = response else {
+            XCTFail("Unexpected response: \(String(describing: response))")
+            return
+        }
     }
 }

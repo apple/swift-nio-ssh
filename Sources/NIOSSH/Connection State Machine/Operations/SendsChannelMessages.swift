@@ -63,4 +63,16 @@ extension SendsChannelMessages {
     mutating func writeChannelFailure(_ message: SSHMessage.ChannelFailureMessage, into buffer: inout ByteBuffer) throws {
         try self.serializer.serialize(message: .channelFailure(message), to: &buffer)
     }
+
+    mutating func writeGlobalRequest(_ message: SSHMessage.GlobalRequestMessage, into buffer: inout ByteBuffer) throws {
+        try self.serializer.serialize(message: .globalRequest(message), to: &buffer)
+    }
+
+    mutating func writeRequestSuccess(_ message: SSHMessage.RequestSuccessMessage, into buffer: inout ByteBuffer) throws {
+        try self.serializer.serialize(message: .requestSuccess(message), to: &buffer)
+    }
+
+    mutating func writeRequestFailure(into buffer: inout ByteBuffer) throws {
+        try self.serializer.serialize(message: .requestFailure, to: &buffer)
+    }
 }

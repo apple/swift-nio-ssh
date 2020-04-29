@@ -183,7 +183,7 @@ extension SSHMessage {
     struct RequestSuccessMessage: Equatable {
         static let id: UInt8 = 81
 
-        var bytes: ByteBuffer
+        var boundPort: UInt32?
     }
 
     enum RequestFailureMessage {
@@ -195,8 +195,22 @@ extension SSHMessage {
         static let id: UInt8 = 90
 
         // https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-11
-        enum ChannelType: String {
+        enum ChannelType: Equatable {
             case session
+            case forwardedTCPIP(ForwardedTCPIP)
+            case directTCPIP(DirectTCPIP)
+        }
+
+        struct ForwardedTCPIP: Equatable {
+            var hostListening: String
+            var portListening: UInt16
+            var originatorAddress: SocketAddress
+        }
+
+        struct DirectTCPIP: Equatable {
+            var hostToConnectTo: String
+            var portToConnectTo: UInt16
+            var originatorAddress: SocketAddress
         }
 
         var type: ChannelType
@@ -408,7 +422,7 @@ extension ByteBuffer {
             case SSHMessage.RequestFailureMessage.id:
                 return .requestFailure
             case SSHMessage.ChannelOpenMessage.id:
-                guard let message = self.readChannelOpenMessage() else {
+                guard let message = try self.readChannelOpenMessage() else {
                     return nil
                 }
                 return .channelOpen(message)
@@ -742,20 +756,65 @@ extension ByteBuffer {
     }
 
     mutating func readRequestSuccessMessage() -> SSHMessage.RequestSuccessMessage? {
-        let bytes = self.readSlice(length: self.readableBytes)!
-        return SSHMessage.RequestSuccessMessage(bytes: bytes)
+        let boundPort = self.readInteger(as: UInt32.self)
+        return SSHMessage.RequestSuccessMessage(boundPort: boundPort)
     }
 
-    mutating func readChannelOpenMessage() -> SSHMessage.ChannelOpenMessage? {
-        self.rewindReaderOnNil { `self` in
+    mutating func readChannelOpenMessage() throws -> SSHMessage.ChannelOpenMessage? {
+        try self.rewindOnNilOrError { `self` in
             guard
                 let typeRawValue = self.readSSHStringAsString(),
-                let type = SSHMessage.ChannelOpenMessage.ChannelType(rawValue: typeRawValue),
                 let senderChannel: UInt32 = self.readInteger(),
                 let initialWindowSize: UInt32 = self.readInteger(),
                 let maximumPacketSize: UInt32 = self.readInteger()
             else {
                 return nil
+            }
+
+            let type: SSHMessage.ChannelOpenMessage.ChannelType
+
+            switch typeRawValue {
+            case "session":
+                type = .session
+
+            case "forwarded-tcpip":
+                guard
+                    let hostListening = self.readSSHStringAsString(),
+                    let portListening = self.readInteger(as: UInt32.self),
+                    let originatorIP = self.readSSHStringAsString(),
+                    let originatorPort = self.readInteger(as: UInt32.self)
+                else {
+                    return nil
+                }
+
+                guard portListening <= UInt16.max, originatorPort <= UInt16.max else {
+                    throw NIOSSHError.unknownPacketType(diagnostic: "Invalid port values: \(portListening) \(originatorPort)")
+                }
+
+                let originator = try SocketAddress(ipAddress: originatorIP, port: Int(originatorPort))
+
+                type = .forwardedTCPIP(.init(hostListening: hostListening, portListening: UInt16(portListening), originatorAddress: originator))
+
+            case "direct-tcpip":
+                guard
+                    let hostToConnectTo = self.readSSHStringAsString(),
+                    let portToConnectTo = self.readInteger(as: UInt32.self),
+                    let originatorIP = self.readSSHStringAsString(),
+                    let originatorPort = self.readInteger(as: UInt32.self)
+                else {
+                    return nil
+                }
+
+                guard portToConnectTo <= UInt16.max, originatorPort <= UInt16.max else {
+                    throw NIOSSHError.unknownPacketType(diagnostic: "Invalid port values: \(portToConnectTo) \(originatorPort)")
+                }
+
+                let originator = try SocketAddress(ipAddress: originatorIP, port: Int(originatorPort))
+
+                type = .directTCPIP(.init(hostToConnectTo: hostToConnectTo, portToConnectTo: UInt16(portToConnectTo), originatorAddress: originator))
+
+            default:
+                throw NIOSSHError.unknownPacketType(diagnostic: "Channel request with \(typeRawValue)")
             }
 
             return SSHMessage.ChannelOpenMessage(type: type, senderChannel: senderChannel, initialWindowSize: initialWindowSize, maximumPacketSize: maximumPacketSize)
@@ -1222,8 +1281,12 @@ extension ByteBuffer {
     }
 
     mutating func writeRequestSuccessMessage(_ message: SSHMessage.RequestSuccessMessage) -> Int {
-        var buffer = message.bytes
-        return self.writeBuffer(&buffer)
+        if let boundPort = message.boundPort {
+            return self.writeInteger(boundPort)
+        } else {
+            // Often is nothing.
+            return 0
+        }
     }
 
     mutating func writeChannelOpenMessage(_ message: SSHMessage.ChannelOpenMessage) -> Int {
@@ -1232,11 +1295,36 @@ extension ByteBuffer {
         switch message.type {
         case .session:
             writtenBytes += self.writeSSHString("session".utf8)
+
+        case .forwardedTCPIP:
+            writtenBytes += self.writeSSHString("forwarded-tcpip".utf8)
+
+        case .directTCPIP:
+            writtenBytes += self.writeSSHString("direct-tcpip".utf8)
         }
 
         writtenBytes += self.writeInteger(message.senderChannel)
         writtenBytes += self.writeInteger(message.initialWindowSize)
         writtenBytes += self.writeInteger(message.maximumPacketSize)
+
+        switch message.type {
+        case .session:
+            break
+
+        case .forwardedTCPIP(let data):
+            // We'll write gibberish if we can't get IP addresses out
+            writtenBytes += self.writeSSHString(data.hostListening.utf8)
+            writtenBytes += self.writeInteger(UInt32(data.portListening))
+            writtenBytes += self.writeSSHString((data.originatorAddress.ipAddress ?? "<nio-error>").utf8)
+            writtenBytes += self.writeInteger(UInt32(data.originatorAddress.port ?? -1))
+
+        case .directTCPIP(let data):
+            // We'll write gibberish if we can't get IP addresses out
+            writtenBytes += self.writeSSHString(data.hostToConnectTo.utf8)
+            writtenBytes += self.writeInteger(UInt32(data.portToConnectTo))
+            writtenBytes += self.writeSSHString((data.originatorAddress.ipAddress ?? "<nio-error>").utf8)
+            writtenBytes += self.writeInteger(UInt32(data.originatorAddress.port ?? -1))
+        }
 
         return writtenBytes
     }

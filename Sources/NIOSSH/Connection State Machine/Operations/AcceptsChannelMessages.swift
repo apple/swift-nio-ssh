@@ -43,4 +43,8 @@ extension AcceptsChannelMessages {
     mutating func receiveChannelFailure(_: SSHMessage.ChannelFailureMessage) throws {}
 
     mutating func receiveGlobalRequest(_: SSHMessage.GlobalRequestMessage) throws {}
+
+    mutating func receiveRequestSuccess(_: SSHMessage.RequestSuccessMessage) throws {}
+
+    mutating func receiveRequestFailure() throws {}
 }

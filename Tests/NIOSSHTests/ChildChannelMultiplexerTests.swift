@@ -158,14 +158,14 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
     }
 
-    private func harness(_ initializer: ((Channel) -> EventLoopFuture<Void>)? = nil) -> TestHarness {
+    private func harness(_ initializer: SSHChildChannel.Initializer? = nil) -> TestHarness {
         let delegate = DummyDelegate()
         let multiplexer = SSHChannelMultiplexer(delegate: delegate, allocator: delegate.allocator, childChannelInitializer: initializer)
         return TestHarness(delegate: delegate, multiplexer: multiplexer)
     }
 
     private func harnessForbiddingInboundChannels() -> TestHarness {
-        self.harness { channel in
+        self.harness { channel, _ in
             XCTFail("No inbound channel creation is allowed")
             return channel.eventLoop.makeFailedFuture(MultiplexerTestError.rejected)
         }
@@ -313,7 +313,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
     func testBasicInboundChannelCreation() throws {
         var creationCount = 0
-        let harness = self.harness { channel in
+        let harness = self.harness { channel, _ in
             creationCount += 1
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -336,7 +336,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
     func testRejectInboundChannelCreation() {
         let errorLogger = ErrorLoggingHandler()
 
-        let harness = self.harness { channel in
+        let harness = self.harness { channel, _ in
             channel.pipeline.addHandler(errorLogger).flatMap {
                 channel.eventLoop.makeFailedFuture(MultiplexerTestError.rejected)
             }
@@ -374,7 +374,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 0)
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -419,7 +419,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 0)
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -472,7 +472,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 0)
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -518,7 +518,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         var childChannel: Channel?
         var childPromise: EventLoopPromise<Void>?
         var childCloseError: Error?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             childPromise = channel.eventLoop.makePromise(of: Void.self)
             return childPromise!.futureResult
@@ -558,7 +558,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         var buffer = harness.delegate._channel.allocator.buffer(capacity: 1024)
         buffer.writeString("Hello from the unit tests!")
 
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             channel.write(SSHChannelData(type: .channel, data: .byteBuffer(buffer)), promise: nil)
             channel.write(SSHChannelData(type: .stdErr, data: .byteBuffer(buffer)), promise: nil)
             channel.flush()
@@ -585,7 +585,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         XCTAssertEqual(harness.flushedMessages.count, 0)
 
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             channel.triggerUserOutboundEvent(SSHChannelRequestEvent.EnvironmentRequest(wantReply: false, name: "HOME", value: "/usr/root"), promise: nil)
             channel.triggerUserOutboundEvent(SSHChannelRequestEvent.ExecRequest(command: "uname", wantReply: false), promise: nil)
             return channel.eventLoop.makeSucceededFuture(())
@@ -616,7 +616,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         buffer.writeString("Hello from the unit tests")
 
         // Let's create a channel.
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             channel.setOption(ChannelOptions.autoRead, value: false).flatMap {
                 channel.pipeline.addHandler(readRecorder)
             }
@@ -663,7 +663,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
     func testParentChannelInactiveDisablesChildChannels() {
         var childChannels: [Channel] = []
-        let harness = self.harness { channel in
+        let harness = self.harness { channel, _ in
             childChannels.append(channel)
             return channel.pipeline.addHandler(ChannelInactiveRecorder())
         }
@@ -696,7 +696,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
     func testClosingClosedChannelsDoesntHurt() throws {
         var childChannels: [Channel] = []
-        let harness = self.harness { channel in
+        let harness = self.harness { channel, _ in
             childChannels.append(channel)
             return channel.pipeline.addHandler(ChannelInactiveRecorder())
         }
@@ -744,7 +744,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -779,7 +779,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
             harness.finish()
         }
 
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             channel.eventLoop.makeSucceededFuture(())
         }
 
@@ -809,7 +809,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         harness.finish()
 
         let promise = harness.eventLoop.makePromise(of: Channel.self)
-        harness.multiplexer.createChildChannel(promise, nil)
+        harness.multiplexer.createChildChannel(promise, channelType: .session, nil)
 
         XCTAssertThrowsError(try promise.futureResult.wait()) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .some(.protocolViolation))
@@ -830,7 +830,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         buffer.writeString("Hello from the unit tests")
 
         // Let's create a channel.
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             channel.setOption(ChannelOptions.autoRead, value: false).flatMap {
                 channel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true)
             }.flatMap {
@@ -867,7 +867,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.pipeline.addHandler(inactiveRecorder)
         }
@@ -928,7 +928,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.pipeline.addHandler(readRecorder)
         }
@@ -959,7 +959,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -1001,7 +1001,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -1027,7 +1027,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -1090,7 +1090,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
     func testWeCorrectlySpotWindowSizesOfInboundChannels() throws {
         var childChannel: Channel?
 
-        let harness = self.harness { channel in
+        let harness = self.harness { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -1121,7 +1121,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
     func testWeRejectExcessiveWindowSizes() throws {
         var childChannel: Channel?
 
-        let harness = self.harness { channel in
+        let harness = self.harness { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -1154,7 +1154,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.setOption(ChannelOptions.autoRead, value: false)
         }
@@ -1221,7 +1221,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var childChannel: Channel?
-        harness.multiplexer.createChildChannel { channel in
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -1280,7 +1280,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
     func testRespectingMaxMessageSizeOnOutboundChannel() throws {
         var childChannel: Channel?
 
-        let harness = self.harness { channel in
+        let harness = self.harness { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -1316,7 +1316,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         var childPromiseComplete = false
         let childPromise: EventLoopPromise<Channel> = harness.eventLoop.makePromise()
         childPromise.futureResult.whenSuccess { _ in childPromiseComplete = true }
-        harness.multiplexer.createChildChannel(childPromise) { channel in
+        harness.multiplexer.createChildChannel(childPromise, channelType: .session) { channel, _ in
             channel.eventLoop.makeSucceededFuture(())
         }
 
@@ -1339,7 +1339,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         var childPromiseError: Error?
         let childPromise: EventLoopPromise<Channel> = harness.eventLoop.makePromise()
         childPromise.futureResult.whenFailure { error in childPromiseError = error }
-        harness.multiplexer.createChildChannel(childPromise) { channel in
+        harness.multiplexer.createChildChannel(childPromise, channelType: .session) { channel, _ in
             channel.eventLoop.makeSucceededFuture(())
         }
 
@@ -1364,7 +1364,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         var childChannel: Channel?
         childPromise.futureResult.whenFailure { error in childPromiseError = error }
 
-        harness.multiplexer.createChildChannel(childPromise) { channel in
+        harness.multiplexer.createChildChannel(childPromise, channelType: .session) { channel, _ in
             childChannel = channel
             return channel.eventLoop.makeSucceededFuture(())
         }
@@ -1400,7 +1400,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         var childPromiseError: Error?
         childPromise.futureResult.whenFailure { error in childPromiseError = error }
 
-        harness.multiplexer.createChildChannel(childPromise) { _ in
+        harness.multiplexer.createChildChannel(childPromise, channelType: .session) { _, _ in
             delayPromise.futureResult
         }
 
@@ -1417,7 +1417,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
     }
 
     func testErrorGracePeriod() throws {
-        let harness = self.harness { channel in
+        let harness = self.harness { channel, _ in
             channel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true)
         }
         defer {
@@ -1453,5 +1453,59 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertThrowsError(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!))) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
         }
+    }
+
+    func testLocalChildChannelsAlwaysGetTheRightChannelType() throws {
+        let harness = self.harnessForbiddingInboundChannels()
+        defer {
+            harness.finish()
+        }
+
+        var initializedChannels = [SSHChannelType]()
+        var typesFromOptions = [SSHChannelType]()
+
+        let channelTypes = [
+            SSHChannelType.session,
+            SSHChannelType.directTCPIP(.init(targetHost: "apple.com", targetPort: 443, originatorAddress: try! .init(ipAddress: "127.0.0.1", port: 8765))),
+            SSHChannelType.forwardedTCPIP(.init(listeningHost: "localhost", listeningPort: 80, originatorAddress: try! .init(ipAddress: "fe80::1", port: 70))),
+        ]
+
+        for channelType in channelTypes {
+            harness.multiplexer.createChildChannel(channelType: channelType) { channel, type in
+                initializedChannels.append(type)
+
+                return channel.getOption(SSHChildChannelOptions.sshChannelType).map { type in
+                    typesFromOptions.append(type)
+                }
+            }
+        }
+
+        XCTAssertEqual(initializedChannels, channelTypes)
+    }
+
+    func testRemotelyCreatedChildChannelsGetTheRightChannelType() throws {
+        var initializedChannels = [SSHChannelType]()
+        var typesFromOptions = [SSHChannelType]()
+
+        let harness = self.harness { channel, type in
+            initializedChannels.append(type)
+
+            return channel.getOption(SSHChildChannelOptions.sshChannelType).map { type in
+                typesFromOptions.append(type)
+            }
+        }
+
+        let channelTypes = [
+            SSHChannelType.session,
+            SSHChannelType.directTCPIP(.init(targetHost: "apple.com", targetPort: 443, originatorAddress: try! .init(ipAddress: "127.0.0.1", port: 8765))),
+            SSHChannelType.forwardedTCPIP(.init(listeningHost: "localhost", listeningPort: 80, originatorAddress: try! .init(ipAddress: "fe80::1", port: 70))),
+        ]
+
+        for (channelID, channelType) in channelTypes.enumerated() {
+            let message = SSHMessage.channelOpen(.init(type: .init(channelType), senderChannel: UInt32(channelID), initialWindowSize: 1 << 24, maximumPacketSize: 1 << 24))
+            XCTAssertNoThrow(try harness.multiplexer.receiveMessage(message))
+        }
+
+        XCTAssertEqual(initializedChannels, channelTypes)
     }
 }

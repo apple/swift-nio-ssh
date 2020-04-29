@@ -21,6 +21,9 @@ import NIOSSH
 enum SSHServerError: Error {
     case invalidCommand
     case invalidDataType
+    case invalidChannelType
+    case alreadyListening
+    case notListening
 }
 
 final class ExampleExecHandler: ChannelDuplexHandler {
