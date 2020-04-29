@@ -14,9 +14,10 @@
 import NIO
 
 extension SSHConnectionStateMachine {
-    /// The state of a state machine that has completed user auth and key exchange and is
-    /// doing real work.
-    struct ActiveState {
+    /// The state of a state machine that has received a KeyExchangeInit message after
+    /// having been active. In this state, no further channel messages may be sent by the
+    /// remote peer until key exchange is done. We can send channel messages _and_ key exchange init.
+    struct ReceivedKexInitWhenActiveState {
         /// The role of the connection
         let role: SSHConnectionRole
 
@@ -29,37 +30,24 @@ extension SSHConnectionStateMachine {
 
         internal var protectionSchemes: [NIOSSHTransportProtection.Type]
 
+        internal var keyExchangeStateMachine: SSHKeyExchangeStateMachine
+
         internal var sessionIdentifier: ByteBuffer
 
-        init(_ previous: UserAuthenticationState) {
+        init(_ previous: ActiveState, allocator: ByteBufferAllocator) {
             self.role = previous.role
             self.serializer = previous.serializer
             self.parser = previous.parser
             self.remoteVersion = previous.remoteVersion
             self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
-        }
-
-        init(_ previous: RekeyingReceivedNewKeysState) {
-            self.role = previous.role
-            self.serializer = previous.serializer
-            self.parser = previous.parser
-            self.remoteVersion = previous.remoteVersion
-            self.protectionSchemes = previous.protectionSchemes
-            self.sessionIdentifier = previous.sessionIdentifier
-        }
-
-        init(_ previous: RekeyingSentNewKeysState) {
-            self.role = previous.role
-            self.serializer = previous.serializer
-            self.parser = previous.parser
-            self.remoteVersion = previous.remoteVersion
-            self.protectionSchemes = previous.protectionSchemes
-            self.sessionIdentifier = previous.sessionIdentifier
+            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, role: previous.role, remoteVersion: previous.remoteVersion, protectionSchemes: previous.protectionSchemes, previousSessionIdentifier: self.sessionIdentifier)
         }
     }
 }
 
-extension SSHConnectionStateMachine.ActiveState: AcceptsChannelMessages {}
+extension SSHConnectionStateMachine.ReceivedKexInitWhenActiveState: AcceptsKeyExchangeMessages {}
 
-extension SSHConnectionStateMachine.ActiveState: SendsChannelMessages {}
+extension SSHConnectionStateMachine.ReceivedKexInitWhenActiveState: SendsChannelMessages {}
+
+extension SSHConnectionStateMachine.ReceivedKexInitWhenActiveState: SendsKeyExchangeMessages {}

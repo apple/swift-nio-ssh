@@ -27,11 +27,18 @@ struct SSHKeyExchangeStateMachine {
         /// We've sent our key exchange message.
         ///
         /// Either clients or servers can send this message: they are entitled to race. Thus, either
-        /// party can enter this state. We assume they will so there is no equivalent keyExchangeReceived
-        /// state.
+        /// party can enter this state.
         ///
         /// We store the message we sent for later.
         case keyExchangeSent(message: SSHMessage.KeyExchangeMessage)
+
+        /// We've received a key exchange message.
+        ///
+        /// Either clients or servers can send this message: they are entitled to race. Thus, either
+        /// party can enter this state. The remote peer may be sending a guess as well.
+        ///
+        /// We store the message we sent for later.
+        case keyExchangeReceived(exchange: Curve25519KeyExchange, negotiated: NegotiationResult, expectingGuess: Bool)
 
         /// The peer has guessed what key exchange init packet is coming, and guessed wrong. We need to wait for them to send that packet.
         case awaitingKeyExchangeInitInvalidGuess(exchange: Curve25519KeyExchange, negotiated: NegotiationResult)
@@ -63,13 +70,15 @@ struct SSHKeyExchangeStateMachine {
     private var state: State
     private var initialExchangeBytes: ByteBuffer
     private var protectionSchemes: [NIOSSHTransportProtection.Type]
+    private var previousSessionIdentifier: ByteBuffer?
 
-    init(allocator: ByteBufferAllocator, role: SSHConnectionRole, remoteVersion: String, protectionSchemes: [NIOSSHTransportProtection.Type]) {
+    init(allocator: ByteBufferAllocator, role: SSHConnectionRole, remoteVersion: String, protectionSchemes: [NIOSSHTransportProtection.Type], previousSessionIdentifier: ByteBuffer?) {
         self.allocator = allocator
         self.role = role
         self.initialExchangeBytes = allocator.buffer(capacity: 1024)
         self.state = .idle
         self.protectionSchemes = protectionSchemes
+        self.previousSessionIdentifier = previousSessionIdentifier
 
         switch self.role {
         case .client:
@@ -83,13 +92,13 @@ struct SSHKeyExchangeStateMachine {
 
     /// Currently we statically only use a single key exchange message. In future this will expand out to
     /// support arbitrary SSHTransportProtection schemes.
-    private func createKeyExchangeMessage() -> SSHMessage {
+    func createKeyExchangeMessage() -> SSHMessage.KeyExchangeMessage {
         var rng = CSPRNG()
 
         let encryptionAlgorithms = self.supportedEncryptionAlgorithms
         let macAlgorithms = self.supportedMacAlgorithms
 
-        return .keyExchange(.init(
+        return .init(
             cookie: rng.randomCookie(allocator: self.allocator),
             keyExchangeAlgorithms: Self.supportedKeyExchangeAlgorithms,
             serverHostKeyAlgorithms: self.supportedHostKeyAlgorithms,
@@ -102,18 +111,7 @@ struct SSHKeyExchangeStateMachine {
             languagesClientToServer: [],
             languagesServerToClient: [],
             firstKexPacketFollows: false
-        ))
-    }
-
-    /// Begins the key exchange process. This may be called by both clients and servers to speed up the key exchange process.
-    mutating func startKeyExchange() -> SSHMultiMessage {
-        switch self.state {
-        case .idle:
-            return SSHMultiMessage(self.createKeyExchangeMessage())
-
-        case .keyExchangeSent, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .awaitingKeyExchangeInit, .keyExchangeInitReceived, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
-            preconditionFailure("Duplicate call to startKeyExchange")
-        }
+        )
     }
 
     mutating func handle(keyExchange message: SSHMessage.KeyExchangeMessage) throws -> SSHMultiMessage? {
@@ -147,8 +145,32 @@ struct SSHKeyExchangeStateMachine {
                 return nil
             }
         case .idle:
-            preconditionFailure("Received the key exchange message before we sent our own")
-        case .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitReceived, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
+            // We received a key exchange message while idle. We will need to send our own key exchange message back,
+            // and also follow immediately up with our own key exchange init message.
+            let ourMessage = self.createKeyExchangeMessage()
+
+            switch self.role {
+            case .client:
+                self.addKeyExchangeInitMessagesToExchangeBytes(clientsMessage: ourMessage, serversMessage: message)
+            case .server:
+                self.addKeyExchangeInitMessagesToExchangeBytes(clientsMessage: message, serversMessage: ourMessage)
+            }
+
+            let negotiated = try self.negotiatedAlgorithms(message)
+            let exchanger = self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
+
+            let result: SSHMultiMessage
+            switch self.role {
+            case .client:
+                result = SSHMultiMessage(.keyExchange(ourMessage), SSHMessage.keyExchangeInit(exchanger.initiateKeyExchangeClientSide(allocator: self.allocator)))
+            case .server:
+                result = SSHMultiMessage(.keyExchange(ourMessage))
+            }
+
+            self.state = .keyExchangeReceived(exchange: exchanger, negotiated: negotiated, expectingGuess: self.expectingIncorrectGuess(message))
+            return result
+
+        case .keyExchangeReceived, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitReceived, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             throw SSHKeyExchangeError.unexpectedMessage
         }
     }
@@ -157,6 +179,20 @@ struct SSHKeyExchangeStateMachine {
         switch self.state {
         case .idle:
             self.state = .keyExchangeSent(message: message)
+        case .keyExchangeReceived(let exchanger, let negotiated, let expectingGuess):
+            switch self.role {
+            case .server:
+                // Ok, we're waiting for a key exchange init message.
+                if expectingGuess {
+                    self.state = .awaitingKeyExchangeInitInvalidGuess(exchange: exchanger, negotiated: negotiated)
+                } else {
+                    self.state = .awaitingKeyExchangeInit(exchange: exchanger, negotiated: negotiated)
+                }
+
+            case .client:
+                // We're going to send a key exchange init message.
+                self.state = .awaitingKeyExchangeInit(exchange: exchanger, negotiated: negotiated)
+            }
         case .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitReceived, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             // This is a precondition not a throw because we control the sending of this message.
             preconditionFailure("Cannot send key exchange message after idle")
@@ -187,7 +223,7 @@ struct SSHKeyExchangeStateMachine {
                 self.state = .keyExchangeInitReceived(result: result, negotiated: negotiated)
                 return SSHMultiMessage(message, .newKeys)
             }
-        case .idle, .keyExchangeSent, .keyExchangeInitReceived, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
+        case .idle, .keyExchangeSent, .keyExchangeReceived, .keyExchangeInitReceived, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             throw SSHKeyExchangeError.unexpectedMessage
         }
     }
@@ -197,7 +233,7 @@ struct SSHKeyExchangeStateMachine {
         case .awaitingKeyExchangeInit(exchange: let exchanger, negotiated: let negotiated):
             precondition(self.role.isClient, "Servers must not send ecdh key exchange init messages")
             self.state = .keyExchangeInitSent(exchange: exchanger, negotiated: negotiated)
-        case .idle, .keyExchangeSent, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
+        case .idle, .keyExchangeSent, .keyExchangeReceived, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             // This is a precondition not a throw because we control the sending of this message.
             preconditionFailure("Cannot send ECDH key exchange message in state \(self.state)")
         }
@@ -220,7 +256,7 @@ struct SSHKeyExchangeStateMachine {
             case .server:
                 preconditionFailure("Servers cannot enter key exchange init sent.")
             }
-        case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitReceived, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
+        case .idle, .keyExchangeSent, .keyExchangeReceived, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitReceived, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             throw SSHKeyExchangeError.unexpectedMessage
         }
     }
@@ -230,7 +266,7 @@ struct SSHKeyExchangeStateMachine {
         case .keyExchangeInitReceived(result: let result, negotiated: let negotiated):
             precondition(self.role.isServer, "Clients cannot enter key exchange init received")
             self.state = .keysExchanged(result: result, protection: try negotiated.negotiatedProtection.init(initialKeys: result.keys), negotiated: negotiated)
-        case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
+        case .idle, .keyExchangeSent, .keyExchangeReceived, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keysExchanged, .newKeysSent, .newKeysReceived, .complete:
             // This is a precondition not a throw because we control the sending of this message.
             preconditionFailure("Cannot send ECDH key exchange message in state \(self.state)")
         }
@@ -244,7 +280,7 @@ struct SSHKeyExchangeStateMachine {
         case .newKeysSent(result: let result, protection: let protection, _):
             self.state = .complete(result: result)
             return protection
-        case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .newKeysReceived, .complete:
+        case .idle, .keyExchangeSent, .keyExchangeReceived, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .newKeysReceived, .complete:
             throw SSHKeyExchangeError.unexpectedMessage
         }
     }
@@ -257,7 +293,7 @@ struct SSHKeyExchangeStateMachine {
         case .newKeysReceived(result: let result, protection: let protection, _):
             self.state = .complete(result: result)
             return protection
-        case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .newKeysSent, .complete:
+        case .idle, .keyExchangeSent, .keyExchangeReceived, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent, .keyExchangeInitReceived, .newKeysSent, .complete:
             // This is a precondition not a throw because we control the sending of this message.
             preconditionFailure("Cannot send ECDH key exchange message in state \(self.state)")
         }
@@ -393,7 +429,7 @@ struct SSHKeyExchangeStateMachine {
         assert(Self.supportedKeyExchangeAlgorithms.contains(algorithm))
         // We only support Curve25519 right now, so we up this to a precondition.
         precondition(Self.supportedKeyExchangeAlgorithms.contains(algorithm))
-        return Curve25519KeyExchange(ourRole: self.role, previousSessionIdentifier: nil)
+        return Curve25519KeyExchange(ourRole: self.role, previousSessionIdentifier: self.previousSessionIdentifier)
     }
 
     private func expectingIncorrectGuess(_ kexMessage: SSHMessage.KeyExchangeMessage) -> Bool {
@@ -467,7 +503,7 @@ extension SSHKeyExchangeStateMachine {
              .complete(result: let result):
             return result.sessionID
 
-        case .idle, .keyExchangeSent, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent:
+        case .idle, .keyExchangeSent, .keyExchangeReceived, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent:
             return nil
         }
     }

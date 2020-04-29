@@ -15,8 +15,9 @@
 import NIO
 
 extension SSHConnectionStateMachine {
-    /// The state of a state machine that is actively engaged in a key exchange operation.
-    struct KeyExchangeState {
+    /// The state of a state machine that has sent new keys after a key exchange operation from an active channel,
+    /// but has not yet received the new keys from the peer.
+    struct RekeyingSentNewKeysState {
         /// The role of the connection
         let role: SSHConnectionRole
 
@@ -30,20 +31,23 @@ extension SSHConnectionStateMachine {
 
         var protectionSchemes: [NIOSSHTransportProtection.Type]
 
+        var sessionIdentifier: ByteBuffer
+
         /// The backing state machine.
         var keyExchangeStateMachine: SSHKeyExchangeStateMachine
 
-        init(sentVersionState state: SentVersionState, allocator: ByteBufferAllocator, remoteVersion: String) {
-            self.role = state.role
-            self.parser = state.parser
-            self.serializer = state.serializer
-            self.remoteVersion = remoteVersion
-            self.protectionSchemes = state.protectionSchemes
-            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, role: state.role, remoteVersion: remoteVersion, protectionSchemes: state.protectionSchemes, previousSessionIdentifier: nil)
+        init(_ previousState: RekeyingState) {
+            self.role = previousState.role
+            self.parser = previousState.parser
+            self.serializer = previousState.serializer
+            self.remoteVersion = previousState.remoteVersion
+            self.protectionSchemes = previousState.protectionSchemes
+            self.sessionIdentifier = previousState.sessionIdentifier
+            self.keyExchangeStateMachine = previousState.keyExchangeStateMachine
         }
     }
 }
 
-extension SSHConnectionStateMachine.KeyExchangeState: AcceptsKeyExchangeMessages {}
+extension SSHConnectionStateMachine.RekeyingSentNewKeysState: AcceptsKeyExchangeMessages {}
 
-extension SSHConnectionStateMachine.KeyExchangeState: SendsKeyExchangeMessages {}
+extension SSHConnectionStateMachine.RekeyingSentNewKeysState: SendsChannelMessages {}

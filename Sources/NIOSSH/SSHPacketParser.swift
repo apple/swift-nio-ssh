@@ -47,7 +47,9 @@ struct SSHPacketParser {
         switch self.state {
         case .cleartextWaitingForLength:
             self.state = .encryptedWaitingForLength(protection)
-        case .cleartextWaitingForBytes, .initialized, .encryptedWaitingForLength, .encryptedWaitingForBytes:
+        case .encryptedWaitingForLength:
+            self.state = .encryptedWaitingForLength(protection)
+        case .cleartextWaitingForBytes, .initialized, .encryptedWaitingForBytes:
             preconditionFailure("Adding encryption in invalid state: \(self.state)")
         }
     }

@@ -26,6 +26,12 @@ extension SSHConnectionStateMachine {
         /// The packet serializer used by this state machine.
         var serializer: SSHPacketSerializer
 
+        var remoteVersion: String
+
+        var protectionSchemes: [NIOSSHTransportProtection.Type]
+
+        var sessionIdentifier: ByteBuffer
+
         /// The backing state machine.
         var userAuthStateMachine: UserAuthenticationStateMachine
 
@@ -34,6 +40,9 @@ extension SSHConnectionStateMachine {
             self.parser = state.parser
             self.serializer = state.serializer
             self.userAuthStateMachine = state.userAuthStateMachine
+            self.remoteVersion = state.remoteVersion
+            self.protectionSchemes = state.protectionSchemes
+            self.sessionIdentifier = state.sessionIdentifier
         }
 
         init(receivedNewKeysState state: ReceivedNewKeysState) {
@@ -41,6 +50,9 @@ extension SSHConnectionStateMachine {
             self.parser = state.parser
             self.serializer = state.serializer
             self.userAuthStateMachine = state.userAuthStateMachine
+            self.remoteVersion = state.remoteVersion
+            self.protectionSchemes = state.protectionSchemes
+            self.sessionIdentifier = state.sessionIdentifier
         }
     }
 }

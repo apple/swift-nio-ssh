@@ -37,6 +37,21 @@ struct SSHConnectionStateMachine {
         /// The SSH connection is active.
         case active(ActiveState)
 
+        /// We have received a KeyExchangeInit message from the active state, and so will be rekeying shortly.
+        case receivedKexInitWhenActive(ReceivedKexInitWhenActiveState)
+
+        /// We have sent a KeyExchangeInit message from the active state, and so will be rekeying shortly.
+        case sentKexInitWhenActive(SentKexInitWhenActiveState)
+
+        /// Both peers have sent KeyExchangeInit and are actively engaged in a key exchange to rekey.
+        case rekeying(RekeyingState)
+
+        /// We have sent our newKeys message, but have not yet received the peer newKeys for this rekeying operation.
+        case rekeyingSentNewKeysState(RekeyingSentNewKeysState)
+
+        /// We have received the peer newKeys message, but not yet sent our own for this rekeying operation.
+        case rekeyingReceivedNewKeysState(RekeyingReceivedNewKeysState)
+
         case receivedDisconnect(SSHConnectionRole)
 
         case sentDisconnect(SSHConnectionRole)
@@ -57,7 +72,9 @@ struct SSHConnectionStateMachine {
         switch self.state {
         case .idle:
             return SSHMultiMessage(SSHMessage.version(Constants.version))
-        case .sentVersion, .keyExchange, .sentNewKeys, .receivedNewKeys, .userAuthentication, .active, .receivedDisconnect, .sentDisconnect:
+        case .sentVersion, .keyExchange, .sentNewKeys, .receivedNewKeys, .userAuthentication,
+             .active, .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+             .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
             preconditionFailure("Cannot call start twice, state \(self.state)")
         }
     }
@@ -84,6 +101,21 @@ struct SSHConnectionStateMachine {
         case .active(var state):
             state.parser.append(bytes: &data)
             self.state = .active(state)
+        case .receivedKexInitWhenActive(var state):
+            state.parser.append(bytes: &data)
+            self.state = .receivedKexInitWhenActive(state)
+        case .sentKexInitWhenActive(var state):
+            state.parser.append(bytes: &data)
+            self.state = .sentKexInitWhenActive(state)
+        case .rekeying(var state):
+            state.parser.append(bytes: &data)
+            self.state = .rekeying(state)
+        case .rekeyingReceivedNewKeysState(var state):
+            state.parser.append(bytes: &data)
+            self.state = .rekeyingReceivedNewKeysState(state)
+        case .rekeyingSentNewKeysState(var state):
+            state.parser.append(bytes: &data)
+            self.state = .rekeyingSentNewKeysState(state)
         case .receivedDisconnect, .sentDisconnect:
             // No more I/O, we're done.
             break
@@ -103,10 +135,10 @@ struct SSHConnectionStateMachine {
             switch message {
             case .version(let version):
                 try state.receiveVersionMessage(version)
-                var newState = KeyExchangeState(sentVersionState: state, allocator: allocator, remoteVersion: version)
-                let message = newState.keyExchangeStateMachine.startKeyExchange()
+                let newState = KeyExchangeState(sentVersionState: state, allocator: allocator, remoteVersion: version)
+                let message = newState.keyExchangeStateMachine.createKeyExchangeMessage()
                 self.state = .keyExchange(newState)
-                return .emitMessage(message)
+                return .emitMessage(SSHMultiMessage(.keyExchange(message)))
 
             case .disconnect:
                 self.state = .receivedDisconnect(state.role)
@@ -321,8 +353,6 @@ struct SSHConnectionStateMachine {
             }
 
             switch message {
-            // TODO(cory): One day soon we'll need to support re-keying in this state.
-            // For now we only support channel messages.
             case .channelOpen(let message):
                 try state.receiveChannelOpen(message)
             case .channelOpenConfirmation(let message):
@@ -357,6 +387,12 @@ struct SSHConnectionStateMachine {
                 try state.receiveRequestFailure()
                 self.state = .active(state)
                 return .globalRequestResponse(.failure)
+            case .keyExchange(let message):
+                // Attempting to rekey.
+                var newState = ReceivedKexInitWhenActiveState(state, allocator: allocator)
+                let result = try newState.receiveKeyExchangeMessage(message)
+                self.state = .receivedKexInitWhenActive(newState)
+                return result
             case .disconnect:
                 self.state = .receivedDisconnect(state.role)
                 return .disconnect
@@ -373,6 +409,281 @@ struct SSHConnectionStateMachine {
 
             self.state = .active(state)
             return .forwardToMultiplexer(message)
+
+        case .receivedKexInitWhenActive(var state):
+            // We've received a key exchange packet. We only expect the first two messages (key exchange and key exchange init) before
+            // we have sent a reply.
+            guard let message = try state.parser.nextPacket() else {
+                return nil
+            }
+
+            switch message {
+            case .keyExchange(let message):
+                let result = try state.receiveKeyExchangeMessage(message)
+                self.state = .receivedKexInitWhenActive(state)
+                return result
+            case .keyExchangeInit(let message):
+                let result = try state.receiveKeyExchangeInitMessage(message)
+                self.state = .receivedKexInitWhenActive(state)
+                return result
+            case .disconnect:
+                self.state = .receivedDisconnect(state.role)
+                return .disconnect
+            case .ignore, .debug:
+                // Ignore these
+                self.state = .receivedKexInitWhenActive(state)
+                return .noMessage
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+            default:
+                // TODO: enforce RFC 4253:
+                //
+                // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
+                // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
+                // > 7.3), it MUST NOT send any messages other than:
+                // >
+                // > o  Transport layer generic messages (1 to 19) (but
+                // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
+                // >    sent);
+                // >
+                // > o  Algorithm negotiation messages (20 to 29) (but further
+                // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
+                // >
+                // > o  Specific key exchange method messages (30 to 49).
+                //
+                // We should enforce that, but right now we don't have a good mechanism by which to do so.
+                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
+            }
+
+        case .sentKexInitWhenActive(var state):
+            // We've sent a key exchange packet. We expect channel messages _or_ a kexinit packet.
+            guard let message = try state.parser.nextPacket() else {
+                return nil
+            }
+
+            switch message {
+            case .keyExchange(let message):
+                let result = try state.receiveKeyExchangeMessage(message)
+                self.state = .rekeying(.init(state))
+                return result
+
+            case .channelOpen(let message):
+                try state.receiveChannelOpen(message)
+            case .channelOpenConfirmation(let message):
+                try state.receiveChannelOpenConfirmation(message)
+            case .channelOpenFailure(let message):
+                try state.receiveChannelOpenFailure(message)
+            case .channelEOF(let message):
+                try state.receiveChannelEOF(message)
+            case .channelClose(let message):
+                try state.receiveChannelClose(message)
+            case .channelWindowAdjust(let message):
+                try state.receiveChannelWindowAdjust(message)
+            case .channelData(let message):
+                try state.receiveChannelData(message)
+            case .channelExtendedData(let message):
+                try state.receiveChannelExtendedData(message)
+            case .channelRequest(let message):
+                try state.receiveChannelRequest(message)
+            case .channelSuccess(let message):
+                try state.receiveChannelSuccess(message)
+            case .channelFailure(let message):
+                try state.receiveChannelFailure(message)
+            case .globalRequest(let message):
+                try state.receiveGlobalRequest(message)
+                self.state = .sentKexInitWhenActive(state)
+                return .globalRequest(message)
+            case .requestSuccess(let message):
+                try state.receiveRequestSuccess(message)
+                self.state = .sentKexInitWhenActive(state)
+                return .globalRequestResponse(.success(message))
+            case .requestFailure:
+                try state.receiveRequestFailure()
+                self.state = .sentKexInitWhenActive(state)
+                return .globalRequestResponse(.failure)
+            case .disconnect:
+                self.state = .receivedDisconnect(state.role)
+                return .disconnect
+            case .ignore, .debug:
+                // Ignore these
+                self.state = .sentKexInitWhenActive(state)
+                return .noMessage
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+            default:
+                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
+            }
+
+            self.state = .sentKexInitWhenActive(state)
+            return .forwardToMultiplexer(message)
+
+        case .rekeying(var state):
+            // This is basically the regular key exchange state.
+            guard let message = try state.parser.nextPacket() else {
+                return nil
+            }
+
+            switch message {
+            case .keyExchange(let message):
+                let result = try state.receiveKeyExchangeMessage(message)
+                self.state = .rekeying(state)
+                return result
+            case .keyExchangeInit(let message):
+                let result = try state.receiveKeyExchangeInitMessage(message)
+                self.state = .rekeying(state)
+                return result
+            case .keyExchangeReply(let message):
+                let result = try state.receiveKeyExchangeReplyMessage(message)
+                self.state = .rekeying(state)
+                return result
+            case .newKeys:
+                try state.receiveNewKeysMessage()
+                let newState = RekeyingReceivedNewKeysState(state)
+                self.state = .rekeyingReceivedNewKeysState(newState)
+                return .noMessage
+            case .disconnect:
+                self.state = .receivedDisconnect(state.role)
+                return .disconnect
+            case .ignore, .debug:
+                // Ignore these
+                self.state = .rekeying(state)
+                return .noMessage
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+            default:
+                // TODO: enforce RFC 4253:
+                //
+                // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
+                // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
+                // > 7.3), it MUST NOT send any messages other than:
+                // >
+                // > o  Transport layer generic messages (1 to 19) (but
+                // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
+                // >    sent);
+                // >
+                // > o  Algorithm negotiation messages (20 to 29) (but further
+                // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
+                // >
+                // > o  Specific key exchange method messages (30 to 49).
+                //
+                // We should enforce that, but right now we don't have a good mechanism by which to do so.
+                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
+            }
+
+        case .rekeyingReceivedNewKeysState(var state):
+            // This is basically a regular active state.
+            guard let message = try state.parser.nextPacket() else {
+                return nil
+            }
+
+            switch message {
+            // TODO(cory): One day soon we'll need to support re-keying in this state.
+            // For now we only support channel messages.
+            case .channelOpen(let message):
+                try state.receiveChannelOpen(message)
+            case .channelOpenConfirmation(let message):
+                try state.receiveChannelOpenConfirmation(message)
+            case .channelOpenFailure(let message):
+                try state.receiveChannelOpenFailure(message)
+            case .channelEOF(let message):
+                try state.receiveChannelEOF(message)
+            case .channelClose(let message):
+                try state.receiveChannelClose(message)
+            case .channelWindowAdjust(let message):
+                try state.receiveChannelWindowAdjust(message)
+            case .channelData(let message):
+                try state.receiveChannelData(message)
+            case .channelExtendedData(let message):
+                try state.receiveChannelExtendedData(message)
+            case .channelRequest(let message):
+                try state.receiveChannelRequest(message)
+            case .channelSuccess(let message):
+                try state.receiveChannelSuccess(message)
+            case .channelFailure(let message):
+                try state.receiveChannelFailure(message)
+            case .globalRequest(let message):
+                try state.receiveGlobalRequest(message)
+                self.state = .rekeyingReceivedNewKeysState(state)
+                return .globalRequest(message)
+            case .requestSuccess(let message):
+                try state.receiveRequestSuccess(message)
+                self.state = .rekeyingReceivedNewKeysState(state)
+                return .globalRequestResponse(.success(message))
+            case .requestFailure:
+                try state.receiveRequestFailure()
+                self.state = .rekeyingReceivedNewKeysState(state)
+                return .globalRequestResponse(.failure)
+            case .disconnect:
+                self.state = .receivedDisconnect(state.role)
+                return .disconnect
+            case .ignore, .debug:
+                // Ignore these
+                self.state = .rekeyingReceivedNewKeysState(state)
+                return .noMessage
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+            default:
+                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
+            }
+
+            self.state = .rekeyingReceivedNewKeysState(state)
+            return .forwardToMultiplexer(message)
+
+        case .rekeyingSentNewKeysState(var state):
+            // This is key exchange state.
+            guard let message = try state.parser.nextPacket() else {
+                return nil
+            }
+
+            switch message {
+            case .keyExchange(let message):
+                let result = try state.receiveKeyExchangeMessage(message)
+                self.state = .rekeyingSentNewKeysState(state)
+                return result
+            case .keyExchangeInit(let message):
+                let result = try state.receiveKeyExchangeInitMessage(message)
+                self.state = .rekeyingSentNewKeysState(state)
+                return result
+            case .keyExchangeReply(let message):
+                let result = try state.receiveKeyExchangeReplyMessage(message)
+                self.state = .rekeyingSentNewKeysState(state)
+                return result
+            case .newKeys:
+                try state.receiveNewKeysMessage()
+                let newState = ActiveState(state)
+                self.state = .active(newState)
+                return .noMessage
+            case .disconnect:
+                self.state = .receivedDisconnect(state.role)
+                return .disconnect
+            case .ignore, .debug:
+                // Ignore these
+                self.state = .rekeyingSentNewKeysState(state)
+                return .noMessage
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+            default:
+                // TODO: enforce RFC 4253:
+                //
+                // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
+                // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
+                // > 7.3), it MUST NOT send any messages other than:
+                // >
+                // > o  Transport layer generic messages (1 to 19) (but
+                // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
+                // >    sent);
+                // >
+                // > o  Algorithm negotiation messages (20 to 29) (but further
+                // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
+                // >
+                // > o  Specific key exchange method messages (30 to 49).
+                //
+                // We should enforce that, but right now we don't have a good mechanism by which to do so.
+                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
+            }
 
         case .receivedDisconnect, .sentDisconnect:
             // We do no further I/O in these states.
@@ -525,8 +836,6 @@ struct SSHConnectionStateMachine {
 
         case .active(var state):
             switch message {
-            // TODO(cory): One day soon we'll need to support re-keying in this state.
-            // For now we only support channel messages.
             case .channelOpen(let message):
                 try state.writeChannelOpen(message, into: &buffer)
             case .channelOpenConfirmation(let message):
@@ -567,6 +876,140 @@ struct SSHConnectionStateMachine {
 
             self.state = .active(state)
 
+        case .receivedKexInitWhenActive(var state):
+            // In this state we only allow sending key exchange messages. In particular, the key exchange message is the only allowed one.
+            switch message {
+            case .keyExchange(let keyExchangeMessage):
+                try state.writeKeyExchangeMessage(keyExchangeMessage, into: &buffer)
+                self.state = .rekeying(.init(state))
+
+            case .disconnect:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect(state.role)
+
+            case .ignore, .debug, .unimplemented:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .receivedKexInitWhenActive(state)
+
+            default:
+                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+            }
+
+        case .sentKexInitWhenActive(var state):
+            // In this state we've send a key exchange init message, but not received one from the peer. We have nothing to send.
+            switch message {
+            case .disconnect:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect(state.role)
+
+            case .ignore, .debug, .unimplemented:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentKexInitWhenActive(state)
+
+            default:
+                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+            }
+
+        case .rekeying(var state):
+            // This is a full key exchange state.
+            switch message {
+            case .keyExchange(let keyExchangeMessage):
+                try state.writeKeyExchangeMessage(keyExchangeMessage, into: &buffer)
+                self.state = .rekeying(state)
+            case .keyExchangeInit(let kexInit):
+                try state.writeKeyExchangeInitMessage(kexInit, into: &buffer)
+                self.state = .rekeying(state)
+            case .keyExchangeReply(let kexReply):
+                try state.writeKeyExchangeReplyMessage(kexReply, into: &buffer)
+                self.state = .rekeying(state)
+            case .newKeys:
+                try state.writeNewKeysMessage(into: &buffer)
+                self.state = .rekeyingSentNewKeysState(.init(state))
+
+            case .disconnect:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect(state.role)
+
+            case .ignore, .debug, .unimplemented:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .rekeying(state)
+
+            default:
+                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+            }
+
+        case .rekeyingReceivedNewKeysState(var state):
+            // We may be doing any part of key exchange still.
+            switch message {
+            case .keyExchange(let keyExchangeMessage):
+                try state.writeKeyExchangeMessage(keyExchangeMessage, into: &buffer)
+                self.state = .rekeyingReceivedNewKeysState(state)
+            case .keyExchangeInit(let kexInit):
+                try state.writeKeyExchangeInitMessage(kexInit, into: &buffer)
+                self.state = .rekeyingReceivedNewKeysState(state)
+            case .keyExchangeReply(let kexReply):
+                try state.writeKeyExchangeReplyMessage(kexReply, into: &buffer)
+                self.state = .rekeyingReceivedNewKeysState(state)
+            case .newKeys:
+                try state.writeNewKeysMessage(into: &buffer)
+                self.state = .active(.init(state))
+
+            case .disconnect:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect(state.role)
+
+            case .ignore, .debug, .unimplemented:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .rekeyingReceivedNewKeysState(state)
+
+            default:
+                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+            }
+
+        case .rekeyingSentNewKeysState(var state):
+            // We can send channel messages again.
+            switch message {
+            case .channelOpen(let message):
+                try state.writeChannelOpen(message, into: &buffer)
+            case .channelOpenConfirmation(let message):
+                try state.writeChannelOpenConfirmation(message, into: &buffer)
+            case .channelOpenFailure(let message):
+                try state.writeChannelOpenFailure(message, into: &buffer)
+            case .channelEOF(let message):
+                try state.writeChannelEOF(message, into: &buffer)
+            case .channelClose(let message):
+                try state.writeChannelClose(message, into: &buffer)
+            case .channelWindowAdjust(let message):
+                try state.writeChannelWindowAdjust(message, into: &buffer)
+            case .channelData(let message):
+                try state.writeChannelData(message, into: &buffer)
+            case .channelExtendedData(let message):
+                try state.writeChannelExtendedData(message, into: &buffer)
+            case .channelRequest(let message):
+                try state.writeChannelRequest(message, into: &buffer)
+            case .channelSuccess(let message):
+                try state.writeChannelSuccess(message, into: &buffer)
+            case .channelFailure(let message):
+                try state.writeChannelFailure(message, into: &buffer)
+            case .globalRequest(let message):
+                try state.writeGlobalRequest(message, into: &buffer)
+            case .requestSuccess(let message):
+                try state.writeRequestSuccess(message, into: &buffer)
+            case .requestFailure:
+                try state.writeRequestFailure(into: &buffer)
+            case .disconnect:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .sentDisconnect(state.role)
+                return
+            case .ignore, .debug, .unimplemented:
+                try state.serializer.serialize(message: message, to: &buffer)
+                self.state = .rekeyingSentNewKeysState(state)
+            default:
+                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Sent unexpected message type: \(message)")
+            }
+
+            self.state = .rekeyingSentNewKeysState(state)
+
         case .sentDisconnect, .receivedDisconnect:
             // We don't allow more messages once disconnect has occured
             throw NIOSSHError.protocolViolation(protocolName: "transport", violation: "I/O after disconnect")
@@ -597,6 +1040,27 @@ extension SSHConnectionStateMachine {
     }
 }
 
+// MARK: Rekeying
+
+extension SSHConnectionStateMachine {
+    // Called when we wish to re-key the connection.
+    mutating func beginRekeying(buffer: inout ByteBuffer, allocator: ByteBufferAllocator) throws {
+        switch self.state {
+        case .active(let state):
+            // Trying to rekey.
+            var newState = SentKexInitWhenActiveState(state, allocator: allocator)
+            let message = newState.keyExchangeStateMachine.createKeyExchangeMessage()
+            try newState.writeKeyExchangeMessage(message, into: &buffer)
+            self.state = .sentKexInitWhenActive(newState)
+            return
+        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication,
+             .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+             .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
+            preconditionFailure("May not rekey in this state: \(self.state)")
+        }
+    }
+}
+
 // MARK: Helper properties
 
 extension SSHConnectionStateMachine {
@@ -604,7 +1068,9 @@ extension SSHConnectionStateMachine {
         switch self.state {
         case .active:
             return true
-        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication, .receivedDisconnect, .sentDisconnect:
+        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication,
+             .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+             .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
             return false
         }
     }
@@ -613,7 +1079,9 @@ extension SSHConnectionStateMachine {
         switch self.state {
         case .receivedDisconnect, .sentDisconnect:
             return true
-        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication, .active:
+        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication, .active,
+             .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+             .rekeyingSentNewKeysState:
             return false
         }
     }
@@ -633,6 +1101,16 @@ extension SSHConnectionStateMachine {
         case .userAuthentication(let state):
             return state.role
         case .active(let state):
+            return state.role
+        case .receivedKexInitWhenActive(let state):
+            return state.role
+        case .sentKexInitWhenActive(let state):
+            return state.role
+        case .rekeying(let state):
+            return state.role
+        case .rekeyingReceivedNewKeysState(let state):
+            return state.role
+        case .rekeyingSentNewKeysState(let state):
             return state.role
         case .receivedDisconnect(let role):
             return role
