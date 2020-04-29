@@ -21,9 +21,12 @@ extension SSHConnectionStateMachine {
         /// The packet serializer used by this state machine.
         internal var serializer: SSHPacketSerializer
 
-        init(role: SSHConnectionRole) {
+        internal var protectionSchemes: [NIOSSHTransportProtection.Type]
+
+        init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type]) {
             self.role = role
             self.serializer = SSHPacketSerializer()
+            self.protectionSchemes = protectionSchemes
         }
     }
 }

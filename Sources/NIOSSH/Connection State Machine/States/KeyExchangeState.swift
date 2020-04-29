@@ -33,7 +33,7 @@ extension SSHConnectionStateMachine {
             self.role = state.role
             self.parser = state.parser
             self.serializer = state.serializer
-            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, role: state.role, remoteVersion: remoteVersion)
+            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, role: state.role, remoteVersion: remoteVersion, protectionSchemes: state.protectionSchemes)
         }
     }
 }
