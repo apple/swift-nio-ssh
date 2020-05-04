@@ -136,6 +136,47 @@ final class UserEventExpecter: ChannelInboundHandler {
     }
 }
 
+final class PrivateKeyClientAuth: NIOSSHClientUserAuthenticationDelegate {
+    private var key: NIOSSHPrivateKey?
+
+    init(_ key: NIOSSHPrivateKey) {
+        self.key = key
+    }
+
+    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
+        guard availableMethods.contains(.publicKey), let key = self.key else {
+            nextChallengePromise.succeed(nil)
+            return
+        }
+
+        self.key = nil
+        nextChallengePromise.succeed(.init(username: "foo", serviceName: "ssh-connection", offer: .privateKey(.init(privateKey: key))))
+    }
+}
+
+final class ExpectPublicKeyAuth: NIOSSHServerUserAuthenticationDelegate {
+    private var key: NIOSSHPublicKey
+
+    init(_ key: NIOSSHPublicKey) {
+        self.key = key
+    }
+
+    let supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods = .publicKey
+
+    func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+        guard case .publicKey(let actualKey) = request.request else {
+            responsePromise.succeed(.failure)
+            return
+        }
+
+        if actualKey.publicKey == self.key {
+            responsePromise.succeed(.success)
+        } else {
+            responsePromise.succeed(.failure)
+        }
+    }
+}
+
 class EndToEndTests: XCTestCase {
     var channel: BackToBackEmbeddedChannel!
 
@@ -324,5 +365,34 @@ class EndToEndTests: XCTestCase {
         promise.futureResult.whenFailure { error in err = error }
         handler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 1234), promise: promise)
         XCTAssertEqual(err as? ChannelError, .ioOnClosedChannel)
+    }
+
+    func testSecureEnclaveKeys() throws {
+        // This is a quick end-to-end test that validates that we support secure enclave private keys
+        // on appropriate platforms.
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        // If we can't create this key, we skip the test.
+        let key: NIOSSHPrivateKey
+        do {
+            key = try .init(secureEnclaveP256Key: .init())
+        } catch {
+            return
+        }
+
+        // We use the Secure Enclave keys for everything, just because we can.
+        var harness = TestHarness()
+        harness.serverHostKeys = [key]
+        harness.clientAuthDelegate = PrivateKeyClientAuth(key)
+        harness.serverAuthDelegate = ExpectPublicKeyAuth(key.publicKey)
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Create a channel, again, just because we can.
+        _ = try self.channel.createNewChannel()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+        #endif
     }
 }
