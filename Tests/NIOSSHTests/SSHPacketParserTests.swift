@@ -117,6 +117,31 @@ final class SSHPacketParserTests: XCTestCase {
             XCTFail("Expecting .serviceRequest")
         }
     }
+
+    func testWeReclaimStorage() throws {
+        var parser = SSHPacketParser(allocator: ByteBufferAllocator())
+        self.feedVersion(to: &parser)
+        XCTAssertNoThrow(try parser.nextPacket())
+
+        let part = ByteBuffer.of(bytes: [0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207])
+
+        let neededParts = 2048 / part.readableBytes
+
+        for _ in 0 ..< neededParts {
+            var partCopy = part
+            parser.append(bytes: &partCopy)
+        }
+
+        // The version field is in the buffer, and we can't really prevent it being there.
+        let startingOffset = parser._discardableBytes
+        for i in 0 ..< (neededParts / 2) {
+            XCTAssertEqual(parser._discardableBytes, (i * part.readableBytes) + startingOffset)
+            XCTAssertNoThrow(try parser.nextPacket())
+        }
+
+        // Now we should have cleared up.
+        XCTAssertEqual(parser._discardableBytes, 0)
+    }
 }
 
 extension ByteBuffer {
