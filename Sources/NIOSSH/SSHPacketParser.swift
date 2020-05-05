@@ -26,6 +26,11 @@ struct SSHPacketParser {
     private var buffer: ByteBuffer
     private var state: State
 
+    /// Testing only: the number of bytes we can discard from this buffer.
+    internal var _discardableBytes: Int {
+        self.buffer.readerIndex
+    }
+
     init(allocator: ByteBufferAllocator) {
         self.buffer = allocator.buffer(capacity: 0)
         self.state = .initialized
@@ -51,6 +56,10 @@ struct SSHPacketParser {
         // This parser has a slightly strange strategy: we leave the packet length field in the buffer until we're done.
         // This is necessary because some transport protection schemes need the length field for MACing purposes, and can
         // benefit from us maintaining the state instead of having to do it themselves.
+        defer {
+            self.reclaimBytes()
+        }
+
         switch self.state {
         case .initialized:
             if let version = try self.readVersion() {
@@ -91,6 +100,12 @@ struct SSHPacketParser {
                 return message
             }
             return nil
+        }
+    }
+
+    private mutating func reclaimBytes() {
+        if self.buffer.readerIndex > 1024, self.buffer.readerIndex > (self.buffer.readableBytes / 2) {
+            self.buffer.discardReadBytes()
         }
     }
 
