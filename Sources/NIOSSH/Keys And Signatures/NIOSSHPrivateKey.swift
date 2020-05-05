@@ -38,6 +38,12 @@ public struct NIOSSHPrivateKey {
         self.backingKey = .ecdsaP256(key)
     }
 
+    #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+    public init(secureEnclaveP256Key key: SecureEnclave.P256.Signing.PrivateKey) {
+        self.backingKey = .secureEnclaveP256(key)
+    }
+    #endif
+
     // The algorithms that apply to this host key.
     internal var hostKeyAlgorithms: [Substring] {
         switch self.backingKey {
@@ -45,6 +51,10 @@ public struct NIOSSHPrivateKey {
             return ["ssh-ed25519"]
         case .ecdsaP256:
             return ["ecdsa-sha2-nistp256"]
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        case .secureEnclaveP256:
+            return ["ecdsa-sha2-nistp256"]
+        #endif
         }
     }
 }
@@ -54,6 +64,10 @@ extension NIOSSHPrivateKey {
     internal enum BackingKey {
         case ed25519(Curve25519.Signing.PrivateKey)
         case ecdsaP256(P256.Signing.PrivateKey)
+
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        case secureEnclaveP256(SecureEnclave.P256.Signing.PrivateKey)
+        #endif
     }
 }
 
@@ -70,6 +84,14 @@ extension NIOSSHPrivateKey {
                 try key.signature(for: ptr)
             }
             return SSHSignature(backingSignature: .ecdsaP256(signature))
+
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        case .secureEnclaveP256(let key):
+            let signature = try digest.withUnsafeBytes { ptr in
+                try key.signature(for: ptr)
+            }
+            return SSHSignature(backingSignature: .ecdsaP256(signature))
+        #endif
         }
     }
 
@@ -81,6 +103,11 @@ extension NIOSSHPrivateKey {
         case .ecdsaP256(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
             return SSHSignature(backingSignature: .ecdsaP256(signature))
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        case .secureEnclaveP256(let key):
+            let signature = try key.signature(for: payload.bytes.readableBytesView)
+            return SSHSignature(backingSignature: .ecdsaP256(signature))
+        #endif
         }
     }
 }
@@ -93,6 +120,10 @@ extension NIOSSHPrivateKey {
             return NIOSSHPublicKey(backingKey: .ed25519(privateKey.publicKey))
         case .ecdsaP256(let privateKey):
             return NIOSSHPublicKey(backingKey: .ecdsaP256(privateKey.publicKey))
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        case .secureEnclaveP256(let privateKey):
+            return NIOSSHPublicKey(backingKey: .ecdsaP256(privateKey.publicKey))
+        #endif
         }
     }
 }
