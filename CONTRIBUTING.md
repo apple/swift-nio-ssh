@@ -70,4 +70,4 @@ For this reason, whenever you add new tests **you have to run a script** that ge
 
 ## How to contribute your work
 
-Please open a pull request at https://github.com/apple/swift-nio. Make sure the CI passes, and then wait for code review.
+Please open a pull request at https://github.com/apple/swift-nio-ssh. Make sure the CI passes, and then wait for code review.
