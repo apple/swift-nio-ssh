@@ -756,7 +756,13 @@ extension ByteBuffer {
                 // The remainder of the payload is formatted according to the spec associated by the request type.
                 // It cannot be parsed unless the request type is a known type.
                 // So the remainder of the payload is attached as-is.
-                type = .unknown(name, self)
+                guard
+                    let globalRequestPayload = self.readSlice(length: self.readableBytes)
+                else {
+                    return nil
+                }
+                
+                type = .unknown(name, globalRequestPayload)
             }
 
             return SSHMessage.GlobalRequestMessage(wantReply: wantReply, type: type)
