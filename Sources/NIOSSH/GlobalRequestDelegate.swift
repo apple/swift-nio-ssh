@@ -80,12 +80,14 @@ extension SSHMessage.RequestSuccessMessage {
 }
 
 extension GlobalRequest.TCPForwardingRequest {
-    internal init(_ message: SSHMessage.GlobalRequestMessage) {
+    internal init?(_ message: SSHMessage.GlobalRequestMessage) {
         switch message.type {
         case .tcpipForward(let host, let port):
             self = .listen(host: host, port: Int(port))
         case .cancelTcpipForward(let host, let port):
             self = .cancel(host: host, port: Int(port))
+        case .unknown:
+            return nil
         }
     }
 }

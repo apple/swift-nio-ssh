@@ -289,12 +289,29 @@ extension NIOSSHHandler {
                 context.fireErrorCaught(error)
             }
         }
-
-        switch self.stateMachine.role {
-        case .client(let config):
-            config.globalRequestDelegate.tcpForwardingRequest(.init(message), handler: self, promise: responsePromise)
-        case .server(let config):
-            config.globalRequestDelegate.tcpForwardingRequest(.init(message), handler: self, promise: responsePromise)
+        
+        switch message.type {
+        case .unknown:
+            if message.wantReply {
+                // There's no way to tell what message this is and how to respond from here.
+                // The only reasonable solution is to reply `SSH_MSG_REQUEST_FAILURE`
+                try self.writeMessage(.init(.requestFailure), context: context)
+                context.flush()
+            }
+        case .tcpipForward(let host, let port):
+            switch self.stateMachine.role {
+            case .client(let config):
+                config.globalRequestDelegate.tcpForwardingRequest(.listen(host: host, port: Int(port)), handler: self, promise: responsePromise)
+            case .server(let config):
+                config.globalRequestDelegate.tcpForwardingRequest(.listen(host: host, port: Int(port)), handler: self, promise: responsePromise)
+            }
+        case .cancelTcpipForward(let host, let port):
+            switch self.stateMachine.role {
+            case .client(let config):
+                config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: responsePromise)
+            case .server(let config):
+                config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: responsePromise)
+            }
         }
     }
 

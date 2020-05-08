@@ -174,6 +174,7 @@ extension SSHMessage {
         enum RequestType: Equatable {
             case tcpipForward(String, UInt32)
             case cancelTcpipForward(String, UInt32)
+            case unknown(String, ByteBuffer)
         }
 
         var wantReply: Bool
@@ -716,7 +717,7 @@ extension ByteBuffer {
     }
 
     mutating func readGlobalRequestMessage() throws -> SSHMessage.GlobalRequestMessage? {
-        try self.rewindOnNilOrError { `self` in
+        self.rewindOnNilOrError { `self` in
             guard
                 let name = self.readSSHStringAsString(),
                 let wantReply = self.readSSHBoolean()
@@ -748,7 +749,14 @@ extension ByteBuffer {
                 type = .cancelTcpipForward(addressToBind, port)
 
             default:
-                throw NIOSSHError.unknownPacketType(diagnostic: "global request, name \(name)")
+                // The list of global request types can be, and is, extended.
+                // Throwing an error here would cause the connection to abort.
+                // Throwing an error would abort the connection, therefore the request is wrapped to be `unknown`.
+                //
+                // The remainder of the payload is formatted according to the spec associated by the request type.
+                // It cannot be parsed unless the request type is a known type.
+                // So the remainder of the payload is attached as-is.
+                type = .unknown(name, self)
             }
 
             return SSHMessage.GlobalRequestMessage(wantReply: wantReply, type: type)
@@ -1262,21 +1270,23 @@ extension ByteBuffer {
         var writtenBytes = 0
 
         switch message.type {
-        case .tcpipForward:
+        case .tcpipForward(let addressToBind, let port):
             writtenBytes += self.writeSSHString("tcpip-forward".utf8)
-        case .cancelTcpipForward:
-            writtenBytes += self.writeSSHString("cancel-tcpip-forward".utf8)
-        }
-
-        writtenBytes += self.writeSSHBoolean(message.wantReply)
-
-        switch message.type {
-        case .tcpipForward(let addressToBind, let port),
-             .cancelTcpipForward(let addressToBind, let port):
+            writtenBytes += self.writeSSHBoolean(message.wantReply)
             writtenBytes += self.writeSSHString(addressToBind.utf8)
             writtenBytes += self.writeInteger(port)
-        }
+        case .cancelTcpipForward(let addressToBind, let port):
+            writtenBytes += self.writeSSHString("cancel-tcpip-forward".utf8)
 
+            writtenBytes += self.writeSSHBoolean(message.wantReply)
+            writtenBytes += self.writeSSHString(addressToBind.utf8)
+            writtenBytes += self.writeInteger(port)
+        case .unknown(let requestType, var payload):
+            writtenBytes += self.writeSSHString(requestType.utf8)
+            writtenBytes += self.writeSSHBoolean(message.wantReply)
+            writtenBytes += self.writeBuffer(&payload)
+        }
+        
         return writtenBytes
     }
 

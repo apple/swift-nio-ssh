@@ -395,9 +395,7 @@ final class SSHMessagesTests: XCTestCase {
 
         buffer.clear()
         buffer.writeBytes([SSHMessage.GlobalRequestMessage.id, 0, 0, 0, 4, UInt8(ascii: "t"), UInt8(ascii: "e"), UInt8(ascii: "s"), UInt8(ascii: "t"), 0])
-        XCTAssertThrowsError(try buffer.readSSHMessage()) { error in
-            XCTAssertEqual((error as? NIOSSHError)?.type, .unknownPacketType)
-        }
+        XCTAssertNoThrow(try buffer.readSSHMessage())
     }
 
     func testChannelOpen() throws {
