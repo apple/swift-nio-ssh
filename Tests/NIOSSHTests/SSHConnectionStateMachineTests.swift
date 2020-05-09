@@ -327,4 +327,44 @@ final class SSHConnectionStateMachineTests: XCTestCase {
             return
         }
     }
+    
+    func testUnknownGlobalRequestCanTriggerResponse() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
+        
+        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
+
+        // The arbitrary number of 12 has no meaning here
+        // What _is_ important is that the amount of added bytes is greater than 0
+        // This test verifies that, when the boolean `wantReply` is true, an error reply is sent back
+        // This test also verifies that, when the boolean `wantReply` is false, an error reply is _not_ sent back
+        var randomPayload = allocator.buffer(capacity: 12)
+        randomPayload.writeBytes(Array(randomBytes: 12))
+        
+        var response = try self.assertTriggersGlobalRequestResponse(
+            .globalRequest(.init(wantReply: true, type: .unknown("test", randomPayload))), sender: &client, receiver: &server, allocator: allocator, loop: loop)
+        
+        switch response {
+        case .some(.success):
+            XCTFail("The server replied with a success response where this was not applicable")
+        case .some(.failure):
+            ()
+        case .none:
+            XCTFail("No reply was received, where a reply was requested")
+        }
+        
+        response = try self.assertTriggersGlobalRequestResponse(
+            .globalRequest(.init(wantReply: false, type: .unknown("test", randomPayload))), sender: &client, receiver: &server, allocator: allocator, loop: loop)
+        
+        switch response {
+        case .some(.success):
+            XCTFail("The server replied with a success response where this was not applicable")
+        case .some(.failure):
+            XCTFail("A failure was received, where no reply was requested")
+        case .none:
+            ()
+        }
+    }
 }

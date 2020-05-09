@@ -1283,7 +1283,6 @@ extension ByteBuffer {
             writtenBytes += self.writeInteger(port)
         case .cancelTcpipForward(let addressToBind, let port):
             writtenBytes += self.writeSSHString("cancel-tcpip-forward".utf8)
-
             writtenBytes += self.writeSSHBoolean(message.wantReply)
             writtenBytes += self.writeSSHString(addressToBind.utf8)
             writtenBytes += self.writeInteger(port)
