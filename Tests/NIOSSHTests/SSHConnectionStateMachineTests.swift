@@ -215,6 +215,17 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         }
     }
 
+    private func assertUnimplementedCausesError(sequenceNumber: UInt32, sender: inout SSHConnectionStateMachine, receiver: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop) throws {
+        var tempBuffer = allocator.buffer(capacity: 1024)
+        XCTAssertNoThrow(try sender.processOutboundMessage(.unimplemented(.init(sequenceNumber: sequenceNumber)), buffer: &tempBuffer, allocator: allocator, loop: loop))
+        XCTAssert(tempBuffer.readableBytes > 0)
+
+        receiver.bufferInboundData(&tempBuffer)
+        XCTAssertThrowsError(try receiver.processInboundMessage(allocator: allocator, loop: loop)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .remotePeerDoesNotSupportMessage)
+        }
+    }
+
     func testBasicConnectionDance() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
@@ -355,5 +366,15 @@ final class SSHConnectionStateMachineTests: XCTestCase {
 
         try self.assertTriggersNothing(.ignore(.init(data: allocator.buffer(capacity: 1024))), sender: &client, receiver: &server, allocator: allocator, loop: loop)
         try self.assertTriggersNothing(.debug(.init(alwaysDisplay: true, message: "foo", language: "bar")), sender: &client, receiver: &server, allocator: allocator, loop: loop)
+    }
+
+    func testUnimplementedGivesARichError() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
+
+        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
+        try self.assertUnimplementedCausesError(sequenceNumber: 0, sender: &client, receiver: &server, allocator: allocator, loop: loop)
     }
 }
