@@ -184,11 +184,18 @@ extension SSHMessage {
     struct RequestSuccessMessage: Equatable {
         static let id: UInt8 = 81
 
-        var boundPort: UInt32?
+        var buffer: ByteBuffer
     }
 
     enum RequestFailureMessage {
         static let id: UInt8 = 82
+    }
+
+    enum RequestResponseMessage {
+        static let id: UInt8 = 82
+        
+        case success(RequestSuccessMessage)
+        case failure
     }
 
     struct ChannelOpenMessage: Equatable {
@@ -770,8 +777,9 @@ extension ByteBuffer {
     }
 
     mutating func readRequestSuccessMessage() -> SSHMessage.RequestSuccessMessage? {
-        let boundPort = self.readInteger(as: UInt32.self)
-        return SSHMessage.RequestSuccessMessage(boundPort: boundPort)
+        // This force unwrap cannot fail
+        let responseData = self.readSlice(length: self.readableBytes)!
+        return SSHMessage.RequestSuccessMessage(buffer: responseData)
     }
 
     mutating func readChannelOpenMessage() throws -> SSHMessage.ChannelOpenMessage? {
@@ -1296,12 +1304,8 @@ extension ByteBuffer {
     }
 
     mutating func writeRequestSuccessMessage(_ message: SSHMessage.RequestSuccessMessage) -> Int {
-        if let boundPort = message.boundPort {
-            return self.writeInteger(boundPort)
-        } else {
-            // Often is nothing.
-            return 0
-        }
+        var data = message.buffer
+        return self.writeBuffer(&data)
     }
 
     mutating func writeChannelOpenMessage(_ message: SSHMessage.ChannelOpenMessage) -> Int {

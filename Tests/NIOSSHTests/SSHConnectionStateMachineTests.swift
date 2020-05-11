@@ -302,18 +302,18 @@ final class SSHConnectionStateMachineTests: XCTestCase {
 
         // Deliver a request success message.
         var response = try self.assertTriggersGlobalRequestResponse(
-            .requestSuccess(.init(boundPort: 6)), sender: &server, receiver: &client, allocator: allocator, loop: loop
+            .requestSuccess(.init(.tcpForwarding(.init(boundPort: 6)), allocator: allocator)), sender: &server, receiver: &client, allocator: allocator, loop: loop
         )
-        guard case .some(.success(let firstResponse)) = response, firstResponse.boundPort == 6 else {
+        guard case .some(.success(let firstResponse)) = response, GlobalRequest.TCPForwardingResponse(firstResponse).boundPort == 6 else {
             XCTFail("Unexpected response: \(String(describing: response))")
             return
         }
 
         // Now without a port.
         response = try self.assertTriggersGlobalRequestResponse(
-            .requestSuccess(.init(boundPort: nil)), sender: &server, receiver: &client, allocator: allocator, loop: loop
+            .requestSuccess(.init(.tcpForwarding(.init(boundPort: nil)), allocator: allocator)), sender: &server, receiver: &client, allocator: allocator, loop: loop
         )
-        guard case .some(.success(let secondResponse)) = response, secondResponse.boundPort == nil else {
+        guard case .some(.success(let secondResponse)) = response, GlobalRequest.TCPForwardingResponse(secondResponse).boundPort == nil else {
             XCTFail("Unexpected response: \(String(describing: response))")
             return
         }
@@ -325,46 +325,6 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         guard case .some(.failure) = response else {
             XCTFail("Unexpected response: \(String(describing: response))")
             return
-        }
-    }
-    
-    func testUnknownGlobalRequestCanTriggerResponse() throws {
-        let allocator = ByteBufferAllocator()
-        let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
-        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
-        
-        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
-
-        // The arbitrary number of 12 has no meaning here
-        // What _is_ important is that the amount of added bytes is greater than 0
-        // This test verifies that, when the boolean `wantReply` is true, an error reply is sent back
-        // This test also verifies that, when the boolean `wantReply` is false, an error reply is _not_ sent back
-        var randomPayload = allocator.buffer(capacity: 12)
-        randomPayload.writeBytes(Array(randomBytes: 12))
-        
-        var response = try self.assertTriggersGlobalRequestResponse(
-            .globalRequest(.init(wantReply: true, type: .unknown("test", randomPayload))), sender: &client, receiver: &server, allocator: allocator, loop: loop)
-        
-        switch response {
-        case .some(.success):
-            XCTFail("The server replied with a success response where this was not applicable")
-        case .some(.failure):
-            ()
-        case .none:
-            XCTFail("No reply was received, where a reply was requested")
-        }
-        
-        response = try self.assertTriggersGlobalRequestResponse(
-            .globalRequest(.init(wantReply: false, type: .unknown("test", randomPayload))), sender: &client, receiver: &server, allocator: allocator, loop: loop)
-        
-        switch response {
-        case .some(.success):
-            XCTFail("The server replied with a success response where this was not applicable")
-        case .some(.failure):
-            XCTFail("A failure was received, where no reply was requested")
-        case .none:
-            ()
         }
     }
 }

@@ -648,11 +648,15 @@ final class SSHMessagesTests: XCTestCase {
     func testRequestSuccess() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
 
-        var message = SSHMessage.requestSuccess(.init(boundPort: 6))
+        var message = SSHMessage.requestSuccess(
+            .init(.tcpForwarding(.init(boundPort: 6)), allocator: ByteBufferAllocator())
+        )
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
 
-        message = SSHMessage.requestSuccess(.init(boundPort: nil))
+        message = SSHMessage.requestSuccess(
+            .init(.tcpForwarding(.init(boundPort: nil)), allocator: ByteBufferAllocator())
+        )
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
 
