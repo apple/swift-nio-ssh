@@ -198,6 +198,23 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         }
     }
 
+    func assertTriggersNothing(_ message: SSHMessage, sender: inout SSHConnectionStateMachine, receiver: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop) throws {
+        var tempBuffer = allocator.buffer(capacity: 1024)
+        XCTAssertNoThrow(try sender.processOutboundMessage(message, buffer: &tempBuffer, allocator: allocator, loop: loop))
+        XCTAssert(tempBuffer.readableBytes > 0)
+
+        receiver.bufferInboundData(&tempBuffer)
+        let result = try assertNoThrowWithValue(receiver.processInboundMessage(allocator: allocator, loop: loop))
+
+        switch result {
+        case .some(.noMessage):
+            // Good
+            break
+        case .some(.forwardToMultiplexer), .some(.emitMessage), .some(.possibleFutureMessage), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect), .none:
+            XCTFail("Unexpected result: \(String(describing: result))")
+        }
+    }
+
     func testBasicConnectionDance() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
@@ -326,5 +343,17 @@ final class SSHConnectionStateMachineTests: XCTestCase {
             XCTFail("Unexpected response: \(String(describing: response))")
             return
         }
+    }
+
+    func testIgnoreDebugAndIgnoreMessages() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
+
+        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
+
+        try self.assertTriggersNothing(.ignore(.init(data: allocator.buffer(capacity: 1024))), sender: &client, receiver: &server, allocator: allocator, loop: loop)
+        try self.assertTriggersNothing(.debug(.init(alwaysDisplay: true, message: "foo", language: "bar")), sender: &client, receiver: &server, allocator: allocator, loop: loop)
     }
 }
