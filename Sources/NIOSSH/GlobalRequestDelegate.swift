@@ -23,11 +23,11 @@ import NIO
 /// all requests of a given type.
 public protocol GlobalRequestDelegate {
     /// The client wants to manage TCP port forwarding.
-    func tcpForwardingRequest(_: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.GlobalRequestResponse>)
+    func tcpForwardingRequest(_: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>)
 }
 
 extension GlobalRequestDelegate {
-    func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.GlobalRequestResponse>) {
+    func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>) {
         // The default implementation rejects all requests.
         promise.fail(NIOSSHError.unsupportedGlobalRequest)
     }
@@ -57,37 +57,9 @@ public enum GlobalRequest {
         }
     }
     
-    public struct GlobalRequestResponse: Equatable {
-        enum Base: Equatable {
-            case tcpForwarding(TCPForwardingResponse)
-            case unknown(ByteBuffer)
-        }
-        
-        let base: Base
-        
-        public var unknown: ByteBuffer? {
-            if case .unknown(let buffer) = base {
-                return buffer
-            }
-            
-            return nil
-        }
-        
-        public var tcpForwarding: TCPForwardingResponse? {
-            if case .tcpForwarding(let response) = base {
-                return response
-            }
-            
-            return nil
-        }
-        
-        public static func tcpForwarding(_ response: TCPForwardingResponse) -> GlobalRequestResponse {
-            return GlobalRequestResponse(base: .tcpForwarding(response))
-        }
-        
-        public static func unknown(_ response: ByteBuffer) -> GlobalRequestResponse {
-            return GlobalRequestResponse(base: .unknown(response))
-        }
+    enum GlobalRequestResponse: Equatable {
+        case tcpForwarding(TCPForwardingResponse)
+        case unknown(ByteBuffer)
     }
 }
 
@@ -116,7 +88,7 @@ extension GlobalRequest.TCPForwardingResponse {
 
 extension SSHMessage.RequestSuccessMessage {
     internal init(_ request: GlobalRequest.GlobalRequestResponse, allocator: ByteBufferAllocator) {
-        switch request.base {
+        switch request {
         case .tcpForwarding(let response):
             var buffer = allocator.buffer(capacity: 4)
             if let port = response.boundPort {

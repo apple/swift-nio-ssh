@@ -184,7 +184,7 @@ extension SSHMessage {
     public struct RequestSuccessMessage: Equatable {
         static let id: UInt8 = 81
 
-        var buffer: ByteBuffer
+        public let buffer: ByteBuffer
     }
 
     enum RequestFailureMessage {
