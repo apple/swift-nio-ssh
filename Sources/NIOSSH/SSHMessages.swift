@@ -181,7 +181,7 @@ extension SSHMessage {
         var type: RequestType
     }
 
-    struct RequestSuccessMessage: Equatable {
+    public struct RequestSuccessMessage: Equatable {
         static let id: UInt8 = 81
 
         var buffer: ByteBuffer
@@ -724,7 +724,7 @@ extension ByteBuffer {
     }
 
     mutating func readGlobalRequestMessage() throws -> SSHMessage.GlobalRequestMessage? {
-        self.rewindOnNilOrError { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let name = self.readSSHStringAsString(),
                 let wantReply = self.readSSHBoolean()
@@ -763,11 +763,7 @@ extension ByteBuffer {
                 // The remainder of the payload is formatted according to the spec associated by the request type.
                 // It cannot be parsed unless the request type is a known type.
                 // So the remainder of the payload is attached as-is.
-                guard
-                    let globalRequestPayload = self.readSlice(length: self.readableBytes)
-                else {
-                    return nil
-                }
+                let globalRequestPayload = self.readSlice(length: self.readableBytes)!
                 
                 type = .unknown(name, globalRequestPayload)
             }

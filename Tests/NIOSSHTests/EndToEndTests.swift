@@ -262,11 +262,11 @@ class EndToEndTests: XCTestCase {
 
             var port: Int? = 0
 
-            func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>) {
+            func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.GlobalRequestResponse>) {
                 self.requests.append(request)
                 let port = self.port
                 self.port = nil
-                promise.succeed(.init(boundPort: port))
+                promise.succeed(.tcpForwarding(.init(boundPort: port)))
             }
         }
 

@@ -297,16 +297,19 @@ extension NIOSSHHandler {
 
             do {
                 switch result {
-                case .success(.unknown(let unknownResponse)):
-                    try self.writeMessage(.init(.requestSuccess(.init(buffer: unknownResponse))), context: context)
-                    context.flush()
-                case .success(.tcpForwarding(let tcpForwardingResponse)):
-                    var buffer = context.channel.allocator.buffer(capacity: 4)
-                    if let boundPort = tcpForwardingResponse.boundPort {
-                        buffer.writeInteger(UInt32(boundPort))
+                case .success(let response):
+                    switch response.base {
+                    case .tcpForwarding(let tcpForwardingResponse):
+                        var buffer = context.channel.allocator.buffer(capacity: 4)
+                        if let boundPort = tcpForwardingResponse.boundPort {
+                            buffer.writeInteger(UInt32(boundPort))
+                        }
+                        try self.writeMessage(.init(.requestSuccess(.init(buffer: buffer))), context: context)
+                        context.flush()
+                    case .unknown(let unknownResponse):
+                        try self.writeMessage(.init(.requestSuccess(.init(buffer: unknownResponse))), context: context)
+                        context.flush()
                     }
-                    try self.writeMessage(.init(.requestSuccess(.init(buffer: buffer))), context: context)
-                    context.flush()
                 case .failure:
                     // We don't care why, we just say no.
                     try self.writeMessage(.init(.requestFailure), context: context)
@@ -325,25 +328,18 @@ extension NIOSSHHandler {
                 try self.writeMessage(.init(.requestFailure), context: context)
             }
         case .tcpipForward(let host, let port):
-            let tcpForwardingResponsePromise = context.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse.self)
-            tcpForwardingResponsePromise.futureResult.map { tcpForwardingResponse in
-                GlobalRequest.GlobalRequestResponse.tcpForwarding(tcpForwardingResponse)
-            }.cascade(to: responsePromise)
-            
             switch self.stateMachine.role {
             case .client(let config):
-                config.globalRequestDelegate.tcpForwardingRequest(.listen(host: host, port: Int(port)), handler: self, promise: tcpForwardingResponsePromise)
+                config.globalRequestDelegate.tcpForwardingRequest(.listen(host: host, port: Int(port)), handler: self, promise: responsePromise)
             case .server(let config):
-                config.globalRequestDelegate.tcpForwardingRequest(.listen(host: host, port: Int(port)), handler: self, promise: tcpForwardingResponsePromise)
+                config.globalRequestDelegate.tcpForwardingRequest(.listen(host: host, port: Int(port)), handler: self, promise: responsePromise)
             }
         case .cancelTcpipForward(let host, let port):
-            let tcpForwardingResponsePromise = context.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse.self)
-        
             switch self.stateMachine.role {
             case .client(let config):
-                config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: tcpForwardingResponsePromise)
+                config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: responsePromise)
             case .server(let config):
-                config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: tcpForwardingResponsePromise)
+                config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: responsePromise)
             }
         }
     }
