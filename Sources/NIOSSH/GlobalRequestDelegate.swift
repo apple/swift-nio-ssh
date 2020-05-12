@@ -27,7 +27,7 @@ public protocol GlobalRequestDelegate {
 }
 
 extension GlobalRequestDelegate {
-    func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>) {
+    public func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>) {
         // The default implementation rejects all requests.
         promise.fail(NIOSSHError.unsupportedGlobalRequest)
     }
