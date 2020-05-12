@@ -638,4 +638,14 @@ final class SSHMessagesTests: XCTestCase {
 
         try self.assertCorrectlyManagesPartialRead(message)
     }
+
+    func testDebug() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        let message = SSHMessage.debug(.init(alwaysDisplay: true, message: "this is a debug message", language: "en-US"))
+
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
+    }
 }
