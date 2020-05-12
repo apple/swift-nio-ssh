@@ -262,14 +262,7 @@ extension NIOSSHHandler {
 
     fileprivate func dropAllPendingGlobalRequests(_ error: Error) {
         while let next = self.pendingGlobalRequests.popFirst() {
-            switch next.1 {
-            case .some(.tcpForwarding(let promise)):
-                promise.fail(error)
-            case .some(.unknown(let promise)):
-                promise.fail(error)
-            case .none:
-                ()
-            }
+            next.1?.fail(error)
         }
     }
 

@@ -181,10 +181,10 @@ extension SSHMessage {
         var type: RequestType
     }
 
-    public struct RequestSuccessMessage: Equatable {
+    struct RequestSuccessMessage: Equatable {
         static let id: UInt8 = 81
 
-        public let buffer: ByteBuffer
+        let buffer: ByteBuffer
     }
 
     enum RequestFailureMessage {
@@ -757,7 +757,6 @@ extension ByteBuffer {
 
             default:
                 // The list of global request types can be, and is, extended.
-                // Throwing an error here would cause the connection to abort.
                 // Throwing an error would abort the connection, therefore the request is wrapped to be `unknown`.
                 //
                 // The remainder of the payload is formatted according to the spec associated by the request type.
