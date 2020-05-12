@@ -73,6 +73,15 @@ extension NIOSSHHandler {
         case tcpForwarding(EventLoopPromise<GlobalRequest.TCPForwardingResponse?>)
         case unknown(EventLoopPromise<ByteBuffer?>)
 
+        func succeed(_ result: SSHMessage.RequestSuccessMessage?) {
+            switch self {
+            case .tcpForwarding(let promise):
+                promise.succeed(result.map(GlobalRequest.TCPForwardingResponse.init))
+            case .unknown(let promise):
+                promise.succeed(result?.buffer)
+            }
+        }
+
         func fail(_ error: Error) {
             switch self {
             case .tcpForwarding(let promise):
@@ -279,14 +288,7 @@ extension NIOSSHHandler {
 
         switch response {
         case .success(let response):
-            switch next {
-            case .some(.tcpForwarding(let promise)):
-                promise.succeed(.init(response))
-            case .some(.unknown(let promise)):
-                promise.succeed(response.buffer)
-            case .none:
-                ()
-            }
+            next?.succeed(response)
         case .failure:
             next?.fail(NIOSSHError.globalRequestRefused)
         }
@@ -397,14 +399,7 @@ extension NIOSSHHandler {
                     // We add the nil promise here too to maintain ordering.
                     self.pendingGlobalRequestResponses.append(promise)
                 } else {
-                    switch promise {
-                    case .some(.tcpForwarding(let promise)):
-                        promise.succeed(nil)
-                    case .some(.unknown(let promise)):
-                        promise.succeed(nil)
-                    case .none:
-                        ()
-                    }
+                    promise?.succeed(nil)
                 }
             case .failure(let error):
                 promise?.fail(error)
