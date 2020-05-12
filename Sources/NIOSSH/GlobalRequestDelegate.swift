@@ -56,7 +56,7 @@ public enum GlobalRequest {
             self.boundPort = boundPort
         }
     }
-    
+
     enum GlobalRequestResponse: Equatable {
         case tcpForwarding(TCPForwardingResponse)
         case unknown(ByteBuffer)

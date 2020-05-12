@@ -68,7 +68,7 @@ final class RemotePortForwarder {
 final class RemotePortForwarderGlobalRequestDelegate: GlobalRequestDelegate {
     // This example delegate only tolerates one bound port per connection, but this is an artificial limit.
     private var forwarder: RemotePortForwarder?
-    
+
     func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>) {
         switch request {
         case .listen(host: let host, port: let port):

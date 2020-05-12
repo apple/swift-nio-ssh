@@ -109,7 +109,7 @@ extension NIOSSHError {
     internal static let unsupportedGlobalRequest = NIOSSHError(type: .unsupportedGlobalRequest, diagnostics: nil)
 
     internal static let unexpectedGlobalRequestResponse = NIOSSHError(type: .unexpectedGlobalRequestResponse, diagnostics: nil)
-    
+
     internal static let missingGlobalRequestResponse = NIOSSHError(type: .missingGlobalRequestResponse, diagnostics: nil)
 
     internal static let globalRequestRefused = NIOSSHError(type: .globalRequestRefused, diagnostics: nil)
@@ -234,7 +234,7 @@ extension NIOSSHError {
 
         /// We received a response to a global request that we were not expecting.
         public static let unexpectedGlobalRequestResponse: ErrorType = .init(.unexpectedGlobalRequestResponse)
-        
+
         /// We didn't receive a response to a global request, but were expecting one
         public static let missingGlobalRequestResponse: ErrorType = .init(.missingGlobalRequestResponse)
 

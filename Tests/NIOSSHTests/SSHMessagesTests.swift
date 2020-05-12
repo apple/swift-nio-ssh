@@ -393,7 +393,7 @@ final class SSHMessagesTests: XCTestCase {
 
         var thirdMessagePayload = allocator.buffer(capacity: 12)
         thirdMessagePayload.writeBytes(Array(randomBytes: 12))
-        
+
         let thirdMessage = SSHMessage.globalRequest(.init(wantReply: true, type: .unknown("test", thirdMessagePayload)))
         buffer.writeSSHMessage(thirdMessage)
         XCTAssertEqual(try buffer.readSSHMessage(), thirdMessage)
@@ -407,35 +407,35 @@ final class SSHMessagesTests: XCTestCase {
         buffer.writeBytes([SSHMessage.GlobalRequestMessage.id, 0, 0, 0, 4, UInt8(ascii: "t"), UInt8(ascii: "e"), UInt8(ascii: "s"), UInt8(ascii: "t"), 0])
         XCTAssertNotNil(try buffer.readSSHMessage())
     }
-    
+
     func testUnknownGlobalRequest() throws {
         // The arbitrary number of 12 has no meaning here
         // What _is_ important is that the amount of added bytes is greater than 0
         // This test verifies that an unknown message will use the remainder of the packet's payload
         let randomPayload = Array(randomBytes: 12)
-        
+
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
         buffer.writeBytes([SSHMessage.GlobalRequestMessage.id, 0, 0, 0, 4, UInt8(ascii: "t"), UInt8(ascii: "e"), UInt8(ascii: "s"), UInt8(ascii: "t"), 1])
         buffer.writeBytes(randomPayload)
-        
+
         let unknownMessage = try buffer.readSSHMessage()
-        
-        guard case let .some(.globalRequest(globalRequest)) = unknownMessage else {
+
+        guard case .some(.globalRequest(let globalRequest)) = unknownMessage else {
             XCTFail("SSH message is not a global request")
             return
         }
-        
+
         XCTAssertTrue(globalRequest.wantReply)
-        
-        guard case let .unknown(name, payload) = globalRequest.type else {
+
+        guard case .unknown(let name, let payload) = globalRequest.type else {
             XCTFail("Decoded global request is not unknown")
             return
         }
-        
+
         XCTAssertEqual(name, "test")
         XCTAssertEqual(Array(payload.readableBytesView), randomPayload)
     }
-        
+
     func testChannelOpen() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
 

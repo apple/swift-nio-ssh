@@ -72,7 +72,7 @@ extension NIOSSHHandler {
     enum PendingGlobalRequestResponse {
         case tcpForwarding(EventLoopPromise<GlobalRequest.TCPForwardingResponse?>)
         case unknown(EventLoopPromise<ByteBuffer?>)
-        
+
         func fail(_ error: Error) {
             switch self {
             case .tcpForwarding(let promise):
@@ -251,7 +251,7 @@ extension NIOSSHHandler {
         self.pendingGlobalRequests.append((value: message, promise: promise.map { .tcpForwarding($0) }))
         self.sendGlobalRequestsIfPossible()
     }
-    
+
     /// Sends a global request of any kind. This is commonly used for TCP forwarding requests, but can be used to extend the protocol.
     ///
     /// This function is **not** thread-safe: it may only be called from on the channel.
@@ -283,7 +283,7 @@ extension NIOSSHHandler {
         guard let next = self.pendingGlobalRequestResponses.popFirst() else {
             throw NIOSSHError.unexpectedGlobalRequestResponse
         }
-        
+
         switch response {
         case .success(let response):
             switch next {
@@ -304,12 +304,12 @@ extension NIOSSHHandler {
             // Weird, somehow we're out of the channel now. Drop this.
             return
         }
-        
+
         // It is defined but not initialized here so that code related to this promise isn't written twice
         // The `unknown` statement needs to return so that this promise isn't used before initialization
         // It cannot be initialized here, because that would lead to a leaked promise
         let responsePromise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>
-        
+
         switch message.type {
         case .unknown:
             if message.wantReply {
@@ -320,7 +320,7 @@ extension NIOSSHHandler {
             return
         case .tcpipForward(let host, let port):
             responsePromise = context.eventLoop.makePromise()
-            
+
             switch self.stateMachine.role {
             case .client(let config):
                 config.globalRequestDelegate.tcpForwardingRequest(.listen(host: host, port: Int(port)), handler: self, promise: responsePromise)
@@ -329,7 +329,7 @@ extension NIOSSHHandler {
             }
         case .cancelTcpipForward(let host, let port):
             responsePromise = context.eventLoop.makePromise()
-            
+
             switch self.stateMachine.role {
             case .client(let config):
                 config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: responsePromise)
@@ -337,7 +337,7 @@ extension NIOSSHHandler {
                 config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: responsePromise)
             }
         }
-        
+
         responsePromise.futureResult.whenComplete { result in
             guard message.wantReply else {
                 // Nothing to do.
@@ -398,7 +398,7 @@ extension NIOSSHHandler {
                     promise?.fail(ChannelError.eof)
                     return
                 }
-                
+
                 if request.wantReply {
                     // Great, we're still active. Now we wait for a response.
                     // We add the nil promise here too to maintain ordering.

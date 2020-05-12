@@ -193,7 +193,7 @@ extension SSHMessage {
 
     enum RequestResponseMessage {
         static let id: UInt8 = 82
-        
+
         case success(RequestSuccessMessage)
         case failure
     }
@@ -764,7 +764,7 @@ extension ByteBuffer {
                 // It cannot be parsed unless the request type is a known type.
                 // So the remainder of the payload is attached as-is.
                 let globalRequestPayload = self.readSlice(length: self.readableBytes)!
-                
+
                 type = .unknown(name, globalRequestPayload)
             }
 
@@ -1295,7 +1295,7 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHBoolean(message.wantReply)
             writtenBytes += self.writeBuffer(&payload)
         }
-        
+
         return writtenBytes
     }
 
