@@ -191,13 +191,6 @@ extension SSHMessage {
         static let id: UInt8 = 82
     }
 
-    enum RequestResponseMessage {
-        static let id: UInt8 = 82
-
-        case success(RequestSuccessMessage)
-        case failure
-    }
-
     struct ChannelOpenMessage: Equatable {
         // SSH_MSG_CHANNEL_OPEN
         static let id: UInt8 = 90

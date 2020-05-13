@@ -342,11 +342,7 @@ extension NIOSSHHandler {
             do {
                 switch result {
                 case .success(let tcpForwardingResponse):
-                    var buffer = context.channel.allocator.buffer(capacity: 4)
-                    if let boundPort = tcpForwardingResponse.boundPort {
-                        buffer.writeInteger(UInt32(boundPort))
-                    }
-                    try self.writeMessage(.init(.requestSuccess(.init(buffer: buffer))), context: context)
+                    try self.writeMessage(.init(.requestSuccess(.init(.tcpForwarding(tcpForwardingResponse), allocator: context.channel.allocator))), context: context)
                     context.flush()
                 case .failure:
                     // We don't care why, we just say no.
