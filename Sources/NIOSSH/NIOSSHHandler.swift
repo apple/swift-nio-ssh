@@ -53,9 +53,9 @@ public final class NIOSSHHandler {
     private var pendingChannelInitializations: CircularBuffer<(promise: EventLoopPromise<Channel>?, channelType: SSHChannelType, initializer: SSHChildChannel.Initializer?)>
 
     // A buffer of pending global requests. A global request is pending if we tried to send it before user auth completed.
-    private var pendingGlobalRequests: CircularBuffer<(SSHMessage.GlobalRequestMessage, EventLoopPromise<GlobalRequest.GlobalRequestResponse>?)>
+    private var pendingGlobalRequests: CircularBuffer<(SSHMessage.GlobalRequestMessage, PendingGlobalRequestResponse?)>
 
-    private var pendingGlobalRequestResponses: CircularBuffer<EventLoopPromise<GlobalRequest.GlobalRequestResponse>?>
+    private var pendingGlobalRequestResponses: CircularBuffer<PendingGlobalRequestResponse?>
 
     public init(role: SSHConnectionRole, allocator: ByteBufferAllocator, inboundChildChannelInitializer: ((Channel, SSHChannelType) -> EventLoopFuture<Void>)?) {
         self.stateMachine = SSHConnectionStateMachine(role: role)
@@ -65,6 +65,31 @@ public final class NIOSSHHandler {
         self.pendingGlobalRequests = CircularBuffer(initialCapacity: 4)
         self.pendingGlobalRequestResponses = CircularBuffer(initialCapacity: 4)
         self.multiplexer = SSHChannelMultiplexer(delegate: self, allocator: allocator, childChannelInitializer: inboundChildChannelInitializer)
+    }
+}
+
+extension NIOSSHHandler {
+    enum PendingGlobalRequestResponse {
+        case tcpForwarding(EventLoopPromise<GlobalRequest.TCPForwardingResponse?>)
+        case unknown(EventLoopPromise<ByteBuffer?>)
+
+        func succeed(_ result: SSHMessage.RequestSuccessMessage?) {
+            switch self {
+            case .tcpForwarding(let promise):
+                promise.succeed(result.map(GlobalRequest.TCPForwardingResponse.init))
+            case .unknown(let promise):
+                promise.succeed(result?.buffer)
+            }
+        }
+
+        func fail(_ error: Error) {
+            switch self {
+            case .tcpForwarding(let promise):
+                promise.fail(error)
+            case .unknown(let promise):
+                promise.fail(error)
+            }
+        }
     }
 }
 
@@ -230,9 +255,17 @@ extension NIOSSHHandler {
     ///     - request: The request to send.
     ///     - promise: An `EventLoopPromise` that will be fulfilled when the request is accepted. Will error
     ///         if the request was rejected or could not be sent.
-    public func sendTCPForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, promise: EventLoopPromise<GlobalRequest.GlobalRequestResponse>? = nil) {
+    public func sendTCPForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse?>? = nil) {
         let message = SSHMessage.GlobalRequestMessage(wantReply: true, type: .init(request))
-        self.pendingGlobalRequests.append((value: message, promise: promise))
+        self.pendingGlobalRequests.append((value: message, promise: promise.map { .tcpForwarding($0) }))
+        self.sendGlobalRequestsIfPossible()
+    }
+
+    /// Sends a global request of any kind. This is commonly used for TCP forwarding requests, but can be used to extend the protocol.
+    ///
+    /// This function is **not** thread-safe: it may only be called from on the channel.
+    func sendGlobalRequestMessage(_ message: SSHMessage.GlobalRequestMessage, promise: EventLoopPromise<ByteBuffer?>? = nil) {
+        self.pendingGlobalRequests.append((value: message, promise: promise.map { .unknown($0) }))
         self.sendGlobalRequestsIfPossible()
     }
 
@@ -255,7 +288,7 @@ extension NIOSSHHandler {
 
         switch response {
         case .success(let response):
-            next?.succeed(.init(response))
+            next?.succeed(response)
         case .failure:
             next?.fail(NIOSSHError.globalRequestRefused)
         }
@@ -267,7 +300,39 @@ extension NIOSSHHandler {
             return
         }
 
-        let responsePromise = context.eventLoop.makePromise(of: GlobalRequest.GlobalRequestResponse.self)
+        // It is defined but not initialized here so that code related to this promise isn't written twice
+        // The `unknown` statement needs to return so that this promise isn't used before initialization
+        // It cannot be initialized here, because that would lead to a leaked promise
+        let responsePromise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>
+
+        switch message.type {
+        case .unknown:
+            if message.wantReply {
+                // There's no way to tell what message this is and how to respond from here.
+                // The only reasonable solution is to reply `SSH_MSG_REQUEST_FAILURE`
+                try self.writeMessage(.init(.requestFailure), context: context)
+            }
+            return
+        case .tcpipForward(let host, let port):
+            responsePromise = context.eventLoop.makePromise()
+
+            switch self.stateMachine.role {
+            case .client(let config):
+                config.globalRequestDelegate.tcpForwardingRequest(.listen(host: host, port: Int(port)), handler: self, promise: responsePromise)
+            case .server(let config):
+                config.globalRequestDelegate.tcpForwardingRequest(.listen(host: host, port: Int(port)), handler: self, promise: responsePromise)
+            }
+        case .cancelTcpipForward(let host, let port):
+            responsePromise = context.eventLoop.makePromise()
+
+            switch self.stateMachine.role {
+            case .client(let config):
+                config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: responsePromise)
+            case .server(let config):
+                config.globalRequestDelegate.tcpForwardingRequest(.cancel(host: host, port: Int(port)), handler: self, promise: responsePromise)
+            }
+        }
+
         responsePromise.futureResult.whenComplete { result in
             guard message.wantReply else {
                 // Nothing to do.
@@ -276,10 +341,9 @@ extension NIOSSHHandler {
 
             do {
                 switch result {
-                case .success(let response):
-                    try self.writeMessage(.init(.requestSuccess(.init(response))), context: context)
+                case .success(let tcpForwardingResponse):
+                    try self.writeMessage(.init(.requestSuccess(.init(.tcpForwarding(tcpForwardingResponse), allocator: context.channel.allocator))), context: context)
                     context.flush()
-
                 case .failure:
                     // We don't care why, we just say no.
                     try self.writeMessage(.init(.requestFailure), context: context)
@@ -288,13 +352,6 @@ extension NIOSSHHandler {
             } catch {
                 context.fireErrorCaught(error)
             }
-        }
-
-        switch self.stateMachine.role {
-        case .client(let config):
-            config.globalRequestDelegate.tcpForwardingRequest(.init(message), handler: self, promise: responsePromise)
-        case .server(let config):
-            config.globalRequestDelegate.tcpForwardingRequest(.init(message), handler: self, promise: responsePromise)
         }
     }
 
@@ -320,7 +377,7 @@ extension NIOSSHHandler {
         }
     }
 
-    private func sendGlobalRequest(_ request: SSHMessage.GlobalRequestMessage, promise: EventLoopPromise<GlobalRequest.GlobalRequestResponse>?, context: ChannelHandlerContext) {
+    private func sendGlobalRequest(_ request: SSHMessage.GlobalRequestMessage, promise: PendingGlobalRequestResponse?, context: ChannelHandlerContext) {
         // Sending a single global request is tricky, because we don't want to succeed the promise until we have the result of the
         // request. That means we need a buffer of promises for request success/failure messages, as well as to create new promises.
         let writePromise = context.eventLoop.makePromise(of: Void.self)
@@ -333,10 +390,13 @@ extension NIOSSHHandler {
                     return
                 }
 
-                // Great, we're still active. Now we wait for a response.
-                // We add the nil promise here too to maintain ordering.
-                self.pendingGlobalRequestResponses.append(promise)
-
+                if request.wantReply {
+                    // Great, we're still active. Now we wait for a response.
+                    // We add the nil promise here too to maintain ordering.
+                    self.pendingGlobalRequestResponses.append(promise)
+                } else {
+                    promise?.succeed(nil)
+                }
             case .failure(let error):
                 promise?.fail(error)
             }

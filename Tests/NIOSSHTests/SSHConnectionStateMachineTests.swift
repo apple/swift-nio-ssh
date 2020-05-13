@@ -330,18 +330,18 @@ final class SSHConnectionStateMachineTests: XCTestCase {
 
         // Deliver a request success message.
         var response = try self.assertTriggersGlobalRequestResponse(
-            .requestSuccess(.init(boundPort: 6)), sender: &server, receiver: &client, allocator: allocator, loop: loop
+            .requestSuccess(.init(.tcpForwarding(.init(boundPort: 6)), allocator: allocator)), sender: &server, receiver: &client, allocator: allocator, loop: loop
         )
-        guard case .some(.success(let firstResponse)) = response, firstResponse.boundPort == 6 else {
+        guard case .some(.success(let firstResponse)) = response, GlobalRequest.TCPForwardingResponse(firstResponse).boundPort == 6 else {
             XCTFail("Unexpected response: \(String(describing: response))")
             return
         }
 
         // Now without a port.
         response = try self.assertTriggersGlobalRequestResponse(
-            .requestSuccess(.init(boundPort: nil)), sender: &server, receiver: &client, allocator: allocator, loop: loop
+            .requestSuccess(.init(.tcpForwarding(.init(boundPort: nil)), allocator: allocator)), sender: &server, receiver: &client, allocator: allocator, loop: loop
         )
-        guard case .some(.success(let secondResponse)) = response, secondResponse.boundPort == nil else {
+        guard case .some(.success(let secondResponse)) = response, GlobalRequest.TCPForwardingResponse(secondResponse).boundPort == nil else {
             XCTFail("Unexpected response: \(String(describing: response))")
             return
         }

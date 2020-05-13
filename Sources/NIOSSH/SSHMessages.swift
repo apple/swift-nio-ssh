@@ -183,6 +183,7 @@ extension SSHMessage {
         enum RequestType: Equatable {
             case tcpipForward(String, UInt32)
             case cancelTcpipForward(String, UInt32)
+            case unknown(String, ByteBuffer)
         }
 
         var wantReply: Bool
@@ -192,7 +193,7 @@ extension SSHMessage {
     struct RequestSuccessMessage: Equatable {
         static let id: UInt8 = 81
 
-        var boundPort: UInt32?
+        var buffer: ByteBuffer
     }
 
     enum RequestFailureMessage {
@@ -743,7 +744,7 @@ extension ByteBuffer {
     }
 
     mutating func readGlobalRequestMessage() throws -> SSHMessage.GlobalRequestMessage? {
-        try self.rewindOnNilOrError { `self` in
+        self.rewindReaderOnNil { `self` in
             guard
                 let name = self.readSSHStringAsString(),
                 let wantReply = self.readSSHBoolean()
@@ -775,7 +776,15 @@ extension ByteBuffer {
                 type = .cancelTcpipForward(addressToBind, port)
 
             default:
-                throw NIOSSHError.unknownPacketType(diagnostic: "global request, name \(name)")
+                // The list of global request types can be, and is, extended.
+                // Throwing an error would abort the connection, therefore the request is wrapped to be `unknown`.
+                //
+                // The remainder of the payload is formatted according to the spec associated by the request type.
+                // It cannot be parsed unless the request type is a known type.
+                // So the remainder of the payload is attached as-is.
+                let globalRequestPayload = self.readSlice(length: self.readableBytes)!
+
+                type = .unknown(name, globalRequestPayload)
             }
 
             return SSHMessage.GlobalRequestMessage(wantReply: wantReply, type: type)
@@ -783,8 +792,9 @@ extension ByteBuffer {
     }
 
     mutating func readRequestSuccessMessage() -> SSHMessage.RequestSuccessMessage? {
-        let boundPort = self.readInteger(as: UInt32.self)
-        return SSHMessage.RequestSuccessMessage(boundPort: boundPort)
+        // This force unwrap cannot fail
+        let responseData = self.readSlice(length: self.readableBytes)!
+        return SSHMessage.RequestSuccessMessage(buffer: responseData)
     }
 
     mutating func readChannelOpenMessage() throws -> SSHMessage.ChannelOpenMessage? {
@@ -1299,31 +1309,28 @@ extension ByteBuffer {
         var writtenBytes = 0
 
         switch message.type {
-        case .tcpipForward:
+        case .tcpipForward(let addressToBind, let port):
             writtenBytes += self.writeSSHString("tcpip-forward".utf8)
-        case .cancelTcpipForward:
-            writtenBytes += self.writeSSHString("cancel-tcpip-forward".utf8)
-        }
-
-        writtenBytes += self.writeSSHBoolean(message.wantReply)
-
-        switch message.type {
-        case .tcpipForward(let addressToBind, let port),
-             .cancelTcpipForward(let addressToBind, let port):
+            writtenBytes += self.writeSSHBoolean(message.wantReply)
             writtenBytes += self.writeSSHString(addressToBind.utf8)
             writtenBytes += self.writeInteger(port)
+        case .cancelTcpipForward(let addressToBind, let port):
+            writtenBytes += self.writeSSHString("cancel-tcpip-forward".utf8)
+            writtenBytes += self.writeSSHBoolean(message.wantReply)
+            writtenBytes += self.writeSSHString(addressToBind.utf8)
+            writtenBytes += self.writeInteger(port)
+        case .unknown(let requestType, var payload):
+            writtenBytes += self.writeSSHString(requestType.utf8)
+            writtenBytes += self.writeSSHBoolean(message.wantReply)
+            writtenBytes += self.writeBuffer(&payload)
         }
 
         return writtenBytes
     }
 
     mutating func writeRequestSuccessMessage(_ message: SSHMessage.RequestSuccessMessage) -> Int {
-        if let boundPort = message.boundPort {
-            return self.writeInteger(boundPort)
-        } else {
-            // Often is nothing.
-            return 0
-        }
+        var data = message.buffer
+        return self.writeBuffer(&data)
     }
 
     mutating func writeChannelOpenMessage(_ message: SSHMessage.ChannelOpenMessage) -> Int {

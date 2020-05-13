@@ -23,11 +23,11 @@ import NIO
 /// all requests of a given type.
 public protocol GlobalRequestDelegate {
     /// The client wants to manage TCP port forwarding.
-    func tcpForwardingRequest(_: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.GlobalRequestResponse>)
+    func tcpForwardingRequest(_: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>)
 }
 
 extension GlobalRequestDelegate {
-    func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.GlobalRequestResponse>) {
+    public func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>) {
         // The default implementation rejects all requests.
         promise.fail(NIOSSHError.unsupportedGlobalRequest)
     }
@@ -46,8 +46,8 @@ public enum GlobalRequest {
         case cancel(host: String, port: Int)
     }
 
-    /// The data associated with a successful response to a global request.
-    public struct GlobalRequestResponse: Hashable {
+    /// The data associated with a successful response to a TCP forwarding request.
+    public struct TCPForwardingResponse: Hashable {
         /// If requested to listen on a port, and the port the client requested was 0, this is set to the
         /// port that was actually bound. Otherwise is nil.
         public var boundPort: Int?
@@ -55,6 +55,11 @@ public enum GlobalRequest {
         public init(boundPort: Int?) {
             self.boundPort = boundPort
         }
+    }
+
+    enum GlobalRequestResponse: Equatable {
+        case tcpForwarding(TCPForwardingResponse)
+        case unknown(ByteBuffer)
     }
 }
 
@@ -66,32 +71,32 @@ extension SSHMessage.GlobalRequestMessage.RequestType {
         switch request {
         case .listen(host: let host, port: let port):
             self = .tcpipForward(host, UInt32(port))
-
         case .cancel(host: let host, port: let port):
             self = .cancelTcpipForward(host, UInt32(port))
         }
     }
 }
 
-extension SSHMessage.RequestSuccessMessage {
-    internal init(_ response: GlobalRequest.GlobalRequestResponse) {
-        self.boundPort = response.boundPort.map { UInt32($0) }
-    }
-}
-
-extension GlobalRequest.TCPForwardingRequest {
-    internal init(_ message: SSHMessage.GlobalRequestMessage) {
-        switch message.type {
-        case .tcpipForward(let host, let port):
-            self = .listen(host: host, port: Int(port))
-        case .cancelTcpipForward(let host, let port):
-            self = .cancel(host: host, port: Int(port))
+extension GlobalRequest.TCPForwardingResponse {
+    internal init(_ response: SSHMessage.RequestSuccessMessage) {
+        var data = response.buffer
+        if let boundPort = data.readInteger(as: UInt32.self) {
+            self.boundPort = Int(boundPort)
         }
     }
 }
 
-extension GlobalRequest.GlobalRequestResponse {
-    internal init(_ response: SSHMessage.RequestSuccessMessage) {
-        self.boundPort = response.boundPort.map { Int($0) }
+extension SSHMessage.RequestSuccessMessage {
+    internal init(_ request: GlobalRequest.GlobalRequestResponse, allocator: ByteBufferAllocator) {
+        switch request {
+        case .tcpForwarding(let response):
+            var buffer = allocator.buffer(capacity: 4)
+            if let port = response.boundPort {
+                buffer.writeInteger(UInt32(port))
+            }
+            self.buffer = buffer
+        case .unknown(let buffer):
+            self.buffer = buffer
+        }
     }
 }
