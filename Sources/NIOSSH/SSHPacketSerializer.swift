@@ -24,12 +24,13 @@ struct SSHPacketSerializer {
     private var state: State = .initialized
 
     /// Encryption schemes can be added to a packet serializer whenever encryption is negotiated.
-    /// They may only be added once, while the serializer is in an idle state.
     mutating func addEncryption(_ protection: NIOSSHTransportProtection) {
         switch self.state {
         case .cleartext:
             self.state = .encrypted(protection)
-        case .initialized, .encrypted:
+        case .encrypted:
+            self.state = .encrypted(protection)
+        case .initialized:
             preconditionFailure("Adding encryption in invalid state: \(self.state)")
         }
     }

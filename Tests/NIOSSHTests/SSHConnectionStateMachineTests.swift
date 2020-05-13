@@ -377,4 +377,23 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
         try self.assertUnimplementedCausesError(sequenceNumber: 0, sender: &client, receiver: &server, allocator: allocator, loop: loop)
     }
+
+    func testWeTolerateMessagesAfterSendingKexInit() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
+
+        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
+
+        // Ok, the server is going to try to rekey.
+        var buffer = allocator.buffer(capacity: 1024)
+        XCTAssertNoThrow(try server.beginRekeying(buffer: &buffer, allocator: allocator))
+
+        // We're not passing this to the client though. Now we'll send all the channel messages through: the server should tolerate them
+        // all.
+        for message in self.channelMessages {
+            XCTAssertNoThrow(try self.assertForwardsToMultiplexer(message, sender: &client, receiver: &server, allocator: allocator, loop: loop))
+        }
+    }
 }

@@ -119,9 +119,9 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
 
     func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws {
         // Keep track of where the length is going to be written.
-        let packetLengthIndex = outboundBuffer.readerIndex
+        let packetLengthIndex = outboundBuffer.writerIndex
         let packetLengthLength = MemoryLayout<UInt32>.size
-        let packetPaddingIndex = outboundBuffer.readerIndex + packetLengthLength
+        let packetPaddingIndex = outboundBuffer.writerIndex + packetLengthLength
         let packetPaddingLength = MemoryLayout<UInt8>.size
 
         outboundBuffer.moveWriterIndex(forwardBy: packetLengthLength + packetPaddingLength)
