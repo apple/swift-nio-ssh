@@ -410,6 +410,20 @@ extension NIOSSHHandler {
     }
 }
 
+// MARK: Initiate rekeying
+
+extension NIOSSHHandler {
+    // This function mostly exists for testing purposes: we don't initiate re-keying today because it's not
+    // well-supported by evidence. But we want to be able to test against implementations who do, so we have support for
+    // kicking it off.
+    internal func _rekey() throws {
+        // As this is test-only there are a bunch of preconditions in here, we don't really mind if we hit them in testing.
+        var buffer = self.context!.channel.allocator.buffer(capacity: 1024)
+        try self.stateMachine.beginRekeying(buffer: &buffer, allocator: self.context!.channel.allocator)
+        self.context!.writeAndFlush(self.wrapOutboundOut(buffer), promise: nil)
+    }
+}
+
 // MARK: Functions called from the multiplexer
 
 extension NIOSSHHandler: SSHMultiplexerDelegate {

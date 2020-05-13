@@ -21,6 +21,8 @@ function replace_acceptable_years() {
     sed -e 's/2017-201[89]/YEARS/' -e 's/2019-2020/YEARS/' -e 's/2019/YEARS/' -e 's/2020/YEARS/'
 }
 
+command -v swiftformat >/dev/null 2>&1 || { echo >&2 "swiftformat needs to be installed but is not available in the path."; exit 1; }
+
 printf "=> Checking format... "
 FIRST_OUT="$(git status --porcelain)"
 swiftformat . > /dev/null 2>&1

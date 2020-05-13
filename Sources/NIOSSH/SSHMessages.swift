@@ -26,6 +26,7 @@ enum SSHMessage: Equatable {
     case disconnect(DisconnectMessage)
     case ignore(IgnoreMessage)
     case unimplemented(UnimplementedMessage)
+    case debug(DebugMessage)
     case serviceRequest(ServiceRequestMessage)
     case serviceAccept(ServiceAcceptMessage)
     case keyExchange(KeyExchangeMessage)
@@ -71,6 +72,14 @@ extension SSHMessage {
         static let id: UInt8 = 3
 
         var sequenceNumber: UInt32
+    }
+
+    struct DebugMessage: Equatable {
+        static let id: UInt8 = 4
+
+        var alwaysDisplay: Bool
+        var message: String
+        var language: String
     }
 
     struct ServiceRequestMessage: Equatable {
@@ -366,6 +375,11 @@ extension ByteBuffer {
                     return nil
                 }
                 return .unimplemented(message)
+            case SSHMessage.DebugMessage.id:
+                guard let message = self.readDebugMessage() else {
+                    return nil
+                }
+                return .debug(message)
             case SSHMessage.ServiceRequestMessage.id:
                 guard let message = self.readServiceRequestMessage() else {
                     return nil
@@ -514,6 +528,19 @@ extension ByteBuffer {
             }
 
             return SSHMessage.UnimplementedMessage(sequenceNumber: sequenceNumber)
+        }
+    }
+
+    mutating func readDebugMessage() -> SSHMessage.DebugMessage? {
+        self.rewindReaderOnNil { `self` in
+            guard
+                let alwaysDisplay = self.readSSHBoolean(),
+                let message = self.readSSHStringAsString(),
+                let language = self.readSSHStringAsString() else {
+                return nil
+            }
+
+            return SSHMessage.DebugMessage(alwaysDisplay: alwaysDisplay, message: message, language: language)
         }
     }
 
@@ -1076,6 +1103,9 @@ extension ByteBuffer {
         case .unimplemented(let message):
             writtenBytes += self.writeInteger(SSHMessage.UnimplementedMessage.id)
             writtenBytes += self.writeUnimplementedMessage(message)
+        case .debug(let message):
+            writtenBytes += self.writeInteger(SSHMessage.DebugMessage.id)
+            writtenBytes += self.writeDebugMessage(message)
         case .disconnect(let message):
             writtenBytes += self.writeInteger(SSHMessage.DisconnectMessage.id)
             writtenBytes += self.writeDisconnectMessage(message)
@@ -1167,6 +1197,13 @@ extension ByteBuffer {
 
     mutating func writeUnimplementedMessage(_ message: SSHMessage.UnimplementedMessage) -> Int {
         self.writeInteger(message.sequenceNumber)
+    }
+
+    mutating func writeDebugMessage(_ message: SSHMessage.DebugMessage) -> Int {
+        var written = self.writeSSHBoolean(message.alwaysDisplay)
+        written += self.writeSSHString(message.message.utf8)
+        written += self.writeSSHString(message.language.utf8)
+        return written
     }
 
     mutating func writeServiceRequestMessage(_ message: SSHMessage.ServiceRequestMessage) -> Int {

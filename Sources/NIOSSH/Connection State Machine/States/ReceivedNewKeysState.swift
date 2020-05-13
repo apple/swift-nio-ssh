@@ -27,6 +27,12 @@ extension SSHConnectionStateMachine {
         /// The packet serializer used by this state machine.
         var serializer: SSHPacketSerializer
 
+        var remoteVersion: String
+
+        var protectionSchemes: [NIOSSHTransportProtection.Type]
+
+        var sessionIdentifier: ByteBuffer
+
         /// The backing state machine.
         var keyExchangeStateMachine: SSHKeyExchangeStateMachine
 
@@ -38,12 +44,15 @@ extension SSHConnectionStateMachine {
             self.role = state.role
             self.parser = state.parser
             self.serializer = state.serializer
+            self.remoteVersion = state.remoteVersion
+            self.protectionSchemes = state.protectionSchemes
             self.keyExchangeStateMachine = state.keyExchangeStateMachine
 
             // We force unwrap the session ID because it's programmer error to not have it at this time.
+            self.sessionIdentifier = state.keyExchangeStateMachine.sessionID!
             self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role,
                                                                        loop: loop,
-                                                                       sessionID: state.keyExchangeStateMachine.sessionID!)
+                                                                       sessionID: self.sessionIdentifier)
         }
     }
 }

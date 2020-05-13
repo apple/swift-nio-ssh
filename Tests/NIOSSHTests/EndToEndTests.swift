@@ -427,4 +427,36 @@ class EndToEndTests: XCTestCase {
         XCTAssertEqual(self.channel.activeServerChannels.count, 1)
         #endif
     }
+
+    func testSupportClientInitiatedRekeying() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Initiate re-keying on the client.
+        XCTAssertNoThrow(try self.channel.clientSSHHandler!._rekey())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // We should be able to send a message here.
+        XCTAssertEqual(self.channel.activeServerChannels.count, 0)
+        self.channel.clientSSHHandler?.createChannel(nil, nil)
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+    }
+
+    func testSupportServerInitiatedRekeying() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Initiate re-keying on the server.
+        XCTAssertNoThrow(try self.channel.serverSSHHandler!._rekey())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // We should be able to send a message here.
+        XCTAssertEqual(self.channel.activeServerChannels.count, 0)
+        self.channel.clientSSHHandler?.createChannel(nil, nil)
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+    }
 }
