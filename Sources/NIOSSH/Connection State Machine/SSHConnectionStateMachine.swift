@@ -111,6 +111,10 @@ struct SSHConnectionStateMachine {
             case .disconnect:
                 self.state = .receivedDisconnect(state.role)
                 return .disconnect
+
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "transport", violation: "Did not receive version message")
             }
@@ -150,6 +154,8 @@ struct SSHConnectionStateMachine {
                 // Ignore these
                 self.state = .keyExchange(state)
                 return .noMessage
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
             default:
                 // TODO: enforce RFC 4253:
                 //
@@ -205,6 +211,8 @@ struct SSHConnectionStateMachine {
                 // Ignore these
                 self.state = .sentNewKeys(state)
                 return .noMessage
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
 
             default:
                 // TODO: enforce RFC 4253:
@@ -251,6 +259,9 @@ struct SSHConnectionStateMachine {
             case .serviceAccept, .userAuthRequest, .userAuthSuccess, .userAuthFailure:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
 
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
             }
@@ -296,6 +307,9 @@ struct SSHConnectionStateMachine {
                 // Ignore these
                 self.state = .userAuthentication(state)
                 return .noMessage
+
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
 
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
@@ -350,6 +364,8 @@ struct SSHConnectionStateMachine {
                 // Ignore these
                 self.state = .active(state)
                 return .noMessage
+            case .unimplemented(let unimplemented):
+                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
 
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
@@ -377,7 +393,7 @@ struct SSHConnectionStateMachine {
             case .disconnect:
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentDisconnect(state.role)
-            case .ignore, .debug:
+            case .ignore, .debug, .unimplemented:
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .idle(state)
             default:
@@ -409,7 +425,7 @@ struct SSHConnectionStateMachine {
                 try kex.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentDisconnect(kex.role)
 
-            case .ignore, .debug:
+            case .ignore, .debug, .unimplemented:
                 try kex.serializer.serialize(message: message, to: &buffer)
                 self.state = .keyExchange(kex)
 
@@ -436,7 +452,7 @@ struct SSHConnectionStateMachine {
                 try kex.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentDisconnect(kex.role)
 
-            case .ignore, .debug:
+            case .ignore, .debug, .unimplemented:
                 try kex.serializer.serialize(message: message, to: &buffer)
                 self.state = .receivedNewKeys(kex)
 
@@ -459,7 +475,7 @@ struct SSHConnectionStateMachine {
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentDisconnect(state.role)
 
-            case .ignore, .debug:
+            case .ignore, .debug, .unimplemented:
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentNewKeys(state)
 
@@ -499,7 +515,7 @@ struct SSHConnectionStateMachine {
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentDisconnect(state.role)
 
-            case .ignore, .debug:
+            case .ignore, .debug, .unimplemented:
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .userAuthentication(state)
 
@@ -543,7 +559,7 @@ struct SSHConnectionStateMachine {
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentDisconnect(state.role)
                 return
-            case .ignore, .debug:
+            case .ignore, .debug, .unimplemented:
                 try state.serializer.serialize(message: message, to: &buffer)
             default:
                 throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Sent unexpected message type: \(message)")

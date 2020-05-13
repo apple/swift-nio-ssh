@@ -111,6 +111,11 @@ extension NIOSSHError {
     internal static let unexpectedGlobalRequestResponse = NIOSSHError(type: .unexpectedGlobalRequestResponse, diagnostics: nil)
 
     internal static let globalRequestRefused = NIOSSHError(type: .globalRequestRefused, diagnostics: nil)
+
+    @inline(never)
+    internal static func remotePeerDoesNotSupportMessage(_ message: SSHMessage.UnimplementedMessage) -> NIOSSHError {
+        NIOSSHError(type: .remotePeerDoesNotSupportMessage, diagnostics: "Sequence Number: \(message.sequenceNumber)")
+    }
 }
 
 // MARK: - NIOSSHError CustomStringConvertible conformance.
@@ -152,6 +157,7 @@ extension NIOSSHError {
             case unsupportedGlobalRequest
             case unexpectedGlobalRequestResponse
             case globalRequestRefused
+            case remotePeerDoesNotSupportMessage
         }
 
         private var base: Base
@@ -234,6 +240,9 @@ extension NIOSSHError {
 
         /// A global request was refused by the peer.
         public static let globalRequestRefused: ErrorType = .init(.globalRequestRefused)
+
+        /// The remote peer sent an "unimplemented" message, indicating they do not support a message we sent.
+        public static let remotePeerDoesNotSupportMessage: ErrorType = .init(.remotePeerDoesNotSupportMessage)
     }
 }
 
