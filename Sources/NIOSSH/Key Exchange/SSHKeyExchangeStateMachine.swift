@@ -244,6 +244,11 @@ struct SSHKeyExchangeStateMachine {
         case .keyExchangeInitSent(exchange: var exchanger, negotiated: let negotiated):
             switch self.role {
             case .client:
+                guard message.hostKey.keyPrefix.elementsEqual(negotiated.negotiatedHostKeyAlgorithm.utf8) else {
+                    throw NIOSSHError.invalidHostKeyForKeyExchange(expected: negotiated.negotiatedHostKeyAlgorithm,
+                                                                   got: message.hostKey.keyPrefix)
+                }
+
                 let result = try exchanger.receiveServerKeyExchangePayload(
                     serverKeyExchangeMessage: message,
                     initialExchangeBytes: &self.initialExchangeBytes,
@@ -347,15 +352,20 @@ struct SSHKeyExchangeStateMachine {
         // Ok, rephrase as client and server instead of us and them.
         let clientAlgorithms: [Substring]
         let serverAlgorithms: [Substring]
-        let supportedHostKeyAlgorithms = self.supportedHostKeyAlgorithms
+        let clientHostKeyAlgorithms: [Substring]
+        let serverHostKeyAlgorithms: [Substring]
 
         switch self.role {
         case .client:
             clientAlgorithms = Self.supportedKeyExchangeAlgorithms
             serverAlgorithms = peerKeyExchangeAlgorithms
+            clientHostKeyAlgorithms = self.supportedHostKeyAlgorithms
+            serverHostKeyAlgorithms = peerHostKeyAlgorithms
         case .server:
             clientAlgorithms = peerKeyExchangeAlgorithms
             serverAlgorithms = Self.supportedKeyExchangeAlgorithms
+            clientHostKeyAlgorithms = peerHostKeyAlgorithms
+            serverHostKeyAlgorithms = self.supportedHostKeyAlgorithms
         }
 
         // Let's find the first protocol the client supports that the server does too.
@@ -365,9 +375,9 @@ struct SSHKeyExchangeStateMachine {
             }
 
             // Ok, got one. We need a signing capable host key algorithm, which for us is all of them.
-            // We iterate over our list because it's almost certainly smaller than the peer's.
-            for hostKeyAlgorithm in supportedHostKeyAlgorithms {
-                guard peerHostKeyAlgorithms.contains(hostKeyAlgorithm) else {
+            // Again, we prefer the first one the client supports that the server does too.
+            for hostKeyAlgorithm in clientHostKeyAlgorithms {
+                guard serverHostKeyAlgorithms.contains(hostKeyAlgorithm) else {
                     continue
                 }
 
@@ -505,6 +515,23 @@ extension SSHKeyExchangeStateMachine {
 
         case .idle, .keyExchangeSent, .keyExchangeReceived, .awaitingKeyExchangeInit, .awaitingKeyExchangeInitInvalidGuess, .keyExchangeInitSent:
             return nil
+        }
+    }
+
+    var _testOnly_negotiatedHostKeyAlgorithm: Substring? {
+        switch self.state {
+        case .idle, .keyExchangeSent, .complete:
+            return nil
+
+        case .keyExchangeReceived(_, negotiated: let negotiated, _),
+             .awaitingKeyExchangeInitInvalidGuess(_, negotiated: let negotiated),
+             .awaitingKeyExchangeInit(_, negotiated: let negotiated),
+             .keyExchangeInitReceived(_, negotiated: let negotiated),
+             .keyExchangeInitSent(_, negotiated: let negotiated),
+             .keysExchanged(_, _, negotiated: let negotiated),
+             .newKeysReceived(_, _, negotiated: let negotiated),
+             .newKeysSent(_, _, negotiated: let negotiated):
+            return negotiated.negotiatedHostKeyAlgorithm
         }
     }
 }

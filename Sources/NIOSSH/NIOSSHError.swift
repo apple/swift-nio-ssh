@@ -118,6 +118,11 @@ extension NIOSSHError {
     internal static func remotePeerDoesNotSupportMessage(_ message: SSHMessage.UnimplementedMessage) -> NIOSSHError {
         NIOSSHError(type: .remotePeerDoesNotSupportMessage, diagnostics: "Sequence Number: \(message.sequenceNumber)")
     }
+
+    @inline(never)
+    internal static func invalidHostKeyForKeyExchange(expected: Substring, got actual: String.UTF8View) -> NIOSSHError {
+        NIOSSHError(type: .invalidHostKeyForKeyExchange, diagnostics: "Expected \(String(expected)), got \(String(actual))")
+    }
 }
 
 // MARK: - NIOSSHError CustomStringConvertible conformance.
@@ -161,6 +166,7 @@ extension NIOSSHError {
             case globalRequestRefused
             case missingGlobalRequestResponse
             case remotePeerDoesNotSupportMessage
+            case invalidHostKeyForKeyExchange
         }
 
         private var base: Base
@@ -249,6 +255,9 @@ extension NIOSSHError {
 
         /// The remote peer sent an "unimplemented" message, indicating they do not support a message we sent.
         public static let remotePeerDoesNotSupportMessage: ErrorType = .init(.remotePeerDoesNotSupportMessage)
+
+        /// The peer has sent a host key that does not correspond to the one negotiated in key exchange.
+        public static let invalidHostKeyForKeyExchange: ErrorType = .init(.invalidHostKeyForKeyExchange)
     }
 }
 

@@ -682,6 +682,123 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         self.assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
         XCTAssertTrue(clientInboundProtection is AES128GCMOpenSSHTransportProtection)
     }
+
+    func testKeyExchangeDifferentPriorityBetweenServerAndClient() throws {
+        // This test runs a full key exchange where the server's host keys are in a different order to the client.
+        // This flushes out a bug where we'd choose the wrong host key algorithm because we preferred our own list in
+        // all cases, rather than iterating the client's.
+        let allocator = ByteBufferAllocator()
+        var keys = [NIOSSHPrivateKey(p256Key: .init()), NIOSSHPrivateKey(ed25519Key: .init())]
+
+        let serverKeyAlgorithms = keys.flatMap { $0.hostKeyAlgorithms }
+        XCTAssertEqual(serverKeyAlgorithms.count, 2)
+        let clientKeyAlgorithms = SSHKeyExchangeStateMachine.supportedServerHostKeyAlgorithms.filter { serverKeyAlgorithms.contains($0) }
+        XCTAssertEqual(clientKeyAlgorithms.count, 2)
+
+        // We force these out of order so that there's no way they agree.
+        if serverKeyAlgorithms.first == clientKeyAlgorithms.first {
+            keys.swapAt(0, 1)
+        }
+
+        // From here on, things should run smoothly.
+        var client = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+        var server = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            role: .server(.init(hostKeys: keys, userAuthDelegate: DenyAllServerAuthDelegate())),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+
+        // Both sides begin by generating a key exchange message.
+        let serverMessage = server.createKeyExchangeMessage()
+        let clientMessage = client.createKeyExchangeMessage()
+        server.send(keyExchange: serverMessage)
+        client.send(keyExchange: clientMessage)
+
+        // The server does not generate a response message, but the client does.
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+
+        let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
+        client.send(keyExchangeInit: ecdhInit)
+
+        // Now the server receives the ECDH init message and generates the reply, as well as the newKeys message.
+        let ecdhReply = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: ecdhInit))
+        XCTAssertNoThrow(try server.send(keyExchangeReply: ecdhReply))
+        let serverOutboundProtection = server.sendNewKeys()
+
+        // At this time, both parties have negotiated the algorithm in question, so we check it here. This should be
+        // the one that was _last_ in the server' list.
+        XCTAssertEqual(client._testOnly_negotiatedHostKeyAlgorithm, server._testOnly_negotiatedHostKeyAlgorithm)
+        XCTAssertEqual(client._testOnly_negotiatedHostKeyAlgorithm, keys.last.flatMap { $0.hostKeyAlgorithms.first })
+
+        // Now the client receives the reply and newKeys, and generates a newKeys message.
+        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        let clientInboundProtection = try assertNoThrowWithValue(client.handleNewKeys())
+        let clientOutboundProtection = client.sendNewKeys()
+
+        // Server receives the newKeys.
+        let serverInboundProtection = try assertNoThrowWithValue(server.handleNewKeys())
+
+        // Each peer has generated the exact same protection object for both directions.
+        XCTAssertTrue(clientInboundProtection === clientOutboundProtection)
+        XCTAssertTrue(serverInboundProtection === serverOutboundProtection)
+
+        self.assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
+    }
+
+    func testKeyExchangeServerReturnsWrongHostKeyType() throws {
+        // This test runs a full key exchange where the server returns a host key type it didn't negotiate. This should
+        // error.
+        let allocator = ByteBufferAllocator()
+
+        var client = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+        var server = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            role: .server(.init(hostKeys: [NIOSSHPrivateKey(p256Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+
+        // Both sides begin by generating a key exchange message.
+        let serverMessage = server.createKeyExchangeMessage()
+        let clientMessage = client.createKeyExchangeMessage()
+        server.send(keyExchange: serverMessage)
+        client.send(keyExchange: clientMessage)
+
+        // The server does not generate a response message, but the client does.
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+
+        let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
+        client.send(keyExchangeInit: ecdhInit)
+
+        // Now the server receives the ECDH init message and generates the reply. We ignore newKeys here as we
+        // won't get that far.
+        var ecdhReply = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: ecdhInit))
+        XCTAssertNoThrow(try server.send(keyExchangeReply: ecdhReply))
+
+        // We tweak the reply. This would lead to an invalid signature, but we expect it to be tripped up on
+        // the wrong negotiation first.
+        ecdhReply.hostKey = NIOSSHPrivateKey(ed25519Key: .init()).publicKey
+
+        // Now the client receives the reply and errors.
+        XCTAssertThrowsError(try client.handle(keyExchangeReply: ecdhReply)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .invalidHostKeyForKeyExchange)
+        }
+    }
 }
 
 extension SSHKeyExchangeStateMachineTests {
