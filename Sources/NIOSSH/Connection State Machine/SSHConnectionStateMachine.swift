@@ -61,7 +61,7 @@ struct SSHConnectionStateMachine {
     private var state: State
 
     private static let defaultTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
-        AES128GCMOpenSSHTransportProtection.self, AES256GCMOpenSSHTransportProtection.self,
+        AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
     ]
 
     init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type] = Self.defaultTransportProtectionSchemes) {
