@@ -252,6 +252,44 @@ final class ByteBufferSSHTests: XCTestCase {
         XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHSignature()))
     }
 
+    func testReadingECDSAP384SignaturesFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHPrivateKey(p384Key: .init())
+        let signature = try assertNoThrowWithValue(key.sign(digest: SHA384.hash(data: Array("hello, world!".utf8))))
+
+        // Write a signature in.
+        buffer.writeSSHSignature(signature)
+
+        // Try reading short. This should always return nil, and never move the indices.
+        for sliceLength in 0 ..< buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHSignature()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHSignature()))
+    }
+
+    func testReadingECDSAP521SignaturesFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHPrivateKey(p521Key: .init())
+        let signature = try assertNoThrowWithValue(key.sign(digest: SHA512.hash(data: Array("hello, world!".utf8))))
+
+        // Write a signature in.
+        buffer.writeSSHSignature(signature)
+
+        // Try reading short. This should always return nil, and never move the indices.
+        for sliceLength in 0 ..< buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHSignature()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHSignature()))
+    }
+
     func testReadingEd25519PublicKeysFromBuffers() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         let key = NIOSSHPrivateKey(ed25519Key: .init())
@@ -273,6 +311,42 @@ final class ByteBufferSSHTests: XCTestCase {
     func testReadingECDASAP256PublicKeysFromBuffers() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         let key = NIOSSHPrivateKey(p256Key: .init())
+
+        // Write a signature in.
+        buffer.writeSSHHostKey(key.publicKey)
+
+        // Try reading short. This should always return nil, and never move the indices.
+        for sliceLength in 0 ..< buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHHostKey()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHHostKey()))
+    }
+
+    func testReadingECDASAP384PublicKeysFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHPrivateKey(p384Key: .init())
+
+        // Write a signature in.
+        buffer.writeSSHHostKey(key.publicKey)
+
+        // Try reading short. This should always return nil, and never move the indices.
+        for sliceLength in 0 ..< buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHHostKey()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHHostKey()))
+    }
+
+    func testReadingECDASAP521PublicKeysFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHPrivateKey(p521Key: .init())
 
         // Write a signature in.
         buffer.writeSSHHostKey(key.publicKey)

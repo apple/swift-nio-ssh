@@ -33,6 +33,8 @@ extension SSHSignature {
     internal enum BackingSignature {
         case ed25519(RawBytes) // There is no structured Signature type for Curve25519, and we may want Data or ByteBuffer.
         case ecdsaP256(P256.Signing.ECDSASignature)
+        case ecdsaP384(P384.Signing.ECDSASignature)
+        case ecdsaP521(P521.Signing.ECDSASignature)
 
         internal enum RawBytes {
             case byteBuffer(ByteBuffer)
@@ -45,6 +47,12 @@ extension SSHSignature {
 
     /// The prefix of a P256 ECDSA public key.
     fileprivate static let ecdsaP256SignaturePrefix = "ecdsa-sha2-nistp256".utf8
+
+    /// The prefix of a P384 ECDSA public key.
+    fileprivate static let ecdsaP384SignaturePrefix = "ecdsa-sha2-nistp384".utf8
+
+    /// The prefix of a P521 ECDSA public key.
+    fileprivate static let ecdsaP521SignaturePrefix = "ecdsa-sha2-nistp521".utf8
 }
 
 extension SSHSignature.BackingSignature.RawBytes: Equatable {
@@ -70,7 +78,14 @@ extension SSHSignature.BackingSignature: Equatable {
             return lhs == rhs
         case (.ecdsaP256(let lhs), .ecdsaP256(let rhs)):
             return lhs.rawRepresentation == rhs.rawRepresentation
-        case (.ed25519, .ecdsaP256), (.ecdsaP256, .ed25519):
+        case (.ecdsaP384(let lhs), .ecdsaP384(let rhs)):
+            return lhs.rawRepresentation == rhs.rawRepresentation
+        case (.ecdsaP521(let lhs), .ecdsaP521(let rhs)):
+            return lhs.rawRepresentation == rhs.rawRepresentation
+        case (.ed25519, _),
+             (.ecdsaP256, _),
+             (.ecdsaP384, _),
+             (.ecdsaP521, _):
             return false
         }
     }
@@ -85,6 +100,10 @@ extension ByteBuffer {
             return self.writeEd25519Signature(signatureBytes: sig)
         case .ecdsaP256(let sig):
             return self.writeECDSAP256Signature(baseSignature: sig)
+        case .ecdsaP384(let sig):
+            return self.writeECDSAP384Signature(baseSignature: sig)
+        case .ecdsaP521(let sig):
+            return self.writeECDSAP521Signature(baseSignature: sig)
         }
     }
 
@@ -123,6 +142,46 @@ extension ByteBuffer {
         return writtenLength
     }
 
+    private mutating func writeECDSAP384Signature(baseSignature: P384.Signing.ECDSASignature) -> Int {
+        var writtenLength = self.writeSSHString(SSHSignature.ecdsaP384SignaturePrefix)
+
+        // For ECDSA-P384, the key format is `mpint r` followed by `mpint s`. In this context, `r` is the
+        // first 48 bytes, and `s` is the second.
+        let rawRepresentation = baseSignature.rawRepresentation
+        precondition(rawRepresentation.count == 96, "Unexpected size for P384 key")
+        let rBytes: Data = rawRepresentation.prefix(48)
+        let sBytes: Data = rawRepresentation.dropFirst(48)
+
+        writtenLength += self.writeCompositeSSHString { buffer in
+            var written = 0
+            written += buffer.writePositiveMPInt(rBytes)
+            written += buffer.writePositiveMPInt(sBytes)
+            return written
+        }
+
+        return writtenLength
+    }
+
+    private mutating func writeECDSAP521Signature(baseSignature: P521.Signing.ECDSASignature) -> Int {
+        var writtenLength = self.writeSSHString(SSHSignature.ecdsaP521SignaturePrefix)
+
+        // For ECDSA-P521, the key format is `mpint r` followed by `mpint s`. In this context, `r` is the
+        // first 66 bytes, and `s` is the second.
+        let rawRepresentation = baseSignature.rawRepresentation
+        precondition(rawRepresentation.count == 132, "Unexpected size for P521 key")
+        let rBytes: Data = rawRepresentation.prefix(66)
+        let sBytes: Data = rawRepresentation.dropFirst(66)
+
+        writtenLength += self.writeCompositeSSHString { buffer in
+            var written = 0
+            written += buffer.writePositiveMPInt(rBytes)
+            written += buffer.writePositiveMPInt(sBytes)
+            return written
+        }
+
+        return writtenLength
+    }
+
     mutating func readSSHSignature() throws -> SSHSignature? {
         try self.rewindOnNilOrError { buffer in
             // The wire format always begins with an SSH string containing the signature format identifier. Let's grab that.
@@ -136,6 +195,10 @@ extension ByteBuffer {
                 return try buffer.readEd25519Signature()
             } else if bytesView.elementsEqual(SSHSignature.ecdsaP256SignaturePrefix) {
                 return try buffer.readECDSAP256Signature()
+            } else if bytesView.elementsEqual(SSHSignature.ecdsaP384SignaturePrefix) {
+                return try buffer.readECDSAP384Signature()
+            } else if bytesView.elementsEqual(SSHSignature.ecdsaP521SignaturePrefix) {
+                return try buffer.readECDSAP521Signature()
             } else {
                 // We don't know this signature type.
                 let signature = signatureIdentifierBytes.readString(length: signatureIdentifierBytes.readableBytes) ?? "<unknown signature>"
@@ -172,8 +235,43 @@ extension ByteBuffer {
 
         // Time to put these into the raw format that CryptoKit wants. This is r || s, with each
         // integer explicitly left-padded with zeros.
-        let signature = try ECDSASignatureHelper(r: rBytes, s: sBytes).toECDSASignature()
-        return SSHSignature(backingSignature: .ecdsaP256(signature))
+        return try SSHSignature(backingSignature: .ecdsaP256(ECDSASignatureHelper.toECDSASignature(r: rBytes, s: sBytes)))
+    }
+
+    /// A helper function that reads an ECDSA P-384 signature.
+    ///
+    /// Not safe to call from arbitrary code as this does not return the reader index on failure: it relies on the caller performing
+    /// the rewind.
+    private mutating func readECDSAP384Signature() throws -> SSHSignature? {
+        // For ECDSA-P384, the key format is `mpint r` followed by `mpint s`.
+        // We don't need them as mpints, so let's treat them as strings instead.
+        guard var signatureBytes = self.readSSHString(),
+            let rBytes = signatureBytes.readSSHString(),
+            let sBytes = signatureBytes.readSSHString() else {
+            return nil
+        }
+
+        // Time to put these into the raw format that CryptoKit wants. This is r || s, with each
+        // integer explicitly left-padded with zeros.
+        return try SSHSignature(backingSignature: .ecdsaP384(ECDSASignatureHelper.toECDSASignature(r: rBytes, s: sBytes)))
+    }
+
+    /// A helper function that reads an ECDSA P-521 signature.
+    ///
+    /// Not safe to call from arbitrary code as this does not return the reader index on failure: it relies on the caller performing
+    /// the rewind.
+    private mutating func readECDSAP521Signature() throws -> SSHSignature? {
+        // For ECDSA-P521, the key format is `mpint r` followed by `mpint s`.
+        // We don't need them as mpints, so let's treat them as strings instead.
+        guard var signatureBytes = self.readSSHString(),
+            let rBytes = signatureBytes.readSSHString(),
+            let sBytes = signatureBytes.readSSHString() else {
+            return nil
+        }
+
+        // Time to put these into the raw format that CryptoKit wants. This is r || s, with each
+        // integer explicitly left-padded with zeros.
+        return try SSHSignature(backingSignature: .ecdsaP521(ECDSASignatureHelper.toECDSASignature(r: rBytes, s: sBytes)))
     }
 }
 
@@ -181,23 +279,30 @@ extension ByteBuffer {
 ///
 /// CryptoKit would like to receive ECDSA signatures in the form of `r || s`, where `r` and `s` are both left-padded
 /// with zeros. We know that for P256 the ECDSA signature size is going to be 64 bytes, as each of the P256 points are
-/// 32 bytes wide. To avoid an unnecessary memory allocation, we use this data structure to provide some heap space to
-/// store this in.
+/// 32 bytes wide. Similar logic applies up to P521, whose signatures are 132 bytes in size.
+///
+/// To avoid an unnecessary memory allocation, we use this data structure to provide some heap space to store these in.
+/// This structure is wide enough for any of these signatures, and just uses the appropriate amount of space for whatever
+/// algorithm is actually in use.
 private struct ECDSASignatureHelper {
-    private var storage: (UInt64, UInt64, UInt64, UInt64, UInt64, UInt64, UInt64, UInt64) = (0, 0, 0, 0, 0, 0, 0, 0)
+    private var storage: (
+        UInt64, UInt64, UInt64, UInt64, UInt64, UInt64, UInt64, UInt64,
+        UInt64, UInt64, UInt64, UInt64, UInt64, UInt64, UInt64, UInt64,
+        UInt64
+    ) = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
-    fileprivate init(r: ByteBuffer, s: ByteBuffer) {
-        precondition(MemoryLayout<ECDSASignatureHelper>.size == 64, "Invalid width for ECDSA signature helper.")
+    private init(r: ByteBuffer, s: ByteBuffer, pointSize: Int) {
+        precondition(MemoryLayout<ECDSASignatureHelper>.size >= pointSize, "Invalid width for ECDSA signature helper.")
 
         let rByteView = r.mpIntView
         let sByteView = s.mpIntView
 
-        let rByteStartingOffset = 32 - rByteView.count
-        let sByteStartingOffset = 32 - sByteView.count
+        let rByteStartingOffset = pointSize - rByteView.count
+        let sByteStartingOffset = pointSize - sByteView.count
 
         withUnsafeMutableBytes(of: &self.storage) { storagePtr in
-            let rPtr = UnsafeMutableRawBufferPointer(rebasing: storagePtr[rByteStartingOffset ..< 32])
-            let sPtr = UnsafeMutableRawBufferPointer(rebasing: storagePtr[(sByteStartingOffset + 32)...])
+            let rPtr = UnsafeMutableRawBufferPointer(rebasing: storagePtr[rByteStartingOffset ..< pointSize])
+            let sPtr = UnsafeMutableRawBufferPointer(rebasing: storagePtr[(sByteStartingOffset + pointSize) ..< (pointSize * 2)])
 
             precondition(rPtr.count == rByteView.count)
             precondition(sPtr.count == sByteView.count)
@@ -207,9 +312,10 @@ private struct ECDSASignatureHelper {
         }
     }
 
-    func toECDSASignature() throws -> P256.Signing.ECDSASignature {
-        try withUnsafeBytes(of: self.storage) { storagePtr in
-            try P256.Signing.ECDSASignature(rawRepresentation: storagePtr)
+    static func toECDSASignature<Signature: ECDSASignatureProtocol>(r: ByteBuffer, s: ByteBuffer) throws -> Signature {
+        let helper = ECDSASignatureHelper(r: r, s: s, pointSize: Signature.pointSize)
+        return try withUnsafeBytes(of: helper.storage) { storagePtr in
+            try Signature(rawRepresentation: UnsafeRawBufferPointer(rebasing: storagePtr.prefix(Signature.pointSize * 2)))
         }
     }
 }
@@ -224,4 +330,22 @@ extension ByteBuffer {
         }
         return baseView
     }
+}
+
+protocol ECDSASignatureProtocol {
+    init<D>(rawRepresentation: D) throws where D: DataProtocol
+
+    static var pointSize: Int { get }
+}
+
+extension P256.Signing.ECDSASignature: ECDSASignatureProtocol {
+    static var pointSize: Int { 32 }
+}
+
+extension P384.Signing.ECDSASignature: ECDSASignatureProtocol {
+    static var pointSize: Int { 48 }
+}
+
+extension P521.Signing.ECDSASignature: ECDSASignatureProtocol {
+    static var pointSize: Int { 66 }
 }

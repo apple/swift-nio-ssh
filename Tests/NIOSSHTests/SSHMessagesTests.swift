@@ -296,9 +296,31 @@ final class SSHMessagesTests: XCTestCase {
         XCTAssertEqual(try buffer.readSSHMessage(), expectedMessage)
     }
 
-    func testUserAuthPKOK() throws {
+    func testUserAuthPKOKP256() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         let key = NIOSSHPrivateKey(p256Key: .init())
+        let message = SSHMessage.userAuthPKOK(.init(key: key.publicKey))
+
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
+    }
+
+    func testUserAuthPKOKP384() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHPrivateKey(p384Key: .init())
+        let message = SSHMessage.userAuthPKOK(.init(key: key.publicKey))
+
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
+    }
+
+    func testUserAuthPKOKP521() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = NIOSSHPrivateKey(p521Key: .init())
         let message = SSHMessage.userAuthPKOK(.init(key: key.publicKey))
 
         buffer.writeSSHMessage(message)
