@@ -86,57 +86,57 @@ extension NIOSSHPrivateKey {
 }
 
 extension NIOSSHPrivateKey {
-    func sign<DigestBytes: Digest>(digest: DigestBytes) throws -> SSHSignature {
+    func sign<DigestBytes: Digest>(digest: DigestBytes) throws -> NIOSSHSignature {
         switch self.backingKey {
         case .ed25519(let key):
             let signature = try digest.withUnsafeBytes { ptr in
                 try key.signature(for: ptr)
             }
-            return SSHSignature(backingSignature: .ed25519(.data(signature)))
+            return NIOSSHSignature(backingSignature: .ed25519(.data(signature)))
         case .ecdsaP256(let key):
             let signature = try digest.withUnsafeBytes { ptr in
                 try key.signature(for: ptr)
             }
-            return SSHSignature(backingSignature: .ecdsaP256(signature))
+            return NIOSSHSignature(backingSignature: .ecdsaP256(signature))
         case .ecdsaP384(let key):
             let signature = try digest.withUnsafeBytes { ptr in
                 try key.signature(for: ptr)
             }
-            return SSHSignature(backingSignature: .ecdsaP384(signature))
+            return NIOSSHSignature(backingSignature: .ecdsaP384(signature))
         case .ecdsaP521(let key):
             let signature = try digest.withUnsafeBytes { ptr in
                 try key.signature(for: ptr)
             }
-            return SSHSignature(backingSignature: .ecdsaP521(signature))
+            return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
 
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         case .secureEnclaveP256(let key):
             let signature = try digest.withUnsafeBytes { ptr in
                 try key.signature(for: ptr)
             }
-            return SSHSignature(backingSignature: .ecdsaP256(signature))
+            return NIOSSHSignature(backingSignature: .ecdsaP256(signature))
         #endif
         }
     }
 
-    func sign(_ payload: UserAuthSignablePayload) throws -> SSHSignature {
+    func sign(_ payload: UserAuthSignablePayload) throws -> NIOSSHSignature {
         switch self.backingKey {
         case .ed25519(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return SSHSignature(backingSignature: .ed25519(.data(signature)))
+            return NIOSSHSignature(backingSignature: .ed25519(.data(signature)))
         case .ecdsaP256(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return SSHSignature(backingSignature: .ecdsaP256(signature))
+            return NIOSSHSignature(backingSignature: .ecdsaP256(signature))
         case .ecdsaP384(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return SSHSignature(backingSignature: .ecdsaP384(signature))
+            return NIOSSHSignature(backingSignature: .ecdsaP384(signature))
         case .ecdsaP521(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return SSHSignature(backingSignature: .ecdsaP521(signature))
+            return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         case .secureEnclaveP256(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return SSHSignature(backingSignature: .ecdsaP256(signature))
+            return NIOSSHSignature(backingSignature: .ecdsaP256(signature))
         #endif
         }
     }
