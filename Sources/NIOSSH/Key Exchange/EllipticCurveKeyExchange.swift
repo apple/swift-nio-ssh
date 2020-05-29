@@ -2,7 +2,7 @@
 //
 // This source file is part of the SwiftNIO open source project
 //
-// Copyright (c) 2019 Apple Inc. and the SwiftNIO project authors
+// Copyright (c) 2019-2020 Apple Inc. and the SwiftNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -16,30 +16,55 @@ import Crypto
 import NIO
 import NIOFoundationCompat
 
-struct Curve25519KeyExchange {
+/// This protocol defines a container used by the key exchange state machine to manage key exchange.
+/// This type erases the specific key exchanger.
+protocol EllipticCurveKeyExchangeProtocol {
+    init(ourRole: SSHConnectionRole, previousSessionIdentifier: ByteBuffer?)
+
+    func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage
+
+    mutating func completeKeyExchangeServerSide(clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
+                                                serverHostKey: NIOSSHPrivateKey,
+                                                initialExchangeBytes: inout ByteBuffer,
+                                                allocator: ByteBufferAllocator,
+                                                expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage)
+
+    mutating func receiveServerKeyExchangePayload(serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
+                                                  initialExchangeBytes: inout ByteBuffer,
+                                                  allocator: ByteBufferAllocator,
+                                                  expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult
+
+    static var keyExchangeAlgorithmNames: [Substring] { get }
+}
+
+struct EllipticCurveKeyExchange<PrivateKey: ECDHCompatiblePrivateKey>: EllipticCurveKeyExchangeProtocol {
     private var previousSessionIdentifier: ByteBuffer?
-    private var ourKey: Curve25519.KeyAgreement.PrivateKey
-    private var theirKey: Curve25519.KeyAgreement.PublicKey?
+    private var ourKey: PrivateKey
+    private var theirKey: PrivateKey.PublicKey?
     private var ourRole: SSHConnectionRole
     private var sharedSecret: SharedSecret?
 
     init(ourRole: SSHConnectionRole, previousSessionIdentifier: ByteBuffer?) {
         self.ourRole = ourRole
-        self.ourKey = Curve25519.KeyAgreement.PrivateKey()
+        self.ourKey = PrivateKey()
         self.previousSessionIdentifier = previousSessionIdentifier
     }
 }
 
-extension Curve25519KeyExchange {
+extension EllipticCurveKeyExchange {
+    static var keyExchangeAlgorithmNames: [Substring] {
+        PrivateKey.keyExchangeAlgorithmNames
+    }
+
     /// Initiates key exchange by producing an SSH message.
     ///
     /// For now, we just return the ByteBuffer containing the SSH string.
     func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage {
         precondition(self.ourRole.isClient, "Only clients may initiate the client side key exchange!")
 
-        // The Curve25519 public key string size is 32 bytes.
-        var buffer = allocator.buffer(capacity: 32)
-        buffer.writeBytes(self.ourKey.publicKey.rawRepresentation)
+        // The largest key we're likely to end up with here is 256 bytes.
+        var buffer = allocator.buffer(capacity: 256)
+        self.ourKey.publicKey.write(to: &buffer)
 
         return .init(publicKey: buffer)
     }
@@ -70,9 +95,9 @@ extension Curve25519KeyExchange {
         let exchangeHashSignature = try serverHostKey.sign(digest: kexResult.exchangeHash)
 
         // Ok, time to write the final message. We need to write our public key into it.
-        // The Curve25519 public key string size is 32 bytes.
-        var publicKeyBytes = allocator.buffer(capacity: 32)
-        publicKeyBytes.writeBytes(self.ourKey.publicKey.rawRepresentation)
+        // The largest key we're likely to end up with here is 256 bytes.
+        var publicKeyBytes = allocator.buffer(capacity: 256)
+        self.ourKey.publicKey.write(to: &publicKeyBytes)
 
         // Now we have all we need.
         let responseMessage = SSHMessage.KeyExchangeECDHReplyMessage(hostKey: serverHostKey.publicKey,
@@ -125,12 +150,9 @@ extension Curve25519KeyExchange {
                                               initialExchangeBytes: inout ByteBuffer,
                                               serverHostKey: NIOSSHPublicKey,
                                               allocator: ByteBufferAllocator,
-                                              expectedKeySizes: ExpectedKeySizes) throws -> Curve25519KeyExchangeResult {
-        self.theirKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: theirKeyBytes.readableBytesView)
-        self.sharedSecret = try self.ourKey.sharedSecretFromKeyAgreement(with: self.theirKey!)
-        guard self.sharedSecret!.isStrongSecret else {
-            throw NIOSSHError.weakSharedSecret(exchangeAlgorithm: "Curve25519")
-        }
+                                              expectedKeySizes: ExpectedKeySizes) throws -> EllipticCurveKeyExchangeResult {
+        self.theirKey = try PrivateKey.PublicKey(buffer: theirKeyBytes)
+        self.sharedSecret = try self.ourKey.generatedSharedSecret(with: self.theirKey!)
 
         // Ok, we have a nice shared secret. Now we want to generate the exchange hash. We were given the initial
         // portion from the state machine: here we just need to append the Curve25519 parts. That is:
@@ -145,17 +167,17 @@ extension Curve25519KeyExchange {
 
         switch self.ourRole {
         case .client:
-            initialExchangeBytes.writeSSHString(self.ourKey.publicKey.rawRepresentation)
-            initialExchangeBytes.writeSSHString(self.theirKey!.rawRepresentation)
+            initialExchangeBytes.writeCompositeSSHString { self.ourKey.publicKey.write(to: &$0) }
+            initialExchangeBytes.writeCompositeSSHString { self.theirKey!.write(to: &$0) }
         case .server:
-            initialExchangeBytes.writeSSHString(self.theirKey!.rawRepresentation)
-            initialExchangeBytes.writeSSHString(self.ourKey.publicKey.rawRepresentation)
+            initialExchangeBytes.writeCompositeSSHString { self.theirKey!.write(to: &$0) }
+            initialExchangeBytes.writeCompositeSSHString { self.ourKey.publicKey.write(to: &$0) }
         }
 
         // Handling the shared secret is more awkward. We want to avoid putting the shared secret into unsecured
         // memory if we can, so rather than writing it into a bytebuffer, we'd like to hand it to CryptoKit directly
         // for signing. That means we need to set up our signing context.
-        var hasher = SHA256()
+        var hasher = PrivateKey.Hasher()
         hasher.update(data: initialExchangeBytes.readableBytesView)
 
         // Finally, we update with the shared secret
@@ -168,7 +190,7 @@ extension Curve25519KeyExchange {
         if let previousSessionIdentifier = self.previousSessionIdentifier {
             sessionID = previousSessionIdentifier
         } else {
-            var hashBytes = allocator.buffer(capacity: SHA256Digest.byteCount)
+            var hashBytes = allocator.buffer(capacity: PrivateKey.Hasher.Digest.byteCount)
             hashBytes.writeBytes(exchangeHash)
             sessionID = hashBytes
         }
@@ -177,10 +199,10 @@ extension Curve25519KeyExchange {
         let keys = self.generateKeys(sharedSecret: self.sharedSecret!, exchangeHash: exchangeHash, sessionID: sessionID, expectedKeySizes: expectedKeySizes)
 
         // All done!
-        return Curve25519KeyExchangeResult(sessionID: sessionID, exchangeHash: exchangeHash, keys: keys)
+        return EllipticCurveKeyExchangeResult(sessionID: sessionID, exchangeHash: exchangeHash, keys: keys)
     }
 
-    private func generateKeys(sharedSecret: SharedSecret, exchangeHash: SHA256Digest, sessionID: ByteBuffer, expectedKeySizes: ExpectedKeySizes) -> NIOSSHSessionKeys {
+    private func generateKeys(sharedSecret: SharedSecret, exchangeHash: PrivateKey.Hasher.Digest, sessionID: ByteBuffer, expectedKeySizes: ExpectedKeySizes) -> NIOSSHSessionKeys {
         // Cool, now it's time to generate the keys. In my ideal world I'd have a mechanism to handle this digest securely, but this is
         // not available in CryptoKit so we're going to spill these keys all over the heap and the stack. This isn't ideal, but I don't
         // think the risk is too bad.
@@ -198,7 +220,7 @@ extension Curve25519KeyExchange {
         //
         // As all of these hashes begin the same way we save a trivial amount of compute by
         // using the value semantics of the hasher.
-        var baseHasher = SHA256()
+        var baseHasher = PrivateKey.Hasher()
         baseHasher.updateAsMPInt(sharedSecret: sharedSecret)
         exchangeHash.withUnsafeBytes { hashPtr in
             baseHasher.update(bufferPointer: hashPtr)
@@ -222,37 +244,37 @@ extension Curve25519KeyExchange {
         }
     }
 
-    private func generateClientToServerIV(baseHasher: SHA256, sessionID: ByteBuffer, expectedKeySize: Int) -> [UInt8] {
-        assert(expectedKeySize <= SHA256.Digest.byteCount)
+    private func generateClientToServerIV(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> [UInt8] {
+        assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
         return Array(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "A"), sessionID: sessionID).prefix(expectedKeySize))
     }
 
-    private func generateServerToClientIV(baseHasher: SHA256, sessionID: ByteBuffer, expectedKeySize: Int) -> [UInt8] {
-        assert(expectedKeySize <= SHA256.Digest.byteCount)
+    private func generateServerToClientIV(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> [UInt8] {
+        assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
         return Array(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "B"), sessionID: sessionID).prefix(expectedKeySize))
     }
 
-    private func generateClientToServerEncryptionKey(baseHasher: SHA256, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
-        assert(expectedKeySize <= SHA256.Digest.byteCount)
+    private func generateClientToServerEncryptionKey(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
+        assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
         return SymmetricKey.truncatingDigest(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "C"), sessionID: sessionID), length: expectedKeySize)
     }
 
-    private func generateServerToClientEncryptionKey(baseHasher: SHA256, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
-        assert(expectedKeySize <= SHA256.Digest.byteCount)
+    private func generateServerToClientEncryptionKey(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
+        assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
         return SymmetricKey.truncatingDigest(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "D"), sessionID: sessionID), length: expectedKeySize)
     }
 
-    private func generateClientToServerMACKey(baseHasher: SHA256, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
-        assert(expectedKeySize <= SHA256.Digest.byteCount)
+    private func generateClientToServerMACKey(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
+        assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
         return SymmetricKey.truncatingDigest(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "E"), sessionID: sessionID), length: expectedKeySize)
     }
 
-    private func generateServerToClientMACKey(baseHasher: SHA256, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
-        assert(expectedKeySize <= SHA256.Digest.byteCount)
+    private func generateServerToClientMACKey(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
+        assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
         return SymmetricKey.truncatingDigest(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "F"), sessionID: sessionID), length: expectedKeySize)
     }
 
-    private func generateSpecificHash(baseHasher: SHA256, discriminatorByte: UInt8, sessionID: ByteBuffer) -> SHA256.Digest {
+    private func generateSpecificHash(baseHasher: PrivateKey.Hasher, discriminatorByte: UInt8, sessionID: ByteBuffer) -> PrivateKey.Hasher.Digest {
         var localHasher = baseHasher
         localHasher.update(byte: discriminatorByte)
         localHasher.update(data: sessionID.readableBytesView)
@@ -260,52 +282,37 @@ extension Curve25519KeyExchange {
     }
 }
 
-extension Curve25519KeyExchange {
+extension EllipticCurveKeyExchange {
     /// The internal result of a key exchange operation.
     ///
     /// This is like `KeyExchangeResult`, but includes the exchange hash for signing purposes.
-    fileprivate struct Curve25519KeyExchangeResult {
+    fileprivate struct EllipticCurveKeyExchangeResult {
         var sessionID: ByteBuffer
 
-        var exchangeHash: SHA256Digest
+        var exchangeHash: PrivateKey.Hasher.Digest
 
         var keys: NIOSSHSessionKeys
     }
 }
 
 extension KeyExchangeResult {
-    fileprivate init(_ innerResult: Curve25519KeyExchange.Curve25519KeyExchangeResult) {
+    fileprivate init<PrivateKey: ECDHCompatiblePrivateKey>(_ innerResult: EllipticCurveKeyExchange<PrivateKey>.EllipticCurveKeyExchangeResult) {
         self.keys = innerResult.keys
         self.sessionID = innerResult.sessionID
     }
 }
 
-extension SharedSecret {
-    /// We need to check for the possibility that the peer's key is a point of low order.
-    /// If it is, we will end up generating the all-zero shared secret, which is pretty not good.
-    /// This property is `true` if the secret is strong, and `false` if it is not.
-    fileprivate var isStrongSecret: Bool {
-        // CryptoKit doesn't want to let us look directly at this, so we need to exfiltrate a pointer.
-        // For the sake of avoiding leaking information about the secret, we choose to do this in constant
-        // time by ORing every byte together: if the result is zero, this point is invalid.
-        self.withUnsafeBytes { dataPtr in
-            let allORed = dataPtr.reduce(UInt8(0)) { $0 | $1 }
-            return allORed != 0
-        }
-    }
-}
-
 extension SymmetricKey {
     /// Creates a symmetric key by truncating a given digest.
-    fileprivate static func truncatingDigest(_ digest: SHA256Digest, length: Int) -> SymmetricKey {
-        assert(length <= SHA256Digest.byteCount)
+    fileprivate static func truncatingDigest<D: Digest>(_ digest: D, length: Int) -> SymmetricKey {
+        assert(length <= D.byteCount)
         return digest.withUnsafeBytes { bodyPtr in
             SymmetricKey(data: UnsafeRawBufferPointer(rebasing: bodyPtr.prefix(length)))
         }
     }
 }
 
-extension SHA256 {
+extension HashFunction {
     fileprivate mutating func updateAsMPInt(sharedSecret: SharedSecret) {
         sharedSecret.withUnsafeBytes { secretBytesPtr in
             var secretBytesPtr = secretBytesPtr[...]
@@ -369,53 +376,53 @@ extension SHA256 {
             self.update(bufferPointer: UnsafeRawBufferPointer(rebasing: secretBytesPtr))
         }
     }
+}
 
-    /// A helper structure that allows us to hash in the extra bytes required to represent our shared secret as an mpint.
-    ///
-    /// An mpint is an SSH string, meaning that it is prefixed by a 4-byte length field. Additionally, in cases where the top
-    /// bit of our shared secret is set (50% of the time), that length also needs to be followed by an extra zero bit. To
-    /// avoid copying our shared secret into public memory, we fiddle about with those extra bytes in this structure, and
-    /// pass an interior pointer to it into the hasher in order to give good hashing performance.
-    private struct SharedSecretLengthHelper {
-        // We need a 4 byte length in network byte order, and an optional fifth bit. As Curve25519 shared secrets are always
-        // 32 bytes long (before the mpint transformation), we only ever actually need to modify one of these bytes:
-        // the 4th.
-        private var backingBytes = (UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0))
+/// A helper structure that allows us to hash in the extra bytes required to represent our shared secret as an mpint.
+///
+/// An mpint is an SSH string, meaning that it is prefixed by a 4-byte length field. Additionally, in cases where the top
+/// bit of our shared secret is set (50% of the time), that length also needs to be followed by an extra zero bit. To
+/// avoid copying our shared secret into public memory, we fiddle about with those extra bytes in this structure, and
+/// pass an interior pointer to it into the hasher in order to give good hashing performance.
+private struct SharedSecretLengthHelper {
+    // We need a 4 byte length in network byte order, and an optional fifth bit. As Curve25519 shared secrets are always
+    // 32 bytes long (before the mpint transformation), we only ever actually need to modify one of these bytes:
+    // the 4th.
+    private var backingBytes = (UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0))
 
-        /// Whether we should hash an extra zero byte.
-        var useExtraZeroByte: Bool = false
+    /// Whether we should hash an extra zero byte.
+    var useExtraZeroByte: Bool = false
 
-        /// The length to encode.
-        var length: UInt8 {
-            get {
-                self.backingBytes.3
-            }
-            set {
-                self.backingBytes.3 = newValue
-            }
+    /// The length to encode.
+    var length: UInt8 {
+        get {
+            self.backingBytes.3
         }
+        set {
+            self.backingBytes.3 = newValue
+        }
+    }
 
-        // Remove the elementwise initializer.
-        init() {}
+    // Remove the elementwise initializer.
+    init() {}
 
-        func update(hasher: inout SHA256) {
-            withUnsafeBytes(of: self.backingBytes) { bytesPtr in
-                precondition(bytesPtr.count == 5)
+    func update<Hasher: HashFunction>(hasher: inout Hasher) {
+        withUnsafeBytes(of: self.backingBytes) { bytesPtr in
+            precondition(bytesPtr.count == 5)
 
-                let bytesToHash: UnsafeRawBufferPointer
-                if self.useExtraZeroByte {
-                    bytesToHash = bytesPtr
-                } else {
-                    bytesToHash = UnsafeRawBufferPointer(rebasing: bytesPtr.prefix(4))
-                }
-
-                hasher.update(bufferPointer: bytesToHash)
+            let bytesToHash: UnsafeRawBufferPointer
+            if self.useExtraZeroByte {
+                bytesToHash = bytesPtr
+            } else {
+                bytesToHash = UnsafeRawBufferPointer(rebasing: bytesPtr.prefix(4))
             }
+
+            hasher.update(bufferPointer: bytesToHash)
         }
     }
 }
 
-extension SHA256 {
+extension HashFunction {
     fileprivate mutating func update(byte: UInt8) {
         withUnsafeBytes(of: byte) { bytePtr in
             assert(bytePtr.count == 1, "Why is this 8 bit integer so large?")

@@ -302,9 +302,9 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
 
         // Client sends a key exchange that is _subtly_ different from the server (we just add a different key exchange mechanism to the front).
         // Annoyingly we have to offer an elliptic curve protocol to make sure it parses properly. We use P-192 as the curve, referred to by OID,
-        // because we're clearly never going to support that curve.
+        // because we're clearly never going to support that curve. Then we do Curve25519 as the fallback because it's easy.
         var clientMessage = serverMessage
-        clientMessage.keyExchangeAlgorithms = ["ecdsa-sha2-1.2.840.10045.3.1.1"] + serverMessage.keyExchangeAlgorithms
+        clientMessage.keyExchangeAlgorithms = ["ecdsa-sha2-1.2.840.10045.3.1.1", "curve25519-sha256"]
         clientMessage.firstKexPacketFollows = true
         try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
 
