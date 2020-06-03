@@ -406,6 +406,18 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
     }
 
     func testKeyExchangeUsingP256HostKeysOnly() throws {
+        try self.straightforwardCustomHostKeyHandshake(hostKey: .init(p256Key: .init()))
+    }
+
+    func testKeyExchangeUsingP384HostKeysOnly() throws {
+        try self.straightforwardCustomHostKeyHandshake(hostKey: .init(p384Key: .init()))
+    }
+
+    func testKeyExchangeUsingP521HostKeysOnly() throws {
+        try self.straightforwardCustomHostKeyHandshake(hostKey: .init(p521Key: .init()))
+    }
+
+    private func straightforwardCustomHostKeyHandshake(hostKey: NIOSSHPrivateKey) throws {
         // This test runs a full key exchange but the server races its newKeys message right behind the ecdh reply.
         let allocator = ByteBufferAllocator()
 
@@ -418,7 +430,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .server(.init(hostKeys: [.init(p256Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
+            role: .server(.init(hostKeys: [hostKey], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil

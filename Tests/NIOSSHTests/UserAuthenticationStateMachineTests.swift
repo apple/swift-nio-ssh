@@ -638,7 +638,19 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         }
     }
 
-    func testPrivateKeyServerAuthFlow() throws {
+    func testPrivateKeyServerAuthFlowP256() throws {
+        try self.privateKeyServerAuthFlow(.init(p256Key: .init()))
+    }
+
+    func testPrivateKeyServerAuthFlowP384() throws {
+        try self.privateKeyServerAuthFlow(.init(p384Key: .init()))
+    }
+
+    func testPrivateKeyServerAuthFlowP521() throws {
+        try self.privateKeyServerAuthFlow(.init(p521Key: .init()))
+    }
+
+    func privateKeyServerAuthFlow(_ newKey: NIOSSHPrivateKey) throws {
         var stateMachine = UserAuthenticationStateMachine(role: .server(.init(hostKeys: [self.hostKey], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))), loop: self.loop, sessionID: self.sessionID)
 
         // Begin by doing the service accept dance.
@@ -663,7 +675,6 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
         // Ok, let's do another query with a different key type. This time we won't bother with the little preamble dance, we'll just go straight to
         // querying: this should be fine too.
-        let newKey = NIOSSHPrivateKey(p256Key: .init())
         let payload2 = UserAuthSignablePayload(sessionIdentifier: self.sessionID, userName: "foo", serviceName: "ssh-connection", publicKey: newKey.publicKey)
         let newSignature = try newKey.sign(payload2)
         let request2 = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .publicKey(.known(key: newKey.publicKey, signature: newSignature)))

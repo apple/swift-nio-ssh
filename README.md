@@ -16,7 +16,7 @@ SwiftNIO SSH supports SSHv2 with the following feature set:
 
 - All session channel features, including shell and exec channel requests
 - Direct and reverse TCP port forwarding
-- Modern cryptographic primitives only: Ed25519 and EDCSA over P256 for asymmetric cryptography, AES-GCM for symmetric cryptography, x25519 for key exchange
+- Modern cryptographic primitives only: Ed25519 and EDCSA over the major NIST curves (P256, P384, P521) for asymmetric cryptography, AES-GCM for symmetric cryptography, x25519 for key exchange
 - Password and public key user authentication
 - Supports all platforms supported by SwiftNIO and Swift Crypto
 

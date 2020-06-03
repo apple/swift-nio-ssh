@@ -485,7 +485,7 @@ extension SSHKeyExchangeStateMachine {
     static let supportedKeyExchangeAlgorithms: [Substring] = ["curve25519-sha256", "curve25519-sha256@libssh.org"]
 
     /// All known host key algorithms.
-    static let supportedServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp256"]
+    static let supportedServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521"]
 }
 
 extension SSHKeyExchangeStateMachine {

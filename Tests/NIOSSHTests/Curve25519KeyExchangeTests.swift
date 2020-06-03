@@ -100,10 +100,68 @@ final class Curve25519KeyExchangeTests: XCTestCase {
         self.keyExchangeAgreed(serverKeys, clientKeys)
     }
 
-    func testKeyExchangeWithECDSASignatures() throws {
+    func testKeyExchangeWithECDSAP256Signatures() throws {
         var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
         var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(p256Key: .init())
+
+        var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
+
+        let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
+        let (serverKeys, serverResponse) = try assertNoThrowWithValue(
+            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
+                                                     serverHostKey: serverHostKey,
+                                                     initialExchangeBytes: &initialExchangeBytes,
+                                                     allocator: ByteBufferAllocator(),
+                                                     expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+        )
+
+        initialExchangeBytes.clear()
+
+        let clientKeys = try assertNoThrowWithValue(
+            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
+                                                       initialExchangeBytes: &initialExchangeBytes,
+                                                       allocator: ByteBufferAllocator(),
+                                                       expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+        )
+
+        // Check we agree on the session ID and the keys.
+        self.keyExchangeAgreed(serverKeys, clientKeys)
+    }
+
+    func testKeyExchangeWithECDSAP384Signatures() throws {
+        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        let serverHostKey = NIOSSHPrivateKey(p384Key: .init())
+
+        var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
+
+        let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
+        let (serverKeys, serverResponse) = try assertNoThrowWithValue(
+            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
+                                                     serverHostKey: serverHostKey,
+                                                     initialExchangeBytes: &initialExchangeBytes,
+                                                     allocator: ByteBufferAllocator(),
+                                                     expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+        )
+
+        initialExchangeBytes.clear()
+
+        let clientKeys = try assertNoThrowWithValue(
+            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
+                                                       initialExchangeBytes: &initialExchangeBytes,
+                                                       allocator: ByteBufferAllocator(),
+                                                       expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+        )
+
+        // Check we agree on the session ID and the keys.
+        self.keyExchangeAgreed(serverKeys, clientKeys)
+    }
+
+    func testKeyExchangeWithECDSAP521Signatures() throws {
+        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        let serverHostKey = NIOSSHPrivateKey(p521Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
