@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
+import Foundation
 import NIO
 
 /// An SSH public key.
@@ -28,6 +29,31 @@ public struct NIOSSHPublicKey: Hashable {
 
     internal init(backingKey: BackingKey) {
         self.backingKey = backingKey
+    }
+
+    /// Create a `NIOSSHPublicKey` from the OpenSSH public key string.
+    public init(openSSHPublicKey: String) throws {
+        // The OpenSSH public key format is like this: "algorithm-id base64-encoded-key comments"
+        //
+        // We split on spaces, no more than twice. We then check if we know about the algorithm identifier and, if we
+        // do, we parse the key.
+        var components = ArraySlice(openSSHPublicKey.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true))
+        guard let keyIdentifier = components.popFirst(), let keyData = components.popFirst() else {
+            throw NIOSSHError.invalidOpenSSHPublicKey(reason: "invalid number of sections")
+        }
+        guard let rawBytes = Data(base64Encoded: String(keyData)) else {
+            throw NIOSSHError.invalidOpenSSHPublicKey(reason: "could not base64-decode string")
+        }
+
+        var buffer = ByteBufferAllocator().buffer(capacity: rawBytes.count)
+        buffer.writeBytes(rawBytes)
+        guard let key = try buffer.readSSHHostKey() else {
+            throw NIOSSHError.invalidOpenSSHPublicKey(reason: "incomplete key data")
+        }
+        guard key.keyPrefix.elementsEqual(keyIdentifier.utf8) else {
+            throw NIOSSHError.invalidOpenSSHPublicKey(reason: "inconsistent key type within openssh key format")
+        }
+        self = key
     }
 }
 
@@ -184,23 +210,28 @@ extension ByteBuffer {
     mutating func readSSHHostKey() throws -> NIOSSHPublicKey? {
         try self.rewindOnNilOrError { buffer in
             // The wire format always begins with an SSH string containing the key format identifier. Let's grab that.
-            guard var keyIdentifierBytes = buffer.readSSHString() else {
+            guard let keyIdentifierBytes = buffer.readSSHString() else {
                 return nil
             }
 
             // Now we need to check if they match our supported key algorithms.
-            let bytesView = keyIdentifierBytes.readableBytesView
-            if bytesView.elementsEqual(NIOSSHPublicKey.ed25519PublicKeyPrefix) {
+            return try buffer.readPublicKeyWithoutPrefixForIdentifier(keyIdentifierBytes.readableBytesView)
+        }
+    }
+
+    mutating func readPublicKeyWithoutPrefixForIdentifier<Bytes: Collection>(_ keyIdentifierBytes: Bytes) throws -> NIOSSHPublicKey? where Bytes.Element == UInt8 {
+        try self.rewindOnNilOrError { buffer in
+            if keyIdentifierBytes.elementsEqual(NIOSSHPublicKey.ed25519PublicKeyPrefix) {
                 return try buffer.readEd25519PublicKey()
-            } else if bytesView.elementsEqual(NIOSSHPublicKey.ecdsaP256PublicKeyPrefix) {
+            } else if keyIdentifierBytes.elementsEqual(NIOSSHPublicKey.ecdsaP256PublicKeyPrefix) {
                 return try buffer.readECDSAP256PublicKey()
-            } else if bytesView.elementsEqual(NIOSSHPublicKey.ecdsaP384PublicKeyPrefix) {
+            } else if keyIdentifierBytes.elementsEqual(NIOSSHPublicKey.ecdsaP384PublicKeyPrefix) {
                 return try buffer.readECDSAP384PublicKey()
-            } else if bytesView.elementsEqual(NIOSSHPublicKey.ecdsaP521PublicKeyPrefix) {
+            } else if keyIdentifierBytes.elementsEqual(NIOSSHPublicKey.ecdsaP521PublicKeyPrefix) {
                 return try buffer.readECDSAP521PublicKey()
             } else {
                 // We don't know this public key type.
-                let unexpectedAlgorithm = keyIdentifierBytes.readString(length: keyIdentifierBytes.readableBytes) ?? "<unknown algorithm>"
+                let unexpectedAlgorithm = keyIdentifierBytes.count > 0 ? String(decoding: keyIdentifierBytes, as: UTF8.self) : "<unknown algorithm>"
                 throw NIOSSHError.unknownPublicKey(algorithm: unexpectedAlgorithm)
             }
         }

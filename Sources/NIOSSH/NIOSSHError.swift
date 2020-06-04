@@ -123,6 +123,11 @@ extension NIOSSHError {
     internal static func invalidHostKeyForKeyExchange(expected: Substring, got actual: String.UTF8View) -> NIOSSHError {
         NIOSSHError(type: .invalidHostKeyForKeyExchange, diagnostics: "Expected \(String(expected)), got \(String(actual))")
     }
+
+    @inline(never)
+    internal static func invalidOpenSSHPublicKey(reason: String) -> NIOSSHError {
+        NIOSSHError(type: .invalidOpenSSHPublicKey, diagnostics: reason)
+    }
 }
 
 // MARK: - NIOSSHError CustomStringConvertible conformance.
@@ -167,6 +172,7 @@ extension NIOSSHError {
             case missingGlobalRequestResponse
             case remotePeerDoesNotSupportMessage
             case invalidHostKeyForKeyExchange
+            case invalidOpenSSHPublicKey
         }
 
         private var base: Base
@@ -258,6 +264,9 @@ extension NIOSSHError {
 
         /// The peer has sent a host key that does not correspond to the one negotiated in key exchange.
         public static let invalidHostKeyForKeyExchange: ErrorType = .init(.invalidHostKeyForKeyExchange)
+
+        /// The OpenSSH public key string could not be parsed.
+        public static let invalidOpenSSHPublicKey: ErrorType = .init(.invalidOpenSSHPublicKey)
     }
 }
 
