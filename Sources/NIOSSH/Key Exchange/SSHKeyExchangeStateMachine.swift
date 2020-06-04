@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Crypto
 import NIO
 
 struct SSHKeyExchangeStateMachine {
@@ -38,19 +39,19 @@ struct SSHKeyExchangeStateMachine {
         /// party can enter this state. The remote peer may be sending a guess as well.
         ///
         /// We store the message we sent for later.
-        case keyExchangeReceived(exchange: Curve25519KeyExchange, negotiated: NegotiationResult, expectingGuess: Bool)
+        case keyExchangeReceived(exchange: EllipticCurveKeyExchangeProtocol, negotiated: NegotiationResult, expectingGuess: Bool)
 
         /// The peer has guessed what key exchange init packet is coming, and guessed wrong. We need to wait for them to send that packet.
-        case awaitingKeyExchangeInitInvalidGuess(exchange: Curve25519KeyExchange, negotiated: NegotiationResult)
+        case awaitingKeyExchangeInitInvalidGuess(exchange: EllipticCurveKeyExchangeProtocol, negotiated: NegotiationResult)
 
         /// Both sides have sent their initial key exchange message but we have not begun actually performing a key exchange.
-        case awaitingKeyExchangeInit(exchange: Curve25519KeyExchange, negotiated: NegotiationResult)
+        case awaitingKeyExchangeInit(exchange: EllipticCurveKeyExchangeProtocol, negotiated: NegotiationResult)
 
         /// We've received the key exchange init, but not sent our reply yet.
         case keyExchangeInitReceived(result: KeyExchangeResult, negotiated: NegotiationResult)
 
         /// We've sent our keyExchangeInit, but not received the keyExchangeReply.
-        case keyExchangeInitSent(exchange: Curve25519KeyExchange, negotiated: NegotiationResult)
+        case keyExchangeInitSent(exchange: EllipticCurveKeyExchangeProtocol, negotiated: NegotiationResult)
 
         /// The keys have been exchanged.
         case keysExchanged(result: KeyExchangeResult, protection: NIOSSHTransportProtection, negotiated: NegotiationResult)
@@ -123,7 +124,7 @@ struct SSHKeyExchangeStateMachine {
 
                 // verify algorithms
                 let negotiated = try self.negotiatedAlgorithms(message)
-                let exchanger = self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
+                let exchanger = try self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
                 // Ok, we need to send the key exchange message.
                 let message = SSHMessage.keyExchangeInit(exchanger.initiateKeyExchangeClientSide(allocator: self.allocator))
@@ -134,7 +135,7 @@ struct SSHKeyExchangeStateMachine {
                 self.addKeyExchangeInitMessagesToExchangeBytes(clientsMessage: message, serversMessage: ourMessage)
 
                 let negotiated = try self.negotiatedAlgorithms(message)
-                let exchanger = self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
+                let exchanger = try self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
                 // Ok, we're waiting for them to go. They might be sending a wrong guess, which we want to ignore.
                 if self.expectingIncorrectGuess(message) {
@@ -157,7 +158,7 @@ struct SSHKeyExchangeStateMachine {
             }
 
             let negotiated = try self.negotiatedAlgorithms(message)
-            let exchanger = self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
+            let exchanger = try self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
             let result: SSHMultiMessage
             switch self.role {
@@ -435,11 +436,15 @@ struct SSHKeyExchangeStateMachine {
         }
     }
 
-    private func exchangerForAlgorithm(_ algorithm: Substring) -> Curve25519KeyExchange {
-        assert(Self.supportedKeyExchangeAlgorithms.contains(algorithm))
-        // We only support Curve25519 right now, so we up this to a precondition.
-        precondition(Self.supportedKeyExchangeAlgorithms.contains(algorithm))
-        return Curve25519KeyExchange(ourRole: self.role, previousSessionIdentifier: self.previousSessionIdentifier)
+    private func exchangerForAlgorithm(_ algorithm: Substring) throws -> EllipticCurveKeyExchangeProtocol {
+        for implementation in Self.supportedKeyExchangeImplementations {
+            if implementation.keyExchangeAlgorithmNames.contains(algorithm) {
+                return implementation.init(ourRole: self.role, previousSessionIdentifier: self.previousSessionIdentifier)
+            }
+        }
+
+        // Huh, we didn't find it. Weird error.
+        throw NIOSSHError.keyExchangeNegotiationFailure
     }
 
     private func expectingIncorrectGuess(_ kexMessage: SSHMessage.KeyExchangeMessage) -> Bool {
@@ -482,7 +487,14 @@ struct SSHKeyExchangeStateMachine {
 
 extension SSHKeyExchangeStateMachine {
     // For now this is a static list.
-    static let supportedKeyExchangeAlgorithms: [Substring] = ["curve25519-sha256", "curve25519-sha256@libssh.org"]
+    static let supportedKeyExchangeImplementations: [EllipticCurveKeyExchangeProtocol.Type] = [
+        EllipticCurveKeyExchange<P384.KeyAgreement.PrivateKey>.self,
+        EllipticCurveKeyExchange<P256.KeyAgreement.PrivateKey>.self,
+        EllipticCurveKeyExchange<P521.KeyAgreement.PrivateKey>.self,
+        EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>.self,
+    ]
+
+    static let supportedKeyExchangeAlgorithms: [Substring] = supportedKeyExchangeImplementations.flatMap { $0.keyExchangeAlgorithmNames }
 
     /// All known host key algorithms.
     static let supportedServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521"]

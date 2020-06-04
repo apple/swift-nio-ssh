@@ -17,7 +17,7 @@ import NIO
 @testable import NIOSSH
 import XCTest
 
-final class Curve25519KeyExchangeTests: XCTestCase {
+final class KeyExchangeTests: XCTestCase {
     private func keyExchangeAgreed(_ first: KeyExchangeResult, _ second: KeyExchangeResult) {
         XCTAssertEqual(first.sessionID, second.sessionID)
         XCTAssertEqual(first.keys.initialInboundIV, second.keys.initialOutboundIV)
@@ -39,9 +39,25 @@ final class Curve25519KeyExchangeTests: XCTestCase {
         XCTAssertNotEqual(first.keys.outboundMACKey, second.keys.inboundMACKey)
     }
 
-    func testBasicSuccessfulKeyExchangeNoPreviousSession() throws {
-        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+    func testBasicSuccessfulKeyExchangeNoPreviousSessionCurve25519() throws {
+        try self.basicSuccessfulKeyExchangeNoPreviousSession(Curve25519.KeyAgreement.PrivateKey.self)
+    }
+
+    func testBasicSuccessfulKeyExchangeNoPreviousSessionP256() throws {
+        try self.basicSuccessfulKeyExchangeNoPreviousSession(P256.KeyAgreement.PrivateKey.self)
+    }
+
+    func testBasicSuccessfulKeyExchangeNoPreviousSessionP384() throws {
+        try self.basicSuccessfulKeyExchangeNoPreviousSession(P384.KeyAgreement.PrivateKey.self)
+    }
+
+    func testBasicSuccessfulKeyExchangeNoPreviousSessionP521() throws {
+        try self.basicSuccessfulKeyExchangeNoPreviousSession(P521.KeyAgreement.PrivateKey.self)
+    }
+
+    private func basicSuccessfulKeyExchangeNoPreviousSession<KeyType: ECDHCompatiblePrivateKey>(_: KeyType.Type = KeyType.self) throws {
+        var server = EllipticCurveKeyExchange<KeyType>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        var client = EllipticCurveKeyExchange<KeyType>(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -68,12 +84,28 @@ final class Curve25519KeyExchangeTests: XCTestCase {
         self.keyExchangeAgreed(serverKeys, clientKeys)
     }
 
-    func testBasicSuccessfulKeyExchangeWithPreviousSession() throws {
+    func testBasicSuccessfulKeyExchangeWithPreviousSessionCurve25519() throws {
+        try self.basicSuccessfulKeyExchangeWithPreviousSession(Curve25519.KeyAgreement.PrivateKey.self)
+    }
+
+    func testBasicSuccessfulKeyExchangeWithPreviousSessionP256() throws {
+        try self.basicSuccessfulKeyExchangeWithPreviousSession(P256.KeyAgreement.PrivateKey.self)
+    }
+
+    func testBasicSuccessfulKeyExchangeWithPreviousSessionP384() throws {
+        try self.basicSuccessfulKeyExchangeWithPreviousSession(P384.KeyAgreement.PrivateKey.self)
+    }
+
+    func testBasicSuccessfulKeyExchangeWithPreviousSessionP521() throws {
+        try self.basicSuccessfulKeyExchangeWithPreviousSession(P521.KeyAgreement.PrivateKey.self)
+    }
+
+    func basicSuccessfulKeyExchangeWithPreviousSession<KeyType: ECDHCompatiblePrivateKey>(_: KeyType.Type = KeyType.self) throws {
         var previousSessionIdentifier = ByteBufferAllocator().buffer(capacity: 1024)
         previousSessionIdentifier.writeBytes(0 ... 255)
 
-        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: previousSessionIdentifier)
-        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: previousSessionIdentifier)
+        var server = EllipticCurveKeyExchange<KeyType>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: previousSessionIdentifier)
+        var client = EllipticCurveKeyExchange<KeyType>(ourRole: .client, previousSessionIdentifier: previousSessionIdentifier)
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -101,8 +133,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testKeyExchangeWithECDSAP256Signatures() throws {
-        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(p256Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -130,8 +162,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testKeyExchangeWithECDSAP384Signatures() throws {
-        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(p384Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -159,8 +191,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testKeyExchangeWithECDSAP521Signatures() throws {
-        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(p521Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -188,8 +220,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testBasicSuccessfulKeyExchangeWithWiderKeys() throws {
-        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -217,8 +249,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testDisagreeingOnInitialExchangeBytesLeadsToFailedKeyExchange() throws {
-        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var serverInitialBytes = ByteBufferAllocator().buffer(capacity: 1024)
@@ -247,8 +279,8 @@ final class Curve25519KeyExchangeTests: XCTestCase {
     }
 
     func testWeValidateTheExchangeHash() throws {
-        var server = Curve25519KeyExchange(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = Curve25519KeyExchange(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
