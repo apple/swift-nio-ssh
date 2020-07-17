@@ -128,6 +128,11 @@ extension NIOSSHError {
     internal static func invalidOpenSSHPublicKey(reason: String) -> NIOSSHError {
         NIOSSHError(type: .invalidOpenSSHPublicKey, diagnostics: reason)
     }
+
+    @inline(never)
+    internal static func invalidCertificate(diagnostics: String) -> NIOSSHError {
+        NIOSSHError(type: .invalidCertificate, diagnostics: diagnostics)
+    }
 }
 
 // MARK: - NIOSSHError CustomStringConvertible conformance.
@@ -173,6 +178,7 @@ extension NIOSSHError {
             case remotePeerDoesNotSupportMessage
             case invalidHostKeyForKeyExchange
             case invalidOpenSSHPublicKey
+            case invalidCertificate
         }
 
         private var base: Base
@@ -267,6 +273,9 @@ extension NIOSSHError {
 
         /// The OpenSSH public key string could not be parsed.
         public static let invalidOpenSSHPublicKey: ErrorType = .init(.invalidOpenSSHPublicKey)
+
+        /// A certificate failed validation.
+        public static let invalidCertificate: ErrorType = .init(.invalidCertificate)
     }
 }
 

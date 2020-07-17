@@ -134,7 +134,7 @@ extension SSHMessage {
         // Q_S, server's ephemeral public key octet string
         var publicKey: ByteBuffer
         // the signature on the exchange hash
-        var signature: SSHSignature
+        var signature: NIOSSHSignature
     }
 
     struct UserAuthRequestMessage: Equatable {
@@ -148,7 +148,7 @@ extension SSHMessage {
         }
 
         enum PublicKeyAuthType: Equatable {
-            case known(key: NIOSSHPublicKey, signature: SSHSignature?)
+            case known(key: NIOSSHPublicKey, signature: NIOSSHSignature?)
             case unknown
         }
 
@@ -1077,7 +1077,7 @@ extension ByteBuffer {
         }
     }
 
-    private mutating func readSSHStringAsString() -> String? {
+    mutating func readSSHStringAsString() -> String? {
         self.rewindReaderOnNil { `self` in
             guard var bytes = self.readSSHString() else {
                 return nil
