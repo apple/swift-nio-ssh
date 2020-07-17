@@ -419,7 +419,7 @@ extension NIOSSHHandler {
     internal func _rekey() throws {
         // As this is test-only there are a bunch of preconditions in here, we don't really mind if we hit them in testing.
         var buffer = self.context!.channel.allocator.buffer(capacity: 1024)
-        try self.stateMachine.beginRekeying(buffer: &buffer, allocator: self.context!.channel.allocator)
+        try self.stateMachine.beginRekeying(buffer: &buffer, allocator: self.context!.channel.allocator, loop: self.context!.eventLoop)
         self.context!.writeAndFlush(self.wrapOutboundOut(buffer), promise: nil)
     }
 }

@@ -17,7 +17,7 @@ import NIOSSH
 
 final class BenchmarkHandshake: Benchmark {
     let serverRole = SSHConnectionRole.server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: ExpectPasswordDelegate("password")))
-    let clientRole = SSHConnectionRole.client(.init(userAuthDelegate: RepeatingPasswordDelegate("password")))
+    let clientRole = SSHConnectionRole.client(.init(userAuthDelegate: RepeatingPasswordDelegate("password"), serverAuthDelegate: ClientAlwaysAcceptHostKeyDelegate()))
     let loopCount: Int
 
     init(loopCount: Int) {

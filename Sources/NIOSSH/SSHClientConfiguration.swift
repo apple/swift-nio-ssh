@@ -17,11 +17,17 @@ public struct SSHClientConfiguration {
     /// The user authentication delegate to be used with this client.
     public var userAuthDelegate: NIOSSHClientUserAuthenticationDelegate
 
+    /// The server authentication delegate to be used with this client.
+    public var serverAuthDelegate: NIOSSHClientServerAuthenticationDelegate
+
     /// The global request delegate to be used with this client.
     public var globalRequestDelegate: GlobalRequestDelegate
 
-    public init(userAuthDelegate: NIOSSHClientUserAuthenticationDelegate, globalRequestDelegate: GlobalRequestDelegate? = nil) {
+    public init(userAuthDelegate: NIOSSHClientUserAuthenticationDelegate,
+                serverAuthDelegate: NIOSSHClientServerAuthenticationDelegate,
+                globalRequestDelegate: GlobalRequestDelegate? = nil) {
         self.userAuthDelegate = userAuthDelegate
+        self.serverAuthDelegate = serverAuthDelegate
         self.globalRequestDelegate = globalRequestDelegate ?? DefaultGlobalRequestDelegate()
     }
 }

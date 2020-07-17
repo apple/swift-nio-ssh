@@ -67,14 +67,16 @@ struct SSHKeyExchangeStateMachine {
     }
 
     private let allocator: ByteBufferAllocator
+    private let loop: EventLoop
     private let role: SSHConnectionRole
     private var state: State
     private var initialExchangeBytes: ByteBuffer
     private var protectionSchemes: [NIOSSHTransportProtection.Type]
     private var previousSessionIdentifier: ByteBuffer?
 
-    init(allocator: ByteBufferAllocator, role: SSHConnectionRole, remoteVersion: String, protectionSchemes: [NIOSSHTransportProtection.Type], previousSessionIdentifier: ByteBuffer?) {
+    init(allocator: ByteBufferAllocator, loop: EventLoop, role: SSHConnectionRole, remoteVersion: String, protectionSchemes: [NIOSSHTransportProtection.Type], previousSessionIdentifier: ByteBuffer?) {
         self.allocator = allocator
+        self.loop = loop
         self.role = role
         self.initialExchangeBytes = allocator.buffer(capacity: 1024)
         self.state = .idle
@@ -240,7 +242,7 @@ struct SSHKeyExchangeStateMachine {
         }
     }
 
-    mutating func handle(keyExchangeReply message: SSHMessage.KeyExchangeECDHReplyMessage) throws -> SSHMultiMessage {
+    mutating func handle(keyExchangeReply message: SSHMessage.KeyExchangeECDHReplyMessage) throws -> EventLoopFuture<SSHMultiMessage?> {
         switch self.state {
         case .keyExchangeInitSent(exchange: var exchanger, negotiated: let negotiated):
             switch self.role {
@@ -258,7 +260,16 @@ struct SSHKeyExchangeStateMachine {
                 )
 
                 self.state = .keysExchanged(result: result, protection: try negotiated.negotiatedProtection.init(initialKeys: result.keys), negotiated: negotiated)
-                return SSHMultiMessage(SSHMessage.newKeys)
+
+                // Ok, we've modified the state, now we can ask the user if they like this host key.
+                guard case .client(let clientConfig) = self.role else {
+                    preconditionFailure("Should not be in .keyExchangeInitSent as server")
+                }
+                let promise = self.loop.makePromise(of: Void.self)
+                clientConfig.serverAuthDelegate.validateHostKey(hostKey: message.hostKey, validationCompletePromise: promise)
+                return promise.futureResult.map {
+                    SSHMultiMessage(SSHMessage.newKeys)
+                }
             case .server:
                 preconditionFailure("Servers cannot enter key exchange init sent.")
             }

@@ -28,6 +28,12 @@ final class ExplodingAuthDelegate: NIOSSHClientUserAuthenticationDelegate {
     }
 }
 
+final class AcceptAllHostKeysDelegate: NIOSSHClientServerAuthenticationDelegate {
+    func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
+        validationCompletePromise.succeed(())
+    }
+}
+
 final class SSHConnectionStateMachineTests: XCTestCase {
     private func assertSuccessfulConnection(client: inout SSHConnectionStateMachine, server: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop) throws {
         var clientMessage: SSHMultiMessage? = client.start()
@@ -60,58 +66,63 @@ final class SSHConnectionStateMachineTests: XCTestCase {
                 serverBuffer.clear()
             }
 
-            switch try assertNoThrowWithValue(client.processInboundMessage(allocator: allocator, loop: loop)) {
-            case .some(.emitMessage(let message)):
-                clientMessage = message
-            case .some(.noMessage), .none:
-                clientMessage = nil
-            case .some(.possibleFutureMessage(let futureMessage)):
-                waitingForClientMessage = true
-                clientMessage = nil
+            clientMessage = nil
+            serverMessage = nil
 
-                futureMessage.whenComplete { result in
-                    waitingForClientMessage = false
+            clientLoop: while true {
+                switch try assertNoThrowWithValue(client.processInboundMessage(allocator: allocator, loop: loop)) {
+                case .some(.emitMessage(let message)):
+                    clientMessage.append(message)
+                case .none:
+                    break clientLoop
+                case .some(.noMessage):
+                    ()
+                case .some(.possibleFutureMessage(let futureMessage)):
+                    waitingForClientMessage = true
 
-                    switch result {
-                    case .failure(let err):
-                        XCTFail("Unexpected error in delayed message production: \(err)")
-                    case .success(let message):
-                        if clientMessage != nil {
-                            XCTFail("Produced extra client message!")
-                        } else {
-                            clientMessage = message
+                    futureMessage.whenComplete { result in
+                        waitingForClientMessage = false
+
+                        switch result {
+                        case .failure(let err):
+                            XCTFail("Unexpected error in delayed message production: \(err)")
+                        case .success(let message):
+                            if let message = message {
+                                clientMessage.append(message)
+                            }
                         }
                     }
+                case .some(.forwardToMultiplexer), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect):
+                    fatalError("Currently unsupported")
                 }
-            case .some(.forwardToMultiplexer), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect):
-                fatalError("Currently unsupported")
             }
 
-            switch try assertNoThrowWithValue(server.processInboundMessage(allocator: allocator, loop: loop)) {
-            case .some(.emitMessage(let message)):
-                serverMessage = message
-            case .some(.noMessage), .none:
-                serverMessage = nil
-            case .some(.possibleFutureMessage(let futureMessage)):
-                waitingForServerMessage = true
-                serverMessage = nil
+            serverLoop: while true {
+                switch try assertNoThrowWithValue(server.processInboundMessage(allocator: allocator, loop: loop)) {
+                case .some(.emitMessage(let message)):
+                    serverMessage.append(message)
+                case .none:
+                    break serverLoop
+                case .some(.noMessage):
+                    ()
+                case .some(.possibleFutureMessage(let futureMessage)):
+                    waitingForServerMessage = true
 
-                futureMessage.whenComplete { result in
-                    waitingForServerMessage = false
+                    futureMessage.whenComplete { result in
+                        waitingForServerMessage = false
 
-                    switch result {
-                    case .failure(let err):
-                        XCTFail("Unexpected error in delayed message production: \(err)")
-                    case .success(let message):
-                        if serverMessage != nil {
-                            XCTFail("Produced extra server message!")
-                        } else {
-                            serverMessage = message
+                        switch result {
+                        case .failure(let err):
+                            XCTFail("Unexpected error in delayed message production: \(err)")
+                        case .success(let message):
+                            if let message = message {
+                                serverMessage.append(message)
+                            }
                         }
                     }
+                case .some(.forwardToMultiplexer), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect):
+                    fatalError("Currently unsupported")
                 }
-            case .some(.forwardToMultiplexer), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect):
-                fatalError("Currently unsupported")
             }
 
             // Bottom of the loop, run the event loop to fire any futures we might need.
@@ -229,7 +240,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testBasicConnectionDance() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
 
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
@@ -256,7 +267,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testReceivingChannelMessagesGetForwardedOnceConnectionMade() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
 
@@ -268,7 +279,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testDisconnectMessageCausesImmediateConnectionClose() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
 
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
@@ -291,7 +302,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testDisconnectedReturnsNil() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
 
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
@@ -308,7 +319,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testGlobalRequestCanBeSent() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
 
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
@@ -323,7 +334,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testGlobalRequestResponsesTriggerResponse() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
 
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
@@ -359,7 +370,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testIgnoreDebugAndIgnoreMessages() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
 
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
@@ -371,7 +382,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testUnimplementedGivesARichError() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
 
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
@@ -381,19 +392,31 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testWeTolerateMessagesAfterSendingKexInit() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate())))
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
         var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
 
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
 
         // Ok, the server is going to try to rekey.
         var buffer = allocator.buffer(capacity: 1024)
-        XCTAssertNoThrow(try server.beginRekeying(buffer: &buffer, allocator: allocator))
+        XCTAssertNoThrow(try server.beginRekeying(buffer: &buffer, allocator: allocator, loop: loop))
 
         // We're not passing this to the client though. Now we'll send all the channel messages through: the server should tolerate them
         // all.
         for message in self.channelMessages {
             XCTAssertNoThrow(try self.assertForwardsToMultiplexer(message, sender: &client, receiver: &server, allocator: allocator, loop: loop))
+        }
+    }
+}
+
+extension Optional where Wrapped == SSHMultiMessage {
+    mutating func append(_ message: SSHMultiMessage) {
+        if let original = self {
+            precondition(original.count == 1)
+            precondition(message.count == 1)
+            self = .some(SSHMultiMessage(original.first!, message.first!))
+        } else {
+            self = .some(message)
         }
     }
 }

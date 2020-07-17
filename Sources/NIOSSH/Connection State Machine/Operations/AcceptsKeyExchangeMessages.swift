@@ -41,7 +41,7 @@ extension AcceptsKeyExchangeMessages {
 
     mutating func receiveKeyExchangeReplyMessage(_ message: SSHMessage.KeyExchangeECDHReplyMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let message = try self.keyExchangeStateMachine.handle(keyExchangeReply: message)
-        return .emitMessage(message)
+        return .possibleFutureMessage(message)
     }
 
     mutating func receiveNewKeysMessage() throws {

@@ -30,6 +30,14 @@ final class ErrorHandler: ChannelInboundHandler {
     }
 }
 
+final class AcceptAllHostKeysDelegate: NIOSSHClientServerAuthenticationDelegate {
+    func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
+        // Do not replicate this in your own code: validate host keys! This is a
+        // choice made for expedience, not for any other reason.
+        validationCompletePromise.succeed(())
+    }
+}
+
 let parser = SimpleCLIParser()
 let parseResult = parser.parse()
 
@@ -40,7 +48,7 @@ defer {
 
 let bootstrap = ClientBootstrap(group: group)
     .channelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .client(.init(userAuthDelegate: InteractivePasswordPromptDelegate(username: parseResult.user, password: parseResult.password))), allocator: channel.allocator, inboundChildChannelInitializer: nil), ErrorHandler()])
+        channel.pipeline.addHandlers([NIOSSHHandler(role: .client(.init(userAuthDelegate: InteractivePasswordPromptDelegate(username: parseResult.user, password: parseResult.password), serverAuthDelegate: AcceptAllHostKeysDelegate())), allocator: channel.allocator, inboundChildChannelInitializer: nil), ErrorHandler()])
     }
     .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
