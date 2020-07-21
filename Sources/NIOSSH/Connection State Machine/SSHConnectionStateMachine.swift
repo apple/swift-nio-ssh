@@ -135,7 +135,7 @@ struct SSHConnectionStateMachine {
             switch message {
             case .version(let version):
                 try state.receiveVersionMessage(version)
-                let newState = KeyExchangeState(sentVersionState: state, allocator: allocator, remoteVersion: version)
+                let newState = KeyExchangeState(sentVersionState: state, allocator: allocator, loop: loop, remoteVersion: version)
                 let message = newState.keyExchangeStateMachine.createKeyExchangeMessage()
                 self.state = .keyExchange(newState)
                 return .emitMessage(SSHMultiMessage(.keyExchange(message)))
@@ -170,15 +170,8 @@ struct SSHConnectionStateMachine {
                 return result
             case .newKeys:
                 try state.receiveNewKeysMessage()
-                let newState = ReceivedNewKeysState(keyExchangeState: state, loop: loop)
-                let possibleMessage = newState.userAuthStateMachine.beginAuthentication()
-                self.state = .receivedNewKeys(newState)
-
-                if let message = possibleMessage {
-                    return .emitMessage(SSHMultiMessage(.serviceRequest(message)))
-                } else {
-                    return .noMessage
-                }
+                self.state = .receivedNewKeys(.init(keyExchangeState: state, loop: loop))
+                return .noMessage
             case .disconnect:
                 self.state = .receivedDisconnect(state.role)
                 return .disconnect
@@ -227,15 +220,8 @@ struct SSHConnectionStateMachine {
                 return result
             case .newKeys:
                 try state.receiveNewKeysMessage()
-                let newState = UserAuthenticationState(sentNewKeysState: state)
-                let possibleMessage = newState.userAuthStateMachine.beginAuthentication()
-                self.state = .userAuthentication(newState)
-
-                if let message = possibleMessage {
-                    return .emitMessage(SSHMultiMessage(.serviceRequest(message)))
-                } else {
-                    return .noMessage
-                }
+                self.state = .userAuthentication(.init(sentNewKeysState: state))
+                return .noMessage
             case .disconnect:
                 self.state = .receivedDisconnect(state.role)
                 return .disconnect
@@ -389,7 +375,7 @@ struct SSHConnectionStateMachine {
                 return .globalRequestResponse(.failure)
             case .keyExchange(let message):
                 // Attempting to rekey.
-                var newState = ReceivedKexInitWhenActiveState(state, allocator: allocator)
+                var newState = ReceivedKexInitWhenActiveState(state, allocator: allocator, loop: loop)
                 let result = try newState.receiveKeyExchangeMessage(message)
                 self.state = .receivedKexInitWhenActive(newState)
                 return result
@@ -730,7 +716,14 @@ struct SSHConnectionStateMachine {
                 self.state = .keyExchange(kex)
             case .newKeys:
                 try kex.writeNewKeysMessage(into: &buffer)
-                self.state = .sentNewKeys(.init(keyExchangeState: kex, loop: loop))
+                let newState = SentNewKeysState(keyExchangeState: kex, loop: loop)
+                let possibleMessage = newState.userAuthStateMachine.beginAuthentication()
+                self.state = .sentNewKeys(newState)
+
+                // If we have a service request message, re-spin the state machine to process that too.
+                if let additionalMessage = possibleMessage {
+                    try self.processOutboundMessage(.serviceRequest(additionalMessage), buffer: &buffer, allocator: allocator, loop: loop)
+                }
 
             case .disconnect:
                 try kex.serializer.serialize(message: message, to: &buffer)
@@ -757,7 +750,15 @@ struct SSHConnectionStateMachine {
                 self.state = .receivedNewKeys(kex)
             case .newKeys:
                 try kex.writeNewKeysMessage(into: &buffer)
-                self.state = .userAuthentication(.init(receivedNewKeysState: kex))
+
+                let newState = UserAuthenticationState(receivedNewKeysState: kex)
+                let possibleMessage = newState.userAuthStateMachine.beginAuthentication()
+                self.state = .userAuthentication(newState)
+
+                // If we have a service request message, re-spin the state machine to process that too.
+                if let additionalMessage = possibleMessage {
+                    try self.processOutboundMessage(.serviceRequest(additionalMessage), buffer: &buffer, allocator: allocator, loop: loop)
+                }
 
             case .disconnect:
                 try kex.serializer.serialize(message: message, to: &buffer)
@@ -1044,11 +1045,11 @@ extension SSHConnectionStateMachine {
 
 extension SSHConnectionStateMachine {
     // Called when we wish to re-key the connection.
-    mutating func beginRekeying(buffer: inout ByteBuffer, allocator: ByteBufferAllocator) throws {
+    mutating func beginRekeying(buffer: inout ByteBuffer, allocator: ByteBufferAllocator, loop: EventLoop) throws {
         switch self.state {
         case .active(let state):
             // Trying to rekey.
-            var newState = SentKexInitWhenActiveState(state, allocator: allocator)
+            var newState = SentKexInitWhenActiveState(state, allocator: allocator, loop: loop)
             let message = newState.keyExchangeStateMachine.createKeyExchangeMessage()
             try newState.writeKeyExchangeMessage(message, into: &buffer)
             self.state = .sentKexInitWhenActive(newState)

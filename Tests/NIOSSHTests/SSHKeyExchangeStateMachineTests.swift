@@ -112,6 +112,25 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         }
     }
 
+    private func assertGeneratesNewKeysSynchronously(_ messageFactory: @autoclosure () throws -> EventLoopFuture<SSHMultiMessage?>) throws {
+        let future = try assertNoThrowWithValue(messageFactory())
+
+        guard let message = try assertNoThrowWithValue(future.wait()) else {
+            XCTFail("Unexpected missing message")
+            throw AssertionFailure.unexpectedMissingMessage
+        }
+
+        guard message.count == 1 else {
+            XCTFail("Unexpected multiple message (found \(message.count))")
+            throw AssertionFailure.unexpectedMultipleMessages
+        }
+
+        guard case .some(.newKeys) = message.first else {
+            XCTFail("Unexpected message type: \(String(describing: message))")
+            throw AssertionFailure.invalidMessageType
+        }
+    }
+
     private func assertUnexpectedMessage<T>(file: StaticString = #file, line: UInt = #line, _ messageFactory: () throws -> T) {
         XCTAssertThrowsError(try messageFactory(), file: file, line: line) { error in
             XCTAssertEqual(error as? SSHKeyExchangeStateMachine.SSHKeyExchangeError, SSHKeyExchangeStateMachine.SSHKeyExchangeError.unexpectedMessage, file: file, line: line)
@@ -175,16 +194,19 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
     /// client and server, and asserts it always fails.
     private func assertSendingExtraMessageFails(message: SSHMessage, allowedStages: HandshakeStages) throws {
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
 
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
@@ -218,7 +240,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeReceiveNewKeysServer, stateMachine: &server)
 
         // Now the client receives the reply, and generates a newKeys message.
-        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeSendingNewKeysClient, stateMachine: &client)
         let clientOutboundProtection = client.sendNewKeys()
         try handleUnexpectedMessageErasingValue(message, allowedStages: allowedStages, currentStage: .beforeReceiveNewKeysClient, stateMachine: &client)
@@ -238,16 +260,19 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
 
     func testKeyExchange() throws {
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
 
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
@@ -271,7 +296,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // Now the client receives the reply, and generates a newKeys message.
-        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
         let clientOutboundProtection = client.sendNewKeys()
 
         // Both peers receive the newKeys messages.
@@ -289,7 +314,9 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This test verifies that the server will tolerate an invalid guessed negotiation. For this reason we only drive a server,
         // as our code never actually guesses.
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
         var server = SSHKeyExchangeStateMachine(allocator: allocator,
+                                                loop: loop,
                                                 role: .server(.init(hostKeys: [.init(ed25519Key: .init())],
                                                                     userAuthDelegate: DenyAllServerAuthDelegate())),
                                                 remoteVersion: Constants.version,
@@ -329,8 +356,10 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This test verifies that the state machine forbids extra key exchange messages.
         // We get the key exchange message out of the server because it's a pain to build by hand.
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
         let server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
@@ -357,16 +386,19 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
     func testKeyExchangeRapidNewKeys() throws {
         // This test runs a full key exchange but the server races its newKeys message right behind the ecdh reply.
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
 
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
@@ -391,7 +423,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // Now the client receives the reply and newKeys, and generates a newKeys message.
-        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
         let clientInboundProtection = try assertNoThrowWithValue(client.handleNewKeys())
         let clientOutboundProtection = client.sendNewKeys()
 
@@ -420,16 +452,19 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
     private func straightforwardCustomHostKeyHandshake(hostKey: NIOSSHPrivateKey) throws {
         // This test runs a full key exchange but the server races its newKeys message right behind the ecdh reply.
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
 
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [hostKey], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
@@ -454,7 +489,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // Now the client receives the reply and newKeys, and generates a newKeys message.
-        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
         let clientInboundProtection = try assertNoThrowWithValue(client.handleNewKeys())
         let clientOutboundProtection = client.sendNewKeys()
 
@@ -469,12 +504,14 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
     }
 
     func testKeyExchangeMessageCookieValidation() throws {
+        let loop = EmbeddedEventLoop()
         var cookies: [ByteBuffer] = []
         for _ in 0 ..< 5 {
             let allocator = ByteBufferAllocator()
             let client = SSHKeyExchangeStateMachine(
                 allocator: allocator,
-                role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+                loop: loop,
+                role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
                 remoteVersion: Constants.version,
                 protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
                 previousSessionIdentifier: nil
@@ -494,17 +531,20 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
 
     func testNonOverlappingTransportProtectionFails() throws {
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
 
         // Client only supports AES 256, server only supports AES 128. Doomed to failure.
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
@@ -532,16 +572,19 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // Happy path key exchange test, but where the client would prefer AES128 and the server would prefer AES256.
         // We expect AES128, but the negotiation should be smooth.
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
 
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES128GCMOpenSSHTransportProtection.self, AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self],
@@ -565,7 +608,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // Now the client receives the reply, and generates a newKeys message.
-        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
         let clientOutboundProtection = client.sendNewKeys()
 
         // Both peers receive the newKeys messages.
@@ -584,16 +627,19 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This tests the specific message flow for re-exchange: namely, a key exchange message arrives in idle.
         // We should tolerate this flow.
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
 
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
@@ -617,7 +663,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // Now the client receives the reply, and generates a newKeys message.
-        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
         let clientOutboundProtection = client.sendNewKeys()
 
         // Both peers receive the newKeys messages.
@@ -636,16 +682,19 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This tests the specific message flow for re-exchange: namely, a key exchange message arrives in idle.
         // We should tolerate this flow.
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
 
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
@@ -680,7 +729,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // Now the client receives the reply, and generates a newKeys message.
-        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
         let clientOutboundProtection = client.sendNewKeys()
 
         // Both peers receive the newKeys messages.
@@ -700,6 +749,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This flushes out a bug where we'd choose the wrong host key algorithm because we preferred our own list in
         // all cases, rather than iterating the client's.
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
         var keys = [NIOSSHPrivateKey(p256Key: .init()), NIOSSHPrivateKey(ed25519Key: .init())]
 
         let serverKeyAlgorithms = keys.flatMap { $0.hostKeyAlgorithms }
@@ -715,13 +765,15 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // From here on, things should run smoothly.
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: keys, userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
@@ -751,7 +803,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         XCTAssertEqual(client._testOnly_negotiatedHostKeyAlgorithm, keys.last.flatMap { $0.hostKeyAlgorithms.first })
 
         // Now the client receives the reply and newKeys, and generates a newKeys message.
-        try self.assertGeneratesNewKeys(client.handle(keyExchangeReply: ecdhReply))
+        try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
         let clientInboundProtection = try assertNoThrowWithValue(client.handleNewKeys())
         let clientOutboundProtection = client.sendNewKeys()
 
@@ -769,16 +821,19 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         // This test runs a full key exchange where the server returns a host key type it didn't negotiate. This should
         // error.
         let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
 
         var client = SSHKeyExchangeStateMachine(
             allocator: allocator,
-            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate())),
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
             allocator: allocator,
+            loop: loop,
             role: .server(.init(hostKeys: [NIOSSHPrivateKey(p256Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
             protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
@@ -810,6 +865,150 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         XCTAssertThrowsError(try client.handle(keyExchangeReply: ecdhReply)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidHostKeyForKeyExchange)
         }
+    }
+
+    func testKeyExchangeClientRejectsHostKeySynchronously() throws {
+        // This test runs a full key exchange where the client rejects the server's host key. This should
+        // error.
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+
+        enum TestError: Error {
+            case bang
+        }
+
+        struct RejectHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate {
+            func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
+                validationCompletePromise.fail(TestError.bang)
+            }
+        }
+
+        var client = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: RejectHostKeyDelegate())),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+        var server = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .server(.init(hostKeys: [NIOSSHPrivateKey(p256Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+
+        // Both sides begin by generating a key exchange message.
+        let serverMessage = server.createKeyExchangeMessage()
+        let clientMessage = client.createKeyExchangeMessage()
+        server.send(keyExchange: serverMessage)
+        client.send(keyExchange: clientMessage)
+
+        // The server does not generate a response message, but the client does.
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+
+        let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
+        client.send(keyExchangeInit: ecdhInit)
+
+        // Now the server receives the ECDH init message and generates the reply. We ignore newKeys here as we
+        // won't get that far.
+        let ecdhReply = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: ecdhInit))
+        XCTAssertNoThrow(try server.send(keyExchangeReply: ecdhReply))
+
+        // Now the client receives the reply. A future is generated.
+        let response = try assertNoThrowWithValue(client.handle(keyExchangeReply: ecdhReply))
+
+        // This future will error.
+        XCTAssertThrowsError(try response.wait()) { error in
+            XCTAssertEqual(error as? TestError, .bang)
+        }
+    }
+
+    func testKeyExchangeClientRejectsHostKeyAsynchronously() throws {
+        // This test runs a full key exchange where the client rejects the server's host key, on a delay. This should
+        // error.
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+
+        enum TestError: Error {
+            case bang
+        }
+
+        class DelayHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate {
+            var data: (NIOSSHPublicKey, EventLoopPromise<Void>)?
+
+            func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
+                self.data = (hostKey, validationCompletePromise)
+            }
+        }
+
+        let hostKeyDelegate = DelayHostKeyDelegate()
+        let serverHostKey = NIOSSHPrivateKey(p256Key: .init())
+
+        var client = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: hostKeyDelegate)),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+        var server = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .server(.init(hostKeys: [serverHostKey], userAuthDelegate: DenyAllServerAuthDelegate())),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+
+        // Both sides begin by generating a key exchange message.
+        let serverMessage = server.createKeyExchangeMessage()
+        let clientMessage = client.createKeyExchangeMessage()
+        server.send(keyExchange: serverMessage)
+        client.send(keyExchange: clientMessage)
+
+        // The server does not generate a response message, but the client does.
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+
+        let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
+        client.send(keyExchangeInit: ecdhInit)
+
+        // Now the server receives the ECDH init message and generates the reply. We ignore newKeys here as we
+        // won't get that far.
+        let ecdhReply = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: ecdhInit))
+        XCTAssertNoThrow(try server.send(keyExchangeReply: ecdhReply))
+
+        // Now the client receives the reply. A future is generated.
+        let response = try assertNoThrowWithValue(client.handle(keyExchangeReply: ecdhReply))
+
+        // This future has not completed yet.
+        var completed = false
+        response.whenComplete { result in
+            switch result {
+            case .success:
+                XCTFail("Unexpected success")
+            case .failure(let error):
+                XCTAssertEqual(error as? TestError, .bang)
+            }
+            completed = true
+        }
+        XCTAssertFalse(completed)
+
+        // The host key we gave the delegate matches the one we got.
+        guard let (hostKey, promise) = hostKeyDelegate.data else {
+            XCTFail("Host key delegate was not invoked")
+            return
+        }
+
+        XCTAssertEqual(hostKey, serverHostKey.publicKey)
+        XCTAssertFalse(completed)
+
+        // Fail the promise.
+        promise.fail(TestError.bang)
+        XCTAssertTrue(completed)
     }
 }
 

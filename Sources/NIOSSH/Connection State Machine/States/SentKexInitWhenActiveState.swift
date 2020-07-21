@@ -34,14 +34,14 @@ extension SSHConnectionStateMachine {
 
         internal var keyExchangeStateMachine: SSHKeyExchangeStateMachine
 
-        init(_ previous: ActiveState, allocator: ByteBufferAllocator) {
+        init(_ previous: ActiveState, allocator: ByteBufferAllocator, loop: EventLoop) {
             self.role = previous.role
             self.serializer = previous.serializer
             self.parser = previous.parser
             self.remoteVersion = previous.remoteVersion
             self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentitifier = previous.sessionIdentifier
-            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, role: self.role, remoteVersion: self.remoteVersion, protectionSchemes: self.protectionSchemes, previousSessionIdentifier: previous.sessionIdentifier)
+            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, loop: loop, role: self.role, remoteVersion: self.remoteVersion, protectionSchemes: self.protectionSchemes, previousSessionIdentifier: previous.sessionIdentifier)
         }
     }
 }

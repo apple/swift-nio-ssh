@@ -69,6 +69,10 @@ class BackToBackEmbeddedChannel {
         }
     }
 
+    func advanceTime(by increment: TimeAmount) {
+        self.loop.advanceTime(by: increment)
+    }
+
     func activate() throws {
         // A weird wrinkle of embedded channel is that it only properly activates on connect.
         try self.client.connect(to: .init(unixDomainSocketPath: "/fake")).wait()
@@ -76,7 +80,7 @@ class BackToBackEmbeddedChannel {
     }
 
     func configureWithHarness(_ harness: TestHarness) throws {
-        let clientHandler = NIOSSHHandler(role: .client(.init(userAuthDelegate: harness.clientAuthDelegate, globalRequestDelegate: harness.clientGlobalRequestDelegate)),
+        let clientHandler = NIOSSHHandler(role: .client(.init(userAuthDelegate: harness.clientAuthDelegate, serverAuthDelegate: harness.clientServerAuthDelegate, globalRequestDelegate: harness.clientGlobalRequestDelegate)),
                                           allocator: self.client.allocator,
                                           inboundChildChannelInitializer: nil)
         let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate)),
@@ -115,6 +119,8 @@ class BackToBackEmbeddedChannel {
 /// A straightforward test harness.
 struct TestHarness {
     var clientAuthDelegate: NIOSSHClientUserAuthenticationDelegate = InfinitePasswordDelegate()
+
+    var clientServerAuthDelegate: NIOSSHClientServerAuthenticationDelegate = AcceptAllHostKeysDelegate()
 
     var clientGlobalRequestDelegate: GlobalRequestDelegate?
 
@@ -458,5 +464,67 @@ class EndToEndTests: XCTestCase {
         self.channel.clientSSHHandler?.createChannel(nil, nil)
         XCTAssertNoThrow(try self.channel.interactInMemory())
         XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+    }
+
+    func testDelayedHostKeyValidation() throws {
+        class DelayedValidationDelegate: NIOSSHClientServerAuthenticationDelegate {
+            var validationCount = 0
+
+            func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
+                // Short delay here, but we'll be forced to wait.
+                validationCompletePromise.futureResult.eventLoop.scheduleTask(in: .milliseconds(100)) {
+                    self.validationCount += 1
+                    validationCompletePromise.succeed(())
+                }
+            }
+        }
+
+        let delegate = DelayedValidationDelegate()
+        var harness = TestHarness()
+        harness.clientServerAuthDelegate = delegate
+
+        // Set up the connection, validate all is well.
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // This will not be active yet! Advance time and interact again.
+        XCTAssertEqual(delegate.validationCount, 0)
+        self.channel.advanceTime(by: .milliseconds(100))
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(delegate.validationCount, 1)
+
+        // We should be able to send a message here.
+        XCTAssertEqual(self.channel.activeServerChannels.count, 0)
+        self.channel.clientSSHHandler?.createChannel(nil, nil)
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+    }
+
+    func testHostKeyRejection() throws {
+        enum TestError: Error {
+            case bang
+        }
+
+        struct RejectDelegate: NIOSSHClientServerAuthenticationDelegate {
+            func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
+                validationCompletePromise.fail(TestError.bang)
+            }
+        }
+
+        let errorCatcher = ErrorLoggingHandler()
+        var harness = TestHarness()
+        harness.clientServerAuthDelegate = RejectDelegate()
+
+        // Set up the connection, validate all is well.
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(errorCatcher).wait())
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertThrowsError(try self.channel.interactInMemory()) { error in
+            XCTAssertEqual(error as? TestError, .bang)
+        }
+
+        XCTAssertEqual(errorCatcher.errors.count, 1)
+        XCTAssertEqual(errorCatcher.errors.first as? TestError, .bang)
     }
 }

@@ -86,3 +86,9 @@ final class RepeatingPasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
         }
     }
 }
+
+final class ClientAlwaysAcceptHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate {
+    func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
+        validationCompletePromise.succeed(())
+    }
+}
