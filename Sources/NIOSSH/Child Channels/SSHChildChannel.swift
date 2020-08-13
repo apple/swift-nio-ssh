@@ -450,9 +450,7 @@ extension SSHChildChannel: Channel, ChannelCore {
             self.changeWritability(to: false)
         }
         self.unbufferOutboundEvents()
-        if self.autoRead {
-            self.read0()
-        }
+        self.tryToAutoRead()
         self.deliverPendingWrites()
         self.writePendingToMultiplexer()
         if let promise = self.userActivatePromise {
@@ -600,21 +598,29 @@ extension SSHChildChannel: Channel, ChannelCore {
             return
         }
 
+        // If there are no pending reads, do nothing.
+        guard self.pendingReads.count > 0 else {
+            return
+        }
+
         // Ok, we're satisfying a read here.
         self.unsatisfiedRead = false
         self.deliverPendingReads()
-
-        // If auto-read is turned on, recurse into read0.
-        // This cannot recurse indefinitely unless frames are being delivered
-        // by the read stacks, which is generally fairly unlikely to continue unbounded.
-        if self.autoRead {
-            self.read0()
-        }
+        self.tryToAutoRead()
     }
 
     private func changeWritability(to newWritability: Bool) {
         self._isWritable.store(newWritability)
         self.pipeline.fireChannelWritabilityChanged()
+    }
+
+    private func tryToAutoRead() {
+        if self.autoRead {
+            // If auto-read is turned on, recurse into channelPipeline.read().
+            // This cannot recurse indefinitely unless frames are being delivered
+            // by the read stacks, which is generally fairly unlikely to continue unbounded.
+            self.pipeline.read()
+        }
     }
 }
 
@@ -761,10 +767,6 @@ extension SSHChildChannel {
         if self.allowRemoteHalfClosure {
             // Hey, remote half-closure is allowed! That's handy! We queue this with the reads to avoid it being re-ordered.
             self.pendingReads.append(.eof)
-
-            if self.unsatisfiedRead {
-                self.tryToRead()
-            }
         } else {
             // We don't support remote half-closure. That puts us in a bit of a bind. We have to promote this up to full-closure.
             // We need to send a channel close, so let's just do that: the outbound state machine will make this a full-closure.
@@ -803,10 +805,6 @@ extension SSHChildChannel {
         // State machine is happy. Handle the flow control.
         try self.windowManager.bufferFlowControlledBytes(message.data.readableBytes)
         self.pendingReads.append(.data(.init(message)))
-
-        if self.unsatisfiedRead {
-            self.tryToRead()
-        }
     }
 
     private func handleInboundChannelExtendedData(_ message: SSHMessage.ChannelExtendedDataMessage) throws {
@@ -815,10 +813,6 @@ extension SSHChildChannel {
         // State machine is happy. Handle the flow control.
         try self.windowManager.bufferFlowControlledBytes(message.data.readableBytes)
         self.pendingReads.append(.data(.init(message)))
-
-        if self.unsatisfiedRead {
-            self.tryToRead()
-        }
     }
 
     private func handleInboundChannelRequest(_ message: SSHMessage.ChannelRequestMessage) throws {
