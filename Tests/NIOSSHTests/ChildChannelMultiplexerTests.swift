@@ -61,6 +61,18 @@ final class ErrorLoggingHandler: ChannelInboundHandler {
     }
 }
 
+final class ReadCountingHandler: ChannelOutboundHandler {
+    typealias OutboundIn = Any
+    typealias OutboundOut = Any
+
+    var readCount = 0
+
+    func read(context: ChannelHandlerContext) {
+        self.readCount += 1
+        context.read()
+    }
+}
+
 final class ReadRecordingHandler: ChannelInboundHandler {
     typealias InboundIn = SSHChannelData
     typealias InboundOut = SSHChannelData
@@ -651,6 +663,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Delivering two new messages causes one read.
         for _ in 0 ..< 2 {
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
+            harness.multiplexer.parentChannelReadComplete()
         }
         XCTAssertEqual(readRecorder.reads, Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 6))
         XCTAssertEqual(harness.flushedMessages.count, 1)
@@ -1507,5 +1520,36 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         XCTAssertEqual(initializedChannels, channelTypes)
+    }
+
+    func testAutoReadOnChildChannel() throws {
+        let readCounter = ReadCountingHandler()
+
+        let harness = self.harness { channel, _ in
+            channel.pipeline.addHandler(readCounter)
+        }
+        defer {
+            harness.finish()
+        }
+
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openRequest(channelID: 1)))
+        let channelID = self.assertChannelOpenConfirmation(harness.flushedMessages.first, recipientChannel: 1)
+        XCTAssertEqual(readCounter.readCount, 1)
+
+        // Now we're going to deliver some data. These should not propagate into the channel until channelReadComplete.
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        buffer.writeString("hello, world!")
+
+        for _ in 0 ..< 5 {
+            XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
+        }
+        XCTAssertEqual(readCounter.readCount, 1)
+
+        harness.multiplexer.parentChannelReadComplete()
+        XCTAssertEqual(readCounter.readCount, 2)
+
+        // If no reads were delivered, further channel read completes do not trigger read() calls.
+        harness.multiplexer.parentChannelReadComplete()
+        XCTAssertEqual(readCounter.readCount, 2)
     }
 }
