@@ -31,6 +31,9 @@ final class SSHChannelMultiplexer {
 
     private var childChannelInitializer: SSHChildChannel.Initializer?
 
+    /// Whether new channels are allowed. Set to `false` once the parent channel is shut down at the TCP level.
+    private var canCreateNewChannels: Bool
+
     init(delegate: SSHMultiplexerDelegate, allocator: ByteBufferAllocator, childChannelInitializer: SSHChildChannel.Initializer?) {
         self.channels = [:]
         self.channels.reserveCapacity(8)
@@ -39,6 +42,7 @@ final class SSHChannelMultiplexer {
         self.nextChannelID = 0
         self.allocator = allocator
         self.childChannelInitializer = childChannelInitializer
+        self.canCreateNewChannels = true
     }
 
     // Time to clean up. We drop references to things that may be keeping us alive.
@@ -46,6 +50,7 @@ final class SSHChannelMultiplexer {
     func parentHandlerRemoved() {
         self.delegate = nil
         self.childChannelInitializer = nil
+        self.canCreateNewChannels = false
     }
 }
 
@@ -160,6 +165,7 @@ extension SSHChannelMultiplexer {
     }
 
     func parentChannelInactive() {
+        self.canCreateNewChannels = false
         for channel in self.channels.values {
             channel.parentChannelInactive()
         }
@@ -169,6 +175,10 @@ extension SSHChannelMultiplexer {
     private func openNewChannel(initializer: SSHChildChannel.Initializer?) throws -> SSHChildChannel {
         guard let parentChannel = self.delegate?.channel else {
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Opening new channel after channel shutdown")
+        }
+
+        guard self.canCreateNewChannels else {
+            throw NIOSSHError.tcpShutdown
         }
 
         // TODO: We need a better channel ID system. Maybe use indices into Arrays instead?
