@@ -1552,4 +1552,26 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         harness.multiplexer.parentChannelReadComplete()
         XCTAssertEqual(readCounter.readCount, 2)
     }
+
+    func testTCPCloseBeforeInitializer() throws {
+        let harness = self.harnessForbiddingInboundChannels()
+        defer {
+            harness.finish()
+        }
+
+        let childPromise: EventLoopPromise<Channel> = harness.eventLoop.makePromise()
+
+        var childPromiseError: Error?
+        childPromise.futureResult.whenFailure { error in childPromiseError = error }
+
+        // TCP Close
+        harness.multiplexer.parentChannelInactive()
+        harness.multiplexer.createChildChannel(childPromise, channelType: .session) { channel, _ in
+            channel.eventLoop.makeSucceededFuture(())
+        }
+        harness.eventLoop.run()
+
+        XCTAssertEqual(harness.flushedMessages.count, 0)
+        XCTAssertEqual((childPromiseError as? NIOSSHError?)??.type, .tcpShutdown)
+    }
 }
