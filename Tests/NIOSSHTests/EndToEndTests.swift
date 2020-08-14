@@ -527,4 +527,41 @@ class EndToEndTests: XCTestCase {
         XCTAssertEqual(errorCatcher.errors.count, 1)
         XCTAssertEqual(errorCatcher.errors.first as? TestError, .bang)
     }
+
+    func testCreateChannelBeforeIncompleteHandshakeFails() throws {
+        enum TestError: Error {
+            case bang
+        }
+
+        struct RejectDelegate: NIOSSHClientServerAuthenticationDelegate {
+            func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
+                validationCompletePromise.fail(TestError.bang)
+            }
+        }
+
+        var harness = TestHarness()
+        harness.clientServerAuthDelegate = RejectDelegate()
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(ErrorClosingHandler()).wait())
+
+        // Get an early ref to the handler and try to create a child channel.
+        let handler = self.channel.clientSSHHandler
+
+        var err: Error?
+        let promise = self.channel.client.eventLoop.makePromise(of: Channel.self)
+        promise.futureResult.whenFailure { error in err = error }
+        handler!.createChannel(promise, channelType: .session) { channel, _ in
+            channel.eventLoop.makeSucceededFuture(())
+        }
+        XCTAssertNil(err)
+
+        // Activation errors.
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertThrowsError(try self.channel.interactInMemory()) { error in
+            XCTAssertEqual(error as? TestError, .bang)
+        }
+        self.channel.run()
+        XCTAssertEqual(err as? ChannelError?, .eof)
+    }
 }

@@ -61,6 +61,16 @@ final class ErrorLoggingHandler: ChannelInboundHandler {
     }
 }
 
+final class ErrorClosingHandler: ChannelInboundHandler {
+    typealias InboundIn = Any
+    typealias InboundOut = Any
+
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        context.close(promise: nil)
+        context.fireErrorCaught(error)
+    }
+}
+
 final class ReadCountingHandler: ChannelOutboundHandler {
     typealias OutboundIn = Any
     typealias OutboundOut = Any

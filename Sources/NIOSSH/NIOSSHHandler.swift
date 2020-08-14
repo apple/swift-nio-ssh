@@ -113,6 +113,9 @@ extension NIOSSHHandler: ChannelDuplexHandler {
 
         self.dropAllPendingGlobalRequests(ChannelError.eof)
         self.dropUnsatisfiedGlobalRequests(ChannelError.eof)
+        while let next = self.pendingChannelInitializations.popFirst() {
+            next.promise?.fail(ChannelError.eof)
+        }
     }
 
     public func channelActive(context: ChannelHandlerContext) {
