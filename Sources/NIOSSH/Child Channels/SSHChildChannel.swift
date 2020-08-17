@@ -527,7 +527,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         }
         self.didClose = true
 
-        self.dropPendingReads()
+        self.deliverPendingReads()
         self.failPendingWrites(error: ChannelError.eof)
         self.failPendingOutboundEvents(error: ChannelError.eof)
         if let promise = self.pendingClosePromise {
@@ -559,7 +559,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         }
         self.didClose = true
 
-        self.dropPendingReads()
+        self.deliverPendingReads()
         self.failPendingWrites(error: error)
         self.failPendingOutboundEvents(error: error) // These all go away, but we're going to use our own!
         if let promise = self.pendingClosePromise {
@@ -627,15 +627,10 @@ extension SSHChildChannel: Channel, ChannelCore {
 // MARK: - Functions used to manage pending reads and writes.
 
 private extension SSHChildChannel {
-    /// Drop all pending reads.
-    private func dropPendingReads() {
-        /// To drop all the reads, as we don't need to report it, we just allocate a new buffer of 0 size.
-        self.pendingReads = CircularBuffer(initialCapacity: 0)
-    }
-
     /// Deliver reads to the channel.
+    ///
+    /// This is sometimes done when the channel itself is closed, because data loss in these circumstances is unacceptable.
     private func deliverPendingReads() {
-        assert(self.isActive)
         while self.pendingReads.count > 0 {
             self.deliverSingleRead(self.pendingReads.removeFirst())
         }

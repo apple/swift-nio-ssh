@@ -1584,4 +1584,77 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 0)
         XCTAssertEqual((childPromiseError as? NIOSSHError?)??.type, .tcpShutdown)
     }
+
+    func testEOFQueuesWithReads() throws {
+        let eofHandler = EOFRecorder()
+        let readRecorder = ReadRecordingHandler()
+
+        let harness = self.harness { channel, _ in
+            channel.setOption(ChannelOptions.autoRead, value: true).flatMap {
+                channel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true)
+            }.flatMap {
+                channel.pipeline.addHandlers([readRecorder, eofHandler])
+            }
+        }
+        defer {
+            harness.finish()
+        }
+
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openRequest(channelID: 1)))
+        let channelID = self.assertChannelOpenConfirmation(harness.flushedMessages.first, recipientChannel: 1)
+        XCTAssertEqual(readRecorder.reads.count, 0)
+        XCTAssertFalse(eofHandler.seenEOF)
+
+        // Now we're going to deliver some data, followed by EOF. We should not see either until channelReadComplete.
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        buffer.writeString("hello, world!")
+
+        for _ in 0 ..< 5 {
+            XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
+        }
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
+        XCTAssertEqual(readRecorder.reads.count, 0)
+        XCTAssertFalse(eofHandler.seenEOF)
+
+        harness.multiplexer.parentChannelReadComplete()
+        XCTAssertEqual(readRecorder.reads.count, 5)
+        XCTAssertTrue(eofHandler.seenEOF)
+    }
+
+    func testNoDataLossOnChannelClose() throws {
+        let eofHandler = EOFRecorder()
+        let readRecorder = ReadRecordingHandler()
+
+        let harness = self.harness { channel, _ in
+            channel.setOption(ChannelOptions.autoRead, value: true).flatMap {
+                channel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true)
+            }.flatMap {
+                channel.pipeline.addHandlers([readRecorder, eofHandler])
+            }
+        }
+        defer {
+            harness.finish()
+        }
+
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openRequest(channelID: 1)))
+        let channelID = self.assertChannelOpenConfirmation(harness.flushedMessages.first, recipientChannel: 1)
+        XCTAssertEqual(readRecorder.reads.count, 0)
+        XCTAssertFalse(eofHandler.seenEOF)
+
+        // Now we're going to deliver some data, followed by EOF. We should not see either until channelReadComplete.
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        buffer.writeString("hello, world!")
+
+        for _ in 0 ..< 5 {
+            XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
+        }
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
+        XCTAssertEqual(readRecorder.reads.count, 0)
+        XCTAssertFalse(eofHandler.seenEOF)
+
+        // Now we'll deliver channel close. This will force the channel closed, but we _must_ not lose the data.
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.close(peerChannelID: channelID!)))
+        XCTAssertEqual(readRecorder.reads.count, 5)
+        XCTAssertTrue(eofHandler.seenEOF)
+    }
 }
