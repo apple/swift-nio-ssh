@@ -564,4 +564,48 @@ class EndToEndTests: XCTestCase {
         self.channel.run()
         XCTAssertEqual(err as? ChannelError?, .eof)
     }
+
+    func testCreateChannelAfterDisconnectFailsWithEventLoopTick() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Initiate disconnection on the client.
+        XCTAssertNoThrow(try self.channel.clientSSHHandler!._disconnect())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Attempting to create a child channel should immediately fail.
+        var err: Error?
+        let promise = self.channel.client.eventLoop.makePromise(of: Channel.self)
+        promise.futureResult.whenFailure { error in err = error }
+        self.channel.clientSSHHandler!.createChannel(promise, channelType: .session) { channel, _ in
+            channel.eventLoop.makeSucceededFuture(())
+        }
+        self.channel.run()
+
+        XCTAssertNotNil(err)
+        XCTAssertEqual((err as? NIOSSHError)?.type, .creatingChannelAfterClosure)
+    }
+
+    func testCreateChannelAfterDisconnectFailsWithoutEventLoopTick() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Initiate disconnection on the client.
+        XCTAssertNoThrow(try self.channel.clientSSHHandler!._disconnect())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Attempting to create a child channel should immediately fail.
+        var err: Error?
+        let promise = self.channel.client.eventLoop.makePromise(of: Channel.self)
+        promise.futureResult.whenFailure { error in err = error }
+        self.channel.clientSSHHandler!.createChannel(promise, channelType: .session) { channel, _ in
+            channel.eventLoop.makeSucceededFuture(())
+        }
+        self.channel.run()
+
+        XCTAssertNotNil(err)
+        XCTAssertEqual((err as? NIOSSHError)?.type, .creatingChannelAfterClosure)
+    }
 }
