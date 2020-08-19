@@ -230,12 +230,12 @@ extension NIOSSHHandler {
     }
 
     private func createPendingChannelsIfPossible() {
-        guard self.stateMachine.isActive, self.pendingChannelInitializations.count > 0 else {
+        guard self.stateMachine.hasActivated, self.pendingChannelInitializations.count > 0 else {
             // No work to do
             return
         }
 
-        if let multiplexer = self.multiplexer {
+        if !self.stateMachine.disconnected, let multiplexer = self.multiplexer {
             while let next = self.pendingChannelInitializations.popFirst() {
                 multiplexer.createChildChannel(next.promise, channelType: next.channelType, next.initializer)
             }
@@ -424,6 +424,17 @@ extension NIOSSHHandler {
         var buffer = self.context!.channel.allocator.buffer(capacity: 1024)
         try self.stateMachine.beginRekeying(buffer: &buffer, allocator: self.context!.channel.allocator, loop: self.context!.eventLoop)
         self.context!.writeAndFlush(self.wrapOutboundOut(buffer), promise: nil)
+    }
+}
+
+// MARK: Disconnect
+
+extension NIOSSHHandler {
+    // This function is for testing purposes only.
+    internal func _disconnect() throws {
+        // As this is test-only there are a bunch of preconditions in here, we don't really mind if we hit them in testing.
+        try self.writeMessage(.init(.disconnect(.init(reason: 0, description: "", tag: ""))), context: self.context!)
+        self.context!.flush()
     }
 }
 

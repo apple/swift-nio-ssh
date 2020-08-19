@@ -1087,6 +1087,17 @@ extension SSHConnectionStateMachine {
         }
     }
 
+    /// Like `isActive`, but covers all states past `.active`.
+    var hasActivated: Bool {
+        switch self.state {
+        case .active, .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+             .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
+            return true
+        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication:
+            return false
+        }
+    }
+
     var role: SSHConnectionRole {
         switch self.state {
         case .idle(let state):
