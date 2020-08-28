@@ -101,6 +101,9 @@ extension NIOSSHHandler: ChannelDuplexHandler {
 
     public func handlerAdded(context: ChannelHandlerContext) {
         self.context = context
+        if context.channel.isActive {
+            self.initialize(context: context)
+        }
     }
 
     public func handlerRemoved(context: ChannelHandlerContext) {
@@ -119,16 +122,20 @@ extension NIOSSHHandler: ChannelDuplexHandler {
     }
 
     public func channelActive(context: ChannelHandlerContext) {
-        // The connection is active, let's go yo. We have to flush here.
-        let message = self.stateMachine.start()
+        self.initialize(context: context)
+    }
 
-        do {
-            try self.writeMessage(message, context: context)
-            self.pendingWrite = false
-            context.flush()
-            context.fireChannelActive()
-        } catch {
-            context.fireErrorCaught(error)
+    private func initialize(context: ChannelHandlerContext) {
+        // The connection is active, let's go yo. We have to flush here.
+        if let message = self.stateMachine.start() {
+            do {
+                try self.writeMessage(message, context: context)
+                self.pendingWrite = false
+                context.flush()
+                context.fireChannelActive()
+            } catch {
+                context.fireErrorCaught(error)
+            }
         }
     }
 

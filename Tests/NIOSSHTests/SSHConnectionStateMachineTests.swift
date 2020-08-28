@@ -407,6 +407,23 @@ final class SSHConnectionStateMachineTests: XCTestCase {
             XCTAssertNoThrow(try self.assertForwardsToMultiplexer(message, sender: &client, receiver: &server, allocator: allocator, loop: loop))
         }
     }
+
+    func testWeTolerateMultipleStarts() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
+
+        let message = client.start()
+        guard case message = Optional.some(SSHMultiMessage(SSHMessage.version(Constants.version))) else {
+            XCTFail("Unexpected message")
+            return
+        }
+
+        var buffer = allocator.buffer(capacity: 42)
+        XCTAssertNoThrow(try client.processOutboundMessage(SSHMessage.version(Constants.version), buffer: &buffer, allocator: allocator, loop: loop))
+
+        XCTAssertNil(client.start())
+    }
 }
 
 extension Optional where Wrapped == SSHMultiMessage {
