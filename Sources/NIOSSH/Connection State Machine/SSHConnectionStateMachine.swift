@@ -68,14 +68,14 @@ struct SSHConnectionStateMachine {
         self.state = .idle(IdleState(role: role, protectionSchemes: protectionSchemes))
     }
 
-    func start() -> SSHMultiMessage {
+    func start() -> SSHMultiMessage? {
         switch self.state {
         case .idle:
             return SSHMultiMessage(SSHMessage.version(Constants.version))
         case .sentVersion, .keyExchange, .sentNewKeys, .receivedNewKeys, .userAuthentication,
              .active, .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
              .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
-            preconditionFailure("Cannot call start twice, state \(self.state)")
+            return nil
         }
     }
 
