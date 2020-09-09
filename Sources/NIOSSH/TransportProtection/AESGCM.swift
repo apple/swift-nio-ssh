@@ -171,7 +171,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         // We now want to overwrite the portion of the bytebuffer that contains the plaintext with the ciphertext, and then append the
         // tag.
         outboundBuffer.setBytes(sealedBox.ciphertext, at: packetPaddingIndex)
-        let tagLength = outboundBuffer.writeBytes(sealedBox.tag)
+        let tagLength = outboundBuffer.writeContiguousBytes(sealedBox.tag)
         precondition(tagLength == self.macBytes, "Unexpected short tag")
 
         // Now we increment the Nonce for the next use, and then we're done!

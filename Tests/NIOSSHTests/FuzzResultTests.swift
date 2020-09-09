@@ -50,7 +50,7 @@ final class FuzzResultTests: XCTestCase {
 
     private func runTest(base64EncodedTestData testBytes: String) {
         var buffer = self.channel.allocator.buffer(capacity: testBytes.utf8.count) // Too big, but ok.
-        buffer.writeBytes(Data(base64Encoded: testBytes)!)
+        buffer.writeContiguousBytes(Data(base64Encoded: testBytes)!)
 
         // This test must only not crash.
         _ = try? self.channel.writeInbound(buffer)

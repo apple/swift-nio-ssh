@@ -54,10 +54,10 @@ final class ByteBufferSSHTests: XCTestCase {
         buffer.writeBytes("hello world!".utf8) // Simple utf8 string
 
         buffer.writeInteger(UInt32(5))
-        buffer.writeBytes(repeatElement(0, count: 5)) // All nulls string
+        buffer.writeRepeatingByte(0, count: 5) // All nulls string
 
         buffer.writeInteger(UInt32(5))
-        buffer.writeBytes(repeatElement(42, count: 3)) // Short string
+        buffer.writeRepeatingByte(42, count: 3) // Short string
 
         XCTAssertEqual(buffer.getSSHString(at: 0)?.array, [])
         XCTAssertEqual(buffer.getSSHString(at: 4)?.array, Array("hello world!".utf8))
@@ -78,10 +78,10 @@ final class ByteBufferSSHTests: XCTestCase {
         buffer.writeBytes("hello world!".utf8) // Simple utf8 string
 
         buffer.writeInteger(UInt32(5))
-        buffer.writeBytes(repeatElement(0, count: 5)) // All nulls string
+        buffer.writeRepeatingByte(0, count: 5) // All nulls string
 
         buffer.writeInteger(UInt32(5))
-        buffer.writeBytes(repeatElement(42, count: 3)) // Short string
+        buffer.writeRepeatingByte(42, count: 3) // Short string
 
         XCTAssertEqual(buffer.readSSHString()?.array, [])
         XCTAssertEqual(buffer.readSSHString()?.array, Array("hello world!".utf8))
