@@ -132,7 +132,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
                         }
 
                         var buffer = channel.allocator.buffer(capacity: data.count)
-                        buffer.writeBytes(data)
+                        buffer.writeContiguousBytes(data)
                         channel.write(SSHChannelData(type: .stdErr, data: .byteBuffer(buffer)), promise: nil)
                     }
                 }

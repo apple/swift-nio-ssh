@@ -191,7 +191,7 @@ extension EllipticCurveKeyExchange {
             sessionID = previousSessionIdentifier
         } else {
             var hashBytes = allocator.buffer(capacity: PrivateKey.Hasher.Digest.byteCount)
-            hashBytes.writeBytes(exchangeHash)
+            hashBytes.writeContiguousBytes(exchangeHash)
             sessionID = hashBytes
         }
 

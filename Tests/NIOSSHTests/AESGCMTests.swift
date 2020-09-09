@@ -298,7 +298,7 @@ final class AESGCMTests: XCTestCase {
 
         for ciphertextSize in invalidSizes {
             buffer.clear()
-            buffer.writeBytes(repeatElement(42, count: ciphertextSize))
+            buffer.writeRepeatingByte(42, count: ciphertextSize)
 
             XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer)) { error in
                 XCTAssertEqual((error as? NIOSSHError)?.type, .invalidEncryptedPacketLength)
@@ -318,7 +318,7 @@ final class AESGCMTests: XCTestCase {
 
         for ciphertextSize in invalidSizes {
             buffer.clear()
-            buffer.writeBytes(repeatElement(42, count: ciphertextSize))
+            buffer.writeRepeatingByte(42, count: ciphertextSize)
 
             XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer)) { error in
                 XCTAssertEqual((error as? NIOSSHError)?.type, .invalidEncryptedPacketLength)
@@ -334,7 +334,7 @@ final class AESGCMTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(16))
-        buffer.writeBytes(repeatElement(0, count: 15))
+        buffer.writeRepeatingByte(0, count: 15)
 
         // We now need to turn this into an SSH packet. This is sadly just reproducing the encryption logic.
         let keys = self.generateKeys(keySize: .bits128)
@@ -345,7 +345,7 @@ final class AESGCMTests: XCTestCase {
         let writtenBytes = buffer.setBytes(box.ciphertext, at: 4)
         XCTAssertEqual(writtenBytes, 16)
 
-        buffer.writeBytes(box.tag)
+        buffer.writeContiguousBytes(box.tag)
         XCTAssertEqual(buffer.readableBytes, 36)
 
         // We can now attempt to decrypt this packet.
@@ -363,7 +363,7 @@ final class AESGCMTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(16))
-        buffer.writeBytes(repeatElement(0, count: 15))
+        buffer.writeRepeatingByte(0, count: 15)
 
         // We now need to turn this into an SSH packet. This is sadly just reproducing the encryption logic.
         let keys = self.generateKeys(keySize: .bits256)
@@ -374,7 +374,7 @@ final class AESGCMTests: XCTestCase {
         let writtenBytes = buffer.setBytes(box.ciphertext, at: 4)
         XCTAssertEqual(writtenBytes, 16)
 
-        buffer.writeBytes(box.tag)
+        buffer.writeContiguousBytes(box.tag)
         XCTAssertEqual(buffer.readableBytes, 36)
 
         // We can now attempt to decrypt this packet.
@@ -392,7 +392,7 @@ final class AESGCMTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(3))
-        buffer.writeBytes(repeatElement(0, count: 15))
+        buffer.writeRepeatingByte(0, count: 15)
 
         // We now need to turn this into an SSH packet. This is sadly just reproducing the encryption logic.
         let keys = self.generateKeys(keySize: .bits128)
@@ -403,7 +403,7 @@ final class AESGCMTests: XCTestCase {
         let writtenBytes = buffer.setBytes(box.ciphertext, at: 4)
         XCTAssertEqual(writtenBytes, 16)
 
-        buffer.writeBytes(box.tag)
+        buffer.writeContiguousBytes(box.tag)
         XCTAssertEqual(buffer.readableBytes, 36)
 
         // We can now attempt to decrypt this packet.
@@ -421,7 +421,7 @@ final class AESGCMTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(3))
-        buffer.writeBytes(repeatElement(0, count: 15))
+        buffer.writeRepeatingByte(0, count: 15)
 
         // We now need to turn this into an SSH packet. This is sadly just reproducing the encryption logic.
         let keys = self.generateKeys(keySize: .bits256)
@@ -432,7 +432,7 @@ final class AESGCMTests: XCTestCase {
         let writtenBytes = buffer.setBytes(box.ciphertext, at: 4)
         XCTAssertEqual(writtenBytes, 16)
 
-        buffer.writeBytes(box.tag)
+        buffer.writeContiguousBytes(box.tag)
         XCTAssertEqual(buffer.readableBytes, 36)
 
         // We can now attempt to decrypt this packet.

@@ -58,7 +58,7 @@ extension Curve25519.KeyAgreement.PublicKey: ECDHCompatiblePublicKey {
     @discardableResult
     func write(to buffer: inout ByteBuffer) -> Int {
         // Curve25519 keys are essentially unstructured bags of bytes. It's great.
-        buffer.writeBytes(self.rawRepresentation)
+        buffer.writeContiguousBytes(self.rawRepresentation)
     }
 }
 
@@ -83,7 +83,7 @@ extension P256.KeyAgreement.PublicKey: ECDHCompatiblePublicKey {
 
     @discardableResult
     func write(to buffer: inout ByteBuffer) -> Int {
-        buffer.writeBytes(self.x963Representation)
+        buffer.writeContiguousBytes(self.x963Representation)
     }
 }
 
@@ -108,7 +108,7 @@ extension P384.KeyAgreement.PublicKey: ECDHCompatiblePublicKey {
 
     @discardableResult
     func write(to buffer: inout ByteBuffer) -> Int {
-        buffer.writeBytes(self.x963Representation)
+        buffer.writeContiguousBytes(self.x963Representation)
     }
 }
 
@@ -133,7 +133,7 @@ extension P521.KeyAgreement.PublicKey: ECDHCompatiblePublicKey {
 
     @discardableResult
     func write(to buffer: inout ByteBuffer) -> Int {
-        buffer.writeBytes(self.x963Representation)
+        buffer.writeContiguousBytes(self.x963Representation)
     }
 }
 

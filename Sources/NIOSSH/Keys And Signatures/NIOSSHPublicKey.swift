@@ -46,7 +46,7 @@ public struct NIOSSHPublicKey: Hashable {
         }
 
         var buffer = ByteBufferAllocator().buffer(capacity: rawBytes.count)
-        buffer.writeBytes(rawBytes)
+        buffer.writeContiguousBytes(rawBytes)
         guard let key = try buffer.readSSHHostKey() else {
             throw NIOSSHError.invalidOpenSSHPublicKey(reason: "incomplete key data")
         }
