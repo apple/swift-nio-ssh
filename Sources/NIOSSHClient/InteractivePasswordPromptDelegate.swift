@@ -15,20 +15,16 @@
 import Dispatch
 import Foundation
 import NIO
+import Crypto
+import CCryptoBoringSSL
 import NIOSSH
 
 /// A client user auth delegate that provides an interactive prompt for password-based user auth.
 final class InteractivePasswordPromptDelegate: NIOSSHClientUserAuthenticationDelegate {
     private let queue: DispatchQueue
 
-    private var username: String?
-
-    private var password: String?
-
-    init(username: String?, password: String?) {
+    init() {
         self.queue = DispatchQueue(label: "io.swiftnio.ssh.InteractivePasswordPromptDelegate")
-        self.username = username
-        self.password = password
     }
 
     func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
@@ -39,17 +35,7 @@ final class InteractivePasswordPromptDelegate: NIOSSHClientUserAuthenticationDel
         }
 
         self.queue.async {
-            if self.username == nil {
-                print("Username: ", terminator: "")
-                self.username = readLine() ?? ""
-            }
-
-            if self.password == nil {
-                print("Password: ", terminator: "")
-                self.password = readLine() ?? ""
-            }
-
-            nextChallengePromise.succeed(NIOSSHUserAuthenticationOffer(username: self.username!, serviceName: "", offer: .password(.init(password: self.password!))))
+            nextChallengePromise.succeed(NIOSSHUserAuthenticationOffer(username: "joannis", serviceName: "", offer: .privateKey(NIOSSHUserAuthenticationOffer.Offer.PrivateKey(privateKey: .init(rsa: .init())))))
         }
     }
 }

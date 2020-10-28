@@ -36,6 +36,7 @@ extension NIOSSHSignature {
         case ecdsaP256(P256.Signing.ECDSASignature)
         case ecdsaP384(P384.Signing.ECDSASignature)
         case ecdsaP521(P521.Signing.ECDSASignature)
+        case rsa(Insecure.RSA.Signing.Signature)
 
         internal enum RawBytes {
             case byteBuffer(ByteBuffer)
@@ -54,6 +55,9 @@ extension NIOSSHSignature {
 
     /// The prefix of a P521 ECDSA public key.
     fileprivate static let ecdsaP521SignaturePrefix = "ecdsa-sha2-nistp521".utf8
+    
+    /// The prefix of a RSA public key.
+    fileprivate static let rsaSignaturePrefix = "ssh-rsa".utf8
 }
 
 extension NIOSSHSignature.BackingSignature.RawBytes: Equatable {
@@ -85,10 +89,13 @@ extension NIOSSHSignature.BackingSignature: Equatable {
             return lhs.rawRepresentation == rhs.rawRepresentation
         case (.ecdsaP521(let lhs), .ecdsaP521(let rhs)):
             return lhs.rawRepresentation == rhs.rawRepresentation
+        case (.rsa(let lhs), .rsa(let rhs)):
+            return lhs.rawRepresentation == rhs.rawRepresentation
         case (.ed25519, _),
              (.ecdsaP256, _),
              (.ecdsaP384, _),
-             (.ecdsaP521, _):
+             (.ecdsaP521, _),
+             (.rsa, _):
             return false
         }
     }
@@ -109,6 +116,9 @@ extension NIOSSHSignature.BackingSignature: Hashable {
         case .ecdsaP521(let sig):
             hasher.combine(3)
             hasher.combine(sig.rawRepresentation)
+        case .rsa(let sig):
+            hasher.combine(4)
+            hasher.combine(sig.rawRepresentation)
         }
     }
 }
@@ -126,6 +136,8 @@ extension ByteBuffer {
             return self.writeECDSAP384Signature(baseSignature: sig)
         case .ecdsaP521(let sig):
             return self.writeECDSAP521Signature(baseSignature: sig)
+        case .rsa(let sig):
+            return self.writeRSASignature(baseSignature: sig)
         }
     }
 
@@ -201,6 +213,16 @@ extension ByteBuffer {
             return written
         }
 
+        return writtenLength
+    }
+    
+    private mutating func writeRSASignature(baseSignature: Insecure.RSA.Signing.Signature) -> Int {
+        var writtenLength = self.writeSSHString(NIOSSHSignature.rsaSignaturePrefix)
+
+        // For SSH-RSA, the key format is the signature without lengths or paddings
+//        writtenLength += self.writeCompositeSSHString { buffer in
+        writtenLength += self.writeSSHString(baseSignature.rawRepresentation)
+//        }
         return writtenLength
     }
 
