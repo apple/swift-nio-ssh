@@ -38,13 +38,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
     }
 
     func channelActive(context: ChannelHandlerContext) {
-        // We need to exec a thing.
-        let execRequest = SSHChannelRequestEvent.ExecRequest(command: self.command, wantReply: false)
-        context.triggerUserOutboundEvent(execRequest).whenFailure { _ in
-            context.close(promise: nil)
-        }
-
-        // Now we need to set up a pipe channel and glue it to this. This will control our I/O.
+        // We need to set up a pipe channel and glue it to this. This will control our I/O.
         let (ours, theirs) = GlueHandler.matchedPair()
 
         // Sadly we have to kick off to a background thread to bootstrap the pipe channel.
@@ -53,8 +47,17 @@ final class ExampleExecHandler: ChannelDuplexHandler {
             DispatchQueue(label: "pipe bootstrap").async {
                 bootstrap.channelOption(ChannelOptions.allowRemoteHalfClosure, value: true).channelInitializer { channel in
                     channel.pipeline.addHandler(theirs)
-                }.withPipes(inputDescriptor: 0, outputDescriptor: 1).whenFailure { error in
-                    context.fireErrorCaught(error)
+                }.withPipes(inputDescriptor: 0, outputDescriptor: 1).whenComplete { result in
+                    switch result {
+                    case .success:
+                        // We need to exec a thing.
+                        let execRequest = SSHChannelRequestEvent.ExecRequest(command: self.command, wantReply: false)
+                        context.triggerUserOutboundEvent(execRequest).whenFailure { _ in
+                            context.close(promise: nil)
+                        }
+                    case .failure(let error):
+                        context.fireErrorCaught(error)
+                    }
                 }
             }
         }
