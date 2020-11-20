@@ -46,10 +46,10 @@ final class InteractivePasswordPromptDelegate: NIOSSHClientUserAuthenticationDel
 
             if self.password == nil {
                 #if os(Windows)
-                    print("Password: ", terminator: "")
-                    self.password = readLine() ?? ""
+                print("Password: ", terminator: "")
+                self.password = readLine() ?? ""
                 #else
-                    self.password = String(cString: getpass("Password: "))
+                self.password = String(cString: getpass("Password: "))
                 #endif
             }
 
