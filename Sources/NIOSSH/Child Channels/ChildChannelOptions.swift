@@ -26,6 +26,9 @@ public struct SSHChildChannelOptions {
 
     /// - seealso: `SSHChannelTypeOption`.
     public static let sshChannelType: SSHChildChannelOptions.Types.SSHChannelTypeOption = .init()
+    
+    /// - seealso: `UsernameOption`.
+    public static let username: SSHChildChannelOptions.Types.UsernameOption = .init()
 }
 
 extension SSHChildChannelOptions {
