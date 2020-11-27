@@ -813,8 +813,7 @@ struct SSHConnectionStateMachine {
                 try state.writeUserAuthRequest(message, into: &buffer)
                 self.state = .userAuthentication(state)
 
-            case .userAuthSuccess(let username):
-                self.username = username
+            case .userAuthSuccess:
                 try state.writeUserAuthSuccess(into: &buffer)
                 // Ok we're good to go!
                 self.state = .active(ActiveState(state))

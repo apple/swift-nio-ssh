@@ -35,7 +35,7 @@ enum SSHMessage: Equatable {
     case newKeys
     case userAuthRequest(UserAuthRequestMessage)
     case userAuthFailure(UserAuthFailureMessage)
-    case userAuthSuccess(String?)
+    case userAuthSuccess
     case userAuthPKOK(UserAuthPKOKMessage)
     case globalRequest(GlobalRequestMessage)
     case requestSuccess(RequestSuccessMessage)
@@ -418,7 +418,7 @@ extension ByteBuffer {
                 }
                 return .userAuthFailure(message)
             case SSHMessage.UserAuthSuccessMessage.id:
-                return .userAuthSuccess(nil)
+                return .userAuthSuccess
             case SSHMessage.UserAuthPKOKMessage.id:
                 guard let message = try self.readUserAuthPKOKMessage() else {
                     return nil

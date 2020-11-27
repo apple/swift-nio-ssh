@@ -389,7 +389,7 @@ final class SSHMessagesTests: XCTestCase {
 
     func testUserAuthSuccess() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 100)
-        let message = SSHMessage.userAuthSuccess(nil)
+        let message = SSHMessage.userAuthSuccess
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
