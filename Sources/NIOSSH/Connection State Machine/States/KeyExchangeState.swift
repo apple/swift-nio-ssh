@@ -33,6 +33,8 @@ extension SSHConnectionStateMachine {
         /// The backing state machine.
         var keyExchangeStateMachine: SSHKeyExchangeStateMachine
 
+        weak var connectionAttributes: SSHConnectionStateMachine.Attributes?
+
         init(sentVersionState state: SentVersionState, allocator: ByteBufferAllocator, loop: EventLoop, remoteVersion: String) {
             self.role = state.role
             self.parser = state.parser
@@ -40,6 +42,7 @@ extension SSHConnectionStateMachine {
             self.remoteVersion = remoteVersion
             self.protectionSchemes = state.protectionSchemes
             self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, loop: loop, role: state.role, remoteVersion: remoteVersion, protectionSchemes: state.protectionSchemes, previousSessionIdentifier: nil)
+            self.connectionAttributes = state.connectionAttributes
         }
     }
 }

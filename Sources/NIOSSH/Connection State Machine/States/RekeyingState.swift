@@ -35,6 +35,8 @@ extension SSHConnectionStateMachine {
         /// The backing state machine.
         var keyExchangeStateMachine: SSHKeyExchangeStateMachine
 
+        weak var connectionAttributes: SSHConnectionStateMachine.Attributes?
+
         init(_ previousState: ReceivedKexInitWhenActiveState) {
             self.role = previousState.role
             self.parser = previousState.parser
@@ -43,6 +45,7 @@ extension SSHConnectionStateMachine {
             self.protectionSchemes = previousState.protectionSchemes
             self.sessionIdentifier = previousState.sessionIdentifier
             self.keyExchangeStateMachine = previousState.keyExchangeStateMachine
+            self.connectionAttributes = previousState.connectionAttributes
         }
 
         init(_ previousState: SentKexInitWhenActiveState) {
@@ -53,6 +56,7 @@ extension SSHConnectionStateMachine {
             self.protectionSchemes = previousState.protectionSchemes
             self.sessionIdentifier = previousState.sessionIdentitifier
             self.keyExchangeStateMachine = previousState.keyExchangeStateMachine
+            self.connectionAttributes = previousState.connectionAttributes
         }
     }
 }

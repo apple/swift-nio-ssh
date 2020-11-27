@@ -14,6 +14,7 @@
 
 protocol AcceptsUserAuthMessages {
     var userAuthStateMachine: UserAuthenticationStateMachine { get set }
+    var connectionAttributes: SSHConnectionStateMachine.Attributes? { get }
 }
 
 extension AcceptsUserAuthMessages {
@@ -39,9 +40,21 @@ extension AcceptsUserAuthMessages {
 
     mutating func receiveUserAuthRequest(_ message: SSHMessage.UserAuthRequestMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let result = try self.userAuthStateMachine.receiveUserAuthRequest(message)
-
+        
+        let attr = connectionAttributes
+        
         if let future = result {
-            return .possibleFutureMessage(future.map(Self.transform(_:)))
+            return .possibleFutureMessage(future.map{
+                switch $0 {
+                case .success:
+                    attr?.username = message.username
+                    return SSHMultiMessage(.userAuthSuccess)
+                case .failure(let message):
+                    return SSHMultiMessage(.userAuthFailure(message))
+                case .publicKeyOK(let message):
+                    return SSHMultiMessage(.userAuthPKOK(message))
+                }
+            })
         } else {
             return .noMessage
         }
@@ -62,17 +75,6 @@ extension AcceptsUserAuthMessages {
             return .possibleFutureMessage(future.map(Self.transform(_:)))
         } else {
             return .noMessage
-        }
-    }
-
-    private static func transform(_ result: NIOSSHUserAuthenticationResponseMessage) -> SSHMultiMessage {
-        switch result {
-        case .success:
-            return SSHMultiMessage(.userAuthSuccess)
-        case .failure(let message):
-            return SSHMultiMessage(.userAuthFailure(message))
-        case .publicKeyOK(let message):
-            return SSHMultiMessage(.userAuthPKOK(message))
         }
     }
 
