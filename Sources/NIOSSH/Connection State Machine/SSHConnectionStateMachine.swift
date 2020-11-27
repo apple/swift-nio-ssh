@@ -59,7 +59,10 @@ struct SSHConnectionStateMachine {
 
     /// The state of this state machine.
     private var state: State
-
+    
+    /// The username which authenticated to the server, if that has happened
+    private(set) var username: String? = nil
+    
     private static let defaultTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
         AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
     ]
@@ -810,7 +813,8 @@ struct SSHConnectionStateMachine {
                 try state.writeUserAuthRequest(message, into: &buffer)
                 self.state = .userAuthentication(state)
 
-            case .userAuthSuccess:
+            case .userAuthSuccess(let username):
+                self.username = username
                 try state.writeUserAuthSuccess(into: &buffer)
                 // Ok we're good to go!
                 self.state = .active(ActiveState(state))

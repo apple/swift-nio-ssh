@@ -38,7 +38,7 @@ extension SendsUserAuthMessages {
 
     mutating func writeUserAuthSuccess(into buffer: inout ByteBuffer) throws {
         self.userAuthStateMachine.sendUserAuthSuccess()
-        try self.serializer.serialize(message: .userAuthSuccess, to: &buffer)
+        try self.serializer.serialize(message: .userAuthSuccess(nil), to: &buffer)
     }
 
     mutating func writeUserAuthFailure(_ message: SSHMessage.UserAuthFailureMessage, into buffer: inout ByteBuffer) throws {
