@@ -95,7 +95,7 @@ extension SSHChannelMultiplexer {
     }
     
     // The username which the server accepted in authorization
-    var username : String? { (delegate as? NIOSSHHandler)?.username }
+    var username: String? { (delegate as? NIOSSHHandler)?.username }
 }
 
 // MARK: Calls from SSH handlers.
