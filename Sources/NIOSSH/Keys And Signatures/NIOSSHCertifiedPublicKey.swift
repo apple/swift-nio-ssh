@@ -328,8 +328,8 @@ extension NIOSSHCertifiedPublicKey {
             return Self.p384KeyPrefix
         case .ecdsaP521:
             return Self.p521KeyPrefix
-        case .rsa:
-            return Self.rsaKeyPrefix
+        case .custom(let backingKey):
+            return backingKey.publicKeyPrefix.utf8
         case .certified:
             preconditionFailure("base key cannot be certified")
         }

@@ -1,6 +1,7 @@
 import NIO
 import NIOFoundationCompat
 import BigInt
+import NIOSSH
 import CCryptoBoringSSL
 import Foundation
 import Crypto
@@ -12,12 +13,14 @@ extension Insecure {
 }
 
 extension Insecure.RSA.Signing {
-    public struct PublicKey: Equatable, Hashable {
+    public struct PublicKey: Equatable, Hashable, NIOSSHPublicKeyProtocol {
+        public static let publicKeyPrefix = "ssh-rsa"
+        
         // PublicExponent e
-        public let publicExponent: BigUInt
+        private let publicExponent: BigUInt
         
         // Modulus n
-        public let modulus: BigUInt
+        private let modulus: BigUInt
         
         public var rawRepresentation: Data {
             publicExponent.serialize() + modulus.serialize()
@@ -53,6 +56,23 @@ extension Insecure.RSA.Signing {
             let m = signature.power(publicExponent, modulus: modulus)
             return m.serialize() == Data(digest)
         }
+        
+        public func isValidSignature<D>(_ signature: NIOSSHSignatureProtocol, for data: D) -> Bool where D : DataProtocol {
+            guard let signature = signature as? Signature else {
+                return false
+            }
+            
+            return isValidSignature(signature, for: data)
+        }
+        
+        public func write(to buffer: inout ByteBuffer) -> Int {
+            // For ssh-rsa, the format is public exponent `e` followed by modulus `n`
+            var writtenBytes = 0
+            writtenBytes += buffer.writeSSHString("ssh-rsa".utf8)
+            writtenBytes += buffer.writePositiveMPInt(publicExponent.serialize())
+            writtenBytes += buffer.writePositiveMPInt(modulus.serialize())
+            return writtenBytes
+        }
     }
     
     public struct EncrytpedMessage: ContiguousBytes {
@@ -67,7 +87,9 @@ extension Insecure.RSA.Signing {
         }
     }
     
-    public struct Signature: ContiguousBytes {
+    public struct Signature: ContiguousBytes, NIOSSHSignatureProtocol {
+        public static let signaturePrefix = "ssh-rsa"
+        
         public let rawRepresentation: Data
         
         public init<D>(rawRepresentation: D) where D : DataProtocol {
@@ -77,23 +99,38 @@ extension Insecure.RSA.Signing {
         public func withUnsafeBytes<R>(_ body: (UnsafeRawBufferPointer) throws -> R) rethrows -> R {
             try rawRepresentation.withUnsafeBytes(body)
         }
+        
+        public func write(to buffer: inout ByteBuffer) -> Int {
+            var writtenLength = buffer.writeSSHString(Self.signaturePrefix.utf8)
+
+            // For SSH-RSA, the key format is the signature without lengths or paddings
+            writtenLength += buffer.writeSSHString(rawRepresentation)
+            
+            return writtenLength
+        }
     }
     
-    public struct PrivateKey {
+    public struct PrivateKey: NIOSSHPrivateKeyProtocol {
+        public static let keyPrefix = "ssh-rsa"
+        
         public enum Storage {
             case privateExponent(d: BigUInt, n: BigUInt)
             // TODO: Quintuple
         }
         
         // Private Exponent
-        public let storage: Storage
+        private let storage: Storage
         
         // Public Exponent e
-        public let publicKey: PublicKey
+        private let _publicKey: PublicKey
+        
+        public var publicKey: NIOSSHPublicKeyProtocol {
+            _publicKey
+        }
         
         public init(privateExponent: BigUInt, publicExponent: BigUInt, modulus: BigUInt) {
             self.storage = .privateExponent(d: privateExponent, n: modulus)
-            self.publicKey = PublicKey(publicExponent: publicExponent, modulus: modulus)
+            self._publicKey = PublicKey(publicExponent: publicExponent, modulus: modulus)
         }
         
         public init(bits: Int = 2047, publicExponent e: BigUInt = 65537) {
@@ -105,7 +142,7 @@ extension Insecure.RSA.Signing {
             let d = e.inverse(phi)!
             self.storage = .privateExponent(d: d, n: n)
                
-            self.publicKey = PublicKey(
+            self._publicKey = PublicKey(
                 publicExponent: e,
                 modulus: n
             )
@@ -119,6 +156,10 @@ extension Insecure.RSA.Signing {
                 let result = self.signature(for: BigUInt(Data(message)))
                 return Signature(rawRepresentation: result.serialize())
             }
+        }
+        
+        public func signature<D>(for data: D) throws -> NIOSSHSignatureProtocol where D : DataProtocol {
+            return try self.signature(for: data) as Signature
         }
         
         private static func encodePKCS1SHA1<D: DataProtocol>(_ data: D, length: Int) throws -> Data {
@@ -253,4 +294,67 @@ extension BigUInt {
         0x15, 0x72, 0x8E, 0x5A, 0x8A, 0xAC, 0xAA, 0x68,
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
     ] as [UInt8]))
+}
+
+extension ByteBuffer {
+    @discardableResult
+    fileprivate mutating func writePositiveMPInt<Buffer: Collection>(_ value: Buffer) -> Int where Buffer.Element == UInt8 {
+        // A positive MPInt must have its high bit set to zero, and not have leading zero bytes unless it needs that
+        // high bit set to zero. We address this by dropping all the leading zero bytes in the collection first.
+        let trimmed = value.drop(while: { $0 == 0 })
+        let needsLeadingZero = ((trimmed.first ?? 0) & 0x80) == 0x80
+
+        // Now we write the length.
+        var writtenBytes: Int
+
+        if needsLeadingZero {
+            writtenBytes = self.writeInteger(UInt32(trimmed.count + 1))
+            writtenBytes += self.writeInteger(UInt8(0))
+        } else {
+            writtenBytes = self.writeInteger(UInt32(trimmed.count))
+        }
+
+        writtenBytes += self.writeBytes(trimmed)
+        return writtenBytes
+    }
+    
+    /// Writes the given bytes as an SSH string at the writer index. Moves the writer index forward.
+    @discardableResult
+    mutating func writeSSHString<Buffer: Collection>(_ value: Buffer) -> Int where Buffer.Element == UInt8 {
+        let writtenBytes = self.setSSHString(value, at: self.writerIndex)
+        self.moveWriterIndex(forwardBy: writtenBytes)
+        return writtenBytes
+    }
+    
+    /// Sets the given bytes as an SSH string at the given offset. Does not mutate the writer index.
+    @discardableResult
+    mutating func setSSHString<Buffer: Collection>(_ value: Buffer, at offset: Int) -> Int where Buffer.Element == UInt8 {
+        // RFC 4251 § 5:
+        //
+        // > Arbitrary length binary string.  Strings are allowed to contain
+        // > arbitrary binary data, including null characters and 8-bit
+        // > characters.  They are stored as a uint32 containing its length
+        // > (number of bytes that follow) and zero (= empty string) or more
+        // > bytes that are the value of the string.  Terminating null
+        // > characters are not used.
+        let lengthLength = self.setInteger(UInt32(value.count), at: offset)
+        let valueLength = self.setBytes(value, at: offset + lengthLength)
+        return lengthLength + valueLength
+    }
+    
+    /// Sets the readable bytes of a ByteBuffer as an SSH string at the given offset. Does not mutate the writer index.
+    @discardableResult
+    mutating func setSSHString(_ value: ByteBuffer, at offset: Int) -> Int {
+        // RFC 4251 § 5:
+        //
+        // > Arbitrary length binary string.  Strings are allowed to contain
+        // > arbitrary binary data, including null characters and 8-bit
+        // > characters.  They are stored as a uint32 containing its length
+        // > (number of bytes that follow) and zero (= empty string) or more
+        // > bytes that are the value of the string.  Terminating null
+        // > characters are not used.
+        let lengthLength = self.setInteger(UInt32(value.readableBytes), at: offset)
+        let valueLength = self.setBuffer(value, at: offset + lengthLength)
+        return lengthLength + valueLength
+    }
 }

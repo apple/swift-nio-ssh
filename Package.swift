@@ -25,6 +25,7 @@ let package = Package(
     ],
     products: [
         .library(name: "NIOSSH", targets: ["NIOSSH"]),
+        .library(name: "NIOSSHRSA", targets: ["NIOSSHRSA"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.21.0"),
@@ -32,7 +33,8 @@ let package = Package(
         .package(url: "https://github.com/attaswift/BigInt.git", from: "5.2.0"),
     ],
     targets: [
-        .target(name: "NIOSSH", dependencies: ["NIO", "NIOFoundationCompat", "Crypto", "BigInt"]),
+        .target(name: "NIOSSH", dependencies: ["NIO", "NIOFoundationCompat", "Crypto"]),
+        .target(name: "NIOSSHRSA", dependencies: ["NIOSSH", "BigInt"]),
         .target(name: "NIOSSHClient", dependencies: ["NIO", "NIOSSH", "NIOConcurrencyHelpers"]),
         .target(name: "NIOSSHServer", dependencies: ["NIO", "NIOSSH", "NIOFoundationCompat", "Crypto"]),
         .target(name: "NIOSSHPerformanceTester", dependencies: ["NIO", "NIOSSH", "Crypto"]),
