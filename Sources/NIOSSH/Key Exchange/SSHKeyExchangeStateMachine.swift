@@ -498,14 +498,19 @@ struct SSHKeyExchangeStateMachine {
 
 extension SSHKeyExchangeStateMachine {
     // For now this is a static list.
-    static let supportedKeyExchangeImplementations: [EllipticCurveKeyExchangeProtocol.Type] = [
+    static var supportedKeyExchangeImplementations: [EllipticCurveKeyExchangeProtocol.Type] = [
         EllipticCurveKeyExchange<P384.KeyAgreement.PrivateKey>.self,
         EllipticCurveKeyExchange<P256.KeyAgreement.PrivateKey>.self,
         EllipticCurveKeyExchange<P521.KeyAgreement.PrivateKey>.self,
         EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>.self,
     ]
 
-    static let supportedKeyExchangeAlgorithms: [Substring] = supportedKeyExchangeImplementations.flatMap { $0.keyExchangeAlgorithmNames }
+    static var supportedKeyExchangeAlgorithms: [Substring] {
+        let bundledAlgorithms = supportedKeyExchangeImplementations.flatMap { $0.keyExchangeAlgorithmNames }
+        let customAlgorithms = NIOSSHPublicKey.customPublicKeyAlgorithms.map { Substring($0.publicKeyPrefix) }
+        
+        return bundledAlgorithms + customAlgorithms
+    }
 
     /// All known host key algorithms.
     static let supportedServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521"]

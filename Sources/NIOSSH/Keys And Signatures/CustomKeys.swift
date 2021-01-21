@@ -6,6 +6,8 @@ public protocol NIOSSHSignatureProtocol {
     var rawRepresentation: Data { get }
     
     func write(to buffer: inout ByteBuffer) -> Int
+    
+    static func read(from buffer: inout ByteBuffer) throws -> Self
 }
 
 internal extension NIOSSHSignatureProtocol {
@@ -21,6 +23,8 @@ public protocol NIOSSHPublicKeyProtocol {
     func isValidSignature<D: DataProtocol>(_ signature: NIOSSHSignatureProtocol, for data: D) -> Bool
     
     func write(to buffer: inout ByteBuffer) -> Int
+    
+    static func read(from buffer: inout ByteBuffer) throws -> Self
 }
 
 internal extension NIOSSHPublicKeyProtocol {

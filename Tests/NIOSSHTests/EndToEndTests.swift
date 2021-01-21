@@ -18,7 +18,77 @@ import NIO
 import XCTest
 
 enum EndToEndTestError: Error {
-    case unableToCreateChildChannel
+    case unableToCreateChildChannel, invalidCustomPublicKey, invalidCustomSignature
+}
+
+fileprivate let testKey = Data([0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef])
+
+struct CustomPrivateKey: NIOSSHPrivateKeyProtocol {
+    static let keyPrefix = "custom-prefix"
+    
+    var publicKey: NIOSSHPublicKeyProtocol {
+        CustomPublicKey()
+    }
+    
+    func signature<D>(for data: D) throws -> NIOSSHSignatureProtocol where D : DataProtocol {
+        var data = Data(data)
+        
+        let testKeySize = testKey.count
+        for i in 0..<data.count {
+            data[i] ^= testKey[i % testKeySize]
+        }
+        
+        return CustomSignature(rawRepresentation: data)
+    }
+}
+
+struct CustomSignature: NIOSSHSignatureProtocol {
+    static let signaturePrefix = "custom-prefix"
+    
+    let rawRepresentation: Data
+    
+    func write(to buffer: inout ByteBuffer) -> Int {
+        buffer.writeSSHString(rawRepresentation)
+    }
+    
+    static func read(from buffer: inout ByteBuffer) throws -> CustomSignature {
+        guard var buffer = buffer.readSSHString() else {
+            throw EndToEndTestError.invalidCustomSignature
+        }
+        
+        let data = buffer.readData(length: buffer.readableBytes)!
+        return CustomSignature(rawRepresentation: data)
+    }
+}
+
+struct CustomPublicKey: NIOSSHPublicKeyProtocol {
+    static let publicKeyPrefix = "custom-prefix"
+    
+    func isValidSignature<D>(_ signature: NIOSSHSignatureProtocol, for data: D) -> Bool where D : DataProtocol {
+        let testKeySize = testKey.count
+        var data = Data(data)
+        for i in 0..<data.count {
+            data[i] ^= testKey[i % testKeySize]
+        }
+        
+        return data == signature.rawRepresentation
+    }
+    
+    func write(to buffer: inout ByteBuffer) -> Int {
+        return 0
+    }
+    
+    var rawRepresentation: Data {
+        testKey
+    }
+    
+    static func read(from buffer: inout ByteBuffer) throws -> CustomPublicKey {
+        guard buffer.readableBytes == 0 else {
+            throw EndToEndTestError.invalidCustomPublicKey
+        }
+        
+        return CustomPublicKey()
+    }
 }
 
 class BackToBackEmbeddedChannel {
@@ -432,6 +502,29 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.interactInMemory())
         XCTAssertEqual(self.channel.activeServerChannels.count, 1)
         #endif
+    }
+    
+    func testCustomKeys() throws {
+        NIOSSHPublicKey.registerPublicKeyType(CustomPublicKey.self, signature: CustomSignature.self)
+        
+        // If we can't create this key, we skip the test.
+        let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
+        let clientAuthKey = NIOSSHPrivateKey(custom: CustomPrivateKey())
+
+        // We use the Secure Enclave keys for everything, just because we can.
+        var harness = TestHarness()
+        harness.serverHostKeys = [hostKey]
+        harness.clientAuthDelegate = PrivateKeyClientAuth(clientAuthKey)
+        harness.serverAuthDelegate = ExpectPublicKeyAuth(clientAuthKey.publicKey)
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Create a channel, again, just because we can.
+        _ = try self.channel.createNewChannel()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
     }
 
     func testSupportClientInitiatedRekeying() throws {

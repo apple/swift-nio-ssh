@@ -38,6 +38,9 @@ final class AcceptAllHostKeysDelegate: NIOSSHClientServerAuthenticationDelegate 
     }
 }
 
+let parser = SimpleCLIParser()
+let parseResult = parser.parse()
+
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 defer {
     try! group.syncShutdownGracefully()
@@ -45,12 +48,12 @@ defer {
 
 let bootstrap = ClientBootstrap(group: group)
     .channelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .client(.init(userAuthDelegate: InteractivePasswordPromptDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())), allocator: channel.allocator, inboundChildChannelInitializer: nil), ErrorHandler()])
+        channel.pipeline.addHandlers([NIOSSHHandler(role: .client(.init(userAuthDelegate: InteractivePasswordPromptDelegate(username: parseResult.user, password: parseResult.password), serverAuthDelegate: AcceptAllHostKeysDelegate())), allocator: channel.allocator, inboundChildChannelInitializer: nil), ErrorHandler()])
     }
     .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
 
-let channel = try bootstrap.connect(host: "orlandos.nl", port: 22).wait()
+let channel = try bootstrap.connect(host: parseResult.host, port: parseResult.port).wait()
 
 // Let's try creating a child channel.
 let exitStatusPromise = channel.eventLoop.makePromise(of: Int.self)
@@ -60,7 +63,7 @@ let childChannel: Channel = try! channel.pipeline.handler(type: NIOSSHHandler.se
         guard channelType == .session else {
             return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
         }
-        return childChannel.pipeline.addHandlers([ExampleExecHandler(command: "ls -la", completePromise: exitStatusPromise), ErrorHandler()])
+        return childChannel.pipeline.addHandlers([ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise), ErrorHandler()])
     }
     return promise.futureResult
 }.wait()

@@ -198,9 +198,24 @@ extension NIOSSHPublicKey {
         Self.ed25519PublicKeyPrefix, Self.ecdsaP384PublicKeyPrefix, Self.ecdsaP256PublicKeyPrefix, Self.ecdsaP521PublicKeyPrefix
     ]
     
+    internal static var customPublicKeyAlgorithms: [NIOSSHPublicKeyProtocol.Type] = []
+    internal static var customSignatures: [NIOSSHSignatureProtocol.Type] = []
+    
     // TODO: Replace this function with sensible code
-    static func registerPublicKeyType<PublicKey: NIOSSHPublicKeyProtocol>(_ type: PublicKey.Type) {
-        knownAlgorithms.append(type.publicKeyPrefix.utf8)
+    static func registerPublicKeyType<
+        PublicKey: NIOSSHPublicKeyProtocol,
+        Signature: NIOSSHSignatureProtocol
+    >(
+        _ type: PublicKey.Type,
+        signature: Signature.Type
+    ) {
+        let utf8format = type.publicKeyPrefix.utf8
+        
+        if !knownAlgorithms.contains(where: { $0.elementsEqual(utf8format) }) {
+            knownAlgorithms.append(utf8format)
+            customPublicKeyAlgorithms.append(type)
+            customSignatures.append(signature)
+        }
     }
 }
 
@@ -279,6 +294,7 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHString(NIOSSHPublicKey.ecdsaP521PublicKeyPrefix)
             writtenBytes += self.writeECDSAP521PublicKey(baseKey: key)
         case .custom(let key):
+            writtenBytes += writeSSHString(key.publicKeyPrefix.utf8)
             writtenBytes += key.write(to: &self)
         case .certified(let key):
             return self.writeCertifiedKey(key)
@@ -302,7 +318,9 @@ extension ByteBuffer {
         case .ecdsaP521(let key):
             return self.writeECDSAP521PublicKey(baseKey: key)
         case .custom(let key):
-            return key.write(to: &self)
+            var writtenBytes = writeSSHString(key.publicKeyPrefix.utf8)
+            writtenBytes += key.write(to: &self)
+            return writtenBytes
         case .certified:
             preconditionFailure("Certified keys are the only callers of this method, and cannot contain themselves")
         }
@@ -331,6 +349,13 @@ extension ByteBuffer {
             } else if keyIdentifierBytes.elementsEqual(NIOSSHPublicKey.ecdsaP521PublicKeyPrefix) {
                 return try buffer.readECDSAP521PublicKey()
             } else {
+                for type in NIOSSHPublicKey.customPublicKeyAlgorithms {
+                    if keyIdentifierBytes.elementsEqual(type.publicKeyPrefix.utf8) {
+                        let publicKey = try type.read(from: &buffer)
+                        return NIOSSHPublicKey(backingKey: .custom(publicKey))
+                    }
+                }
+                
                 // We don't know this public key type. Maybe the certified keys do.
                 return try buffer.readCertifiedKeyWithoutKeyPrefix(keyIdentifierBytes).map(NIOSSHPublicKey.init)
             }

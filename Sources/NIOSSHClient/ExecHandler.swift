@@ -89,7 +89,6 @@ final class ExampleExecHandler: ChannelDuplexHandler {
 
         switch data.type {
         case .channel:
-            print(bytes.getString(at: 0, length: bytes.readableBytes))
             // Channel data is forwarded on, the pipe channel will handle it.
             context.fireChannelRead(self.wrapInboundOut(bytes))
             return

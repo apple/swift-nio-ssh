@@ -135,7 +135,9 @@ extension ByteBuffer {
         case .ecdsaP521(let sig):
             return self.writeECDSAP521Signature(baseSignature: sig)
         case .custom(let sig):
-            return sig.write(to: &self)
+            var writtenBytes = writeSSHString(sig.signaturePrefix.utf8)
+            writtenBytes += sig.write(to: &self)
+            return writtenBytes
         }
     }
 
@@ -232,6 +234,13 @@ extension ByteBuffer {
             } else if bytesView.elementsEqual(NIOSSHSignature.ecdsaP521SignaturePrefix) {
                 return try buffer.readECDSAP521Signature()
             } else {
+                for signature in NIOSSHPublicKey.customSignatures {
+                    if bytesView.elementsEqual(signature.signaturePrefix.utf8) {
+                        let signature = try signature.read(from: &buffer)
+                        return NIOSSHSignature(backingSignature: .custom(signature))
+                    }
+                }
+                
                 // We don't know this signature type.
                 let signature = signatureIdentifierBytes.readString(length: signatureIdentifierBytes.readableBytes) ?? "<unknown signature>"
                 throw NIOSSHError.unknownSignature(algorithm: signature)
