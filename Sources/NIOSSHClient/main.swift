@@ -55,23 +55,61 @@ let bootstrap = ClientBootstrap(group: group)
 
 let channel = try bootstrap.connect(host: parseResult.host, port: parseResult.port).wait()
 
-// Let's try creating a child channel.
-let exitStatusPromise = channel.eventLoop.makePromise(of: Int.self)
-let childChannel: Channel = try! channel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
-    let promise = channel.eventLoop.makePromise(of: Channel.self)
-    sshHandler.createChannel(promise) { childChannel, channelType in
-        guard channelType == .session else {
-            return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
+if let listen = parseResult.listen {
+    // We've been asked to port forward.
+    let server = PortForwardingServer(group: group,
+                                      bindHost: listen.bindHost ?? "localhost",
+                                      bindPort: listen.bindPort) { inboundChannel in
+        // This block executes whenever a new inbound channel is received. We want to forward it to the peer.
+        // To do that, we have to begin by creating a new SSH channel of the appropriate type.
+        channel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
+            let promise = inboundChannel.eventLoop.makePromise(of: Channel.self)
+            let directTCPIP = SSHChannelType.DirectTCPIP(targetHost: String(listen.targetHost),
+                                                         targetPort: listen.targetPort,
+                                                         originatorAddress: inboundChannel.remoteAddress!)
+            sshHandler.createChannel(promise,
+                                     channelType: .directTCPIP(directTCPIP)) { childChannel, channelType in
+                guard case .directTCPIP = channelType else {
+                    return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
+                }
+
+                // Attach a pair of glue handlers, one in the inbound channel and one in the outbound one.
+                // We also add an error handler to both channels, and a wrapper handler to the SSH child channel to
+                // encapsulate the data in SSH messages.
+                // When the glue handlers are in, we can create both channels.
+                let (ours, theirs) = GlueHandler.matchedPair()
+                return childChannel.pipeline.addHandlers([SSHWrapperHandler(), ours, ErrorHandler()]).flatMap {
+                    inboundChannel.pipeline.addHandlers([theirs, ErrorHandler()])
+                }
+            }
+
+            // We need to erase the channel here: we just want success or failure info.
+            return promise.futureResult.map { _ in }
         }
-        return childChannel.pipeline.addHandlers([ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise), ErrorHandler()])
     }
-    return promise.futureResult
-}.wait()
 
-// Wait for the connection to close
-try childChannel.closeFuture.wait()
-let exitStatus = try! exitStatusPromise.futureResult.wait()
-try! channel.close().wait()
+    // Run the server until complete
+    try! server.run().wait()
 
-// Exit like we're the command.
-exit(Int32(exitStatus))
+} else {
+    // We've been asked to exec.
+    let exitStatusPromise = channel.eventLoop.makePromise(of: Int.self)
+    let childChannel: Channel = try! channel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
+        let promise = channel.eventLoop.makePromise(of: Channel.self)
+        sshHandler.createChannel(promise) { childChannel, channelType in
+            guard channelType == .session else {
+                return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
+            }
+            return childChannel.pipeline.addHandlers([ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise), ErrorHandler()])
+        }
+        return promise.futureResult
+    }.wait()
+
+    // Wait for the connection to close
+    try childChannel.closeFuture.wait()
+    let exitStatus = try! exitStatusPromise.futureResult.wait()
+    try! channel.close().wait()
+
+    // Exit like we're the command.
+    exit(Int32(exitStatus))
+}

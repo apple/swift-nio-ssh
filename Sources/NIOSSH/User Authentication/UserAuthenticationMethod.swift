@@ -153,9 +153,16 @@ extension NIOSSHUserAuthenticationOffer {
 extension NIOSSHUserAuthenticationOffer.Offer {
     public struct PrivateKey {
         public var privateKey: NIOSSHPrivateKey
+        public var publicKey: NIOSSHPublicKey
 
         public init(privateKey: NIOSSHPrivateKey) {
             self.privateKey = privateKey
+            self.publicKey = privateKey.publicKey
+        }
+
+        public init(privateKey: NIOSSHPrivateKey, certifiedKey: NIOSSHCertifiedPublicKey) {
+            self.privateKey = privateKey
+            self.publicKey = NIOSSHPublicKey(certifiedKey)
         }
     }
 
@@ -186,10 +193,10 @@ extension SSHMessage.UserAuthRequestMessage {
                 sessionIdentifier: sessionID,
                 userName: self.username,
                 serviceName: self.service,
-                publicKey: privateKeyRequest.privateKey.publicKey
+                publicKey: privateKeyRequest.publicKey
             )
             let signature = try privateKeyRequest.privateKey.sign(dataToSign)
-            self.method = .publicKey(.known(key: privateKeyRequest.privateKey.publicKey, signature: signature))
+            self.method = .publicKey(.known(key: privateKeyRequest.publicKey, signature: signature))
         case .password(let passwordRequest):
             self.method = .password(passwordRequest.password)
         case .hostBased:

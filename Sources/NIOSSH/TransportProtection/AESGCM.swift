@@ -98,7 +98,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
             let sealedBox = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: self.inboundNonce), ciphertext: ciphertextView, tag: tagView)
             plaintext = try AES.GCM.open(sealedBox, using: self.inboundEncryptionKey, authenticating: lengthView)
 
-            // All good! A quick sanity check to verify that the length of the plaintext is ok.
+            // All good! A quick soundness check to verify that the length of the plaintext is ok.
             guard plaintext.count % Self.cipherBlockSize == 0, plaintext.count == ciphertextView.count else {
                 throw NIOSSHError.invalidDecryptedPlaintextLength
             }
