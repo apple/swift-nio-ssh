@@ -201,8 +201,8 @@ extension NIOSSHPublicKey {
     internal static var customPublicKeyAlgorithms: [NIOSSHPublicKeyProtocol.Type] = []
     internal static var customSignatures: [NIOSSHSignatureProtocol.Type] = []
     
-    // TODO: Replace this function with sensible code
-    static func registerPublicKeyType<
+    /// Registers a custom type tuple for use in Public Key Authentication.
+    public static func registerPublicKeyType<
         PublicKey: NIOSSHPublicKeyProtocol,
         Signature: NIOSSHSignatureProtocol
     >(
