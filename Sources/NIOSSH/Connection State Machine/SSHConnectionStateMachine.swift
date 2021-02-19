@@ -134,7 +134,7 @@ struct SSHConnectionStateMachine {
 
             switch message {
             case .version(let version):
-                try state.receiveVersionMessage(version)
+                try state.receiveVersionMessage(version, role: self.role)
                 let newState = KeyExchangeState(sentVersionState: state, allocator: allocator, loop: loop, remoteVersion: version)
                 let message = newState.keyExchangeStateMachine.createKeyExchangeMessage()
                 self.state = .keyExchange(newState)
