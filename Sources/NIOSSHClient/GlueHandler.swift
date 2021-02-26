@@ -72,6 +72,12 @@ extension GlueHandler: ChannelDuplexHandler {
 
     func handlerAdded(context: ChannelHandlerContext) {
         self.context = context
+
+        // It's possible our partner asked if we were writable, before, and we couldn't answer.
+        // Consider updating it.
+        if context.channel.isWritable {
+            self.partner?.partnerBecameWritable()
+        }
     }
 
     func handlerRemoved(context: ChannelHandlerContext) {

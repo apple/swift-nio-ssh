@@ -17,6 +17,26 @@ import NIO
 @testable import NIOSSH
 import XCTest
 
+private enum Fixtures {
+    // P256 ECDSA key, generated using `ssh-keygen -m PEM -t ecdsa`
+    static let privateKey = """
+    -----BEGIN EC PRIVATE KEY-----
+    MHcCAQEEIJFqt5pH9xGvuoaI5kzisthTa0EXVgy+fC4bAtdwBR07oAoGCCqGSM49
+    AwEHoUQDQgAEyJP6dnY46GvyP65L9FgFxNdN+rNWy4PqIwCrwJWY6ss/sTSbMkdA
+    4D7gh+fWyft3EdRtcAsw3raU/G2S+N1iAA==
+    -----END EC PRIVATE KEY-----
+    """
+
+    // Raw private key data, since `PrivateKey(pemRepresentation:)` is not available on every supported platform
+    static let privateKeyRaw = Data([145, 106, 183, 154, 71, 247, 17, 175, 186, 134, 136, 230, 76, 226, 178, 216, 83, 107, 65, 23, 86, 12, 190, 124, 46, 27, 2, 215, 112, 5, 29, 59])
+
+    // A P256 user key. id "User P256 key" serial 0 for foo,bar valid from 2020-06-03T17:50:15 to 2070-04-02T17:51:15
+    // Generated using ssh-keygen -s ca-key -I "User P256 key" -n "foo,bar" -V "-1m:+2600w" user-p256
+    static let certificateKey = """
+    ecdsa-sha2-nistp256-cert-v01@openssh.com AAAAKGVjZHNhLXNoYTItbmlzdHAyNTYtY2VydC12MDFAb3BlbnNzaC5jb20AAAAgHmvoERZ+BRKhlCAKoPlVQLcHO5oNxyGeXHnmI0DLL/8AAAAIbmlzdHAyNTYAAABBBMiT+nZ2OOhr8j+uS/RYBcTXTfqzVsuD6iMAq8CVmOrLP7E0mzJHQOA+4Ifn1sn7dxHUbXALMN62lPxtkvjdYgAAAAAAAAAAAAAAAAEAAAANVXNlciBQMjU2IGtleQAAAA4AAAADZm9vAAAAA2JhcgAAAABgABLaAAAAAL26NxYAAAAAAAAAggAAABVwZXJtaXQtWDExLWZvcndhcmRpbmcAAAAAAAAAF3Blcm1pdC1hZ2VudC1mb3J3YXJkaW5nAAAAAAAAABZwZXJtaXQtcG9ydC1mb3J3YXJkaW5nAAAAAAAAAApwZXJtaXQtcHR5AAAAAAAAAA5wZXJtaXQtdXNlci1yYwAAAAAAAAAAAAAAiAAAABNlY2RzYS1zaGEyLW5pc3RwMzg0AAAACG5pc3RwMzg0AAAAYQR2JTEl2nF7dd6AS6TFxD9DkjMOaJHeXOxt4aIptTEf0x1DsjktgFUChKi2bPrXd2OsmAq6uUxlgzRmNnXyhV/fZy6iQqtpMUf/wj91IXq5GZ5+ruHluG4iy+8Tg6jTs5EAAACDAAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAABoAAAAMHIoH34qNeg6LDTiSUF13KvPImQljh1Se5cxtrZZ3bCBAK2DUZQsAitxc8Ju4jY2zQAAADBkQfjSYa5wr2y61D54kWSIDiqOjgEAnfjJkyglQcYU4P1ULCFXJ15tIg3GRBY4U/s= artemredkin@Artems-MacBook-Pro.local
+    """
+}
+
 /// An authentication delegate that yields passwords forever.
 final class InfinitePasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
     func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
@@ -30,6 +50,21 @@ final class InfinitePrivateKeyDelegate: NIOSSHClientUserAuthenticationDelegate {
 
     func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
         let request = NIOSSHUserAuthenticationOffer(username: "foo", serviceName: "", offer: .privateKey(.init(privateKey: self.key)))
+        nextChallengePromise.succeed(request)
+    }
+}
+
+final class InfiniteCertificateDelegate: NIOSSHClientUserAuthenticationDelegate {
+    let privateKey: NIOSSHPrivateKey
+    let certifiedKey: NIOSSHCertifiedPublicKey
+
+    init() throws {
+        self.privateKey = try NIOSSHPrivateKey(p256Key: P256.Signing.PrivateKey(rawRepresentation: Fixtures.privateKeyRaw))
+        self.certifiedKey = try NIOSSHCertifiedPublicKey(NIOSSHPublicKey(openSSHPublicKey: Fixtures.certificateKey))!
+    }
+
+    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
+        let request = NIOSSHUserAuthenticationOffer(username: "foo", serviceName: "", offer: .privateKey(.init(privateKey: self.privateKey, certifiedKey: self.certifiedKey)))
         nextChallengePromise.succeed(request)
     }
 }
@@ -709,6 +744,29 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let dataToSign = UserAuthSignablePayload(sessionIdentifier: self.sessionID, userName: "foo", serviceName: "ssh-connection", publicKey: delegate.key.publicKey)
         let signature = try delegate.key.sign(dataToSign)
         let firstMessage = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .publicKey(.known(key: delegate.key.publicKey, signature: signature)))
+        XCTAssertNoThrow(try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, userAuthPayload: dataToSign, stateMachine: &stateMachine))
+        stateMachine.sendUserAuthRequest(firstMessage)
+
+        // Oh no, a failure! We'll try again.
+        let failure = SSHMessage.UserAuthFailureMessage(authentications: ["publickey"], partialSuccess: false)
+        try self.authFailed(failure: failure, nextMessage: firstMessage, userAuthPayload: dataToSign, stateMachine: &stateMachine)
+        stateMachine.sendUserAuthRequest(firstMessage)
+
+        // Let's say we got a success. Happy path!
+        XCTAssertNoThrow(try stateMachine.receiveUserAuthSuccess())
+    }
+
+    func testCertificateClientAuthFlow() throws {
+        let delegate = try InfiniteCertificateDelegate()
+        var stateMachine = UserAuthenticationStateMachine(role: .client(.init(userAuthDelegate: delegate, serverAuthDelegate: AcceptAllHostKeysDelegate())), loop: self.loop, sessionID: self.sessionID)
+
+        XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
+        stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
+
+        let dataToSign = UserAuthSignablePayload(sessionIdentifier: self.sessionID, userName: "foo", serviceName: "ssh-connection", publicKey: NIOSSHPublicKey(delegate.certifiedKey))
+        let signature = try delegate.privateKey.sign(dataToSign)
+
+        let firstMessage = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .publicKey(.known(key: NIOSSHPublicKey(delegate.certifiedKey), signature: signature)))
         XCTAssertNoThrow(try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, userAuthPayload: dataToSign, stateMachine: &stateMachine))
         stateMachine.sendUserAuthRequest(firstMessage)
 
