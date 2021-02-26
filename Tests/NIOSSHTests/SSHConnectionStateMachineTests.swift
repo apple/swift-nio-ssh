@@ -424,6 +424,92 @@ final class SSHConnectionStateMachineTests: XCTestCase {
 
         XCTAssertNil(client.start())
     }
+
+    func testClientToleratesLinesBeforeVersion() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
+
+        let message = client.start()
+        guard case message = Optional.some(SSHMultiMessage(SSHMessage.version(Constants.version))) else {
+            XCTFail("Unexpected message")
+            return
+        }
+
+        var buffer = allocator.buffer(capacity: 42)
+        XCTAssertNoThrow(try client.processOutboundMessage(SSHMessage.version(Constants.version), buffer: &buffer, allocator: allocator, loop: loop))
+
+        var version = ByteBuffer(string: "xxxx\nyyy\nSSH-2.0-OpenSSH_8.1\r\n")
+        client.bufferInboundData(&version)
+
+        XCTAssertNoThrow(try client.processInboundMessage(allocator: allocator, loop: loop))
+    }
+
+    func testServerRejectsLinesBeforeVersion() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 1))))
+
+        let message = server.start()
+        guard case message = Optional.some(SSHMultiMessage(SSHMessage.version(Constants.version))) else {
+            XCTFail("Unexpected message")
+            return
+        }
+
+        var buffer = allocator.buffer(capacity: 42)
+        XCTAssertNoThrow(try server.processOutboundMessage(SSHMessage.version(Constants.version), buffer: &buffer, allocator: allocator, loop: loop))
+
+        var version = ByteBuffer(string: "xxxx\nyyy\nSSH-2.0-OpenSSH_8.1\r\n")
+        server.bufferInboundData(&version)
+
+        XCTAssertThrowsError(try server.processInboundMessage(allocator: allocator, loop: loop)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
+        }
+    }
+
+    func testClintVersionNotFound() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
+
+        let message = client.start()
+        guard case message = Optional.some(SSHMultiMessage(SSHMessage.version(Constants.version))) else {
+            XCTFail("Unexpected message")
+            return
+        }
+
+        var buffer = allocator.buffer(capacity: 42)
+        XCTAssertNoThrow(try client.processOutboundMessage(SSHMessage.version(Constants.version), buffer: &buffer, allocator: allocator, loop: loop))
+
+        var version = ByteBuffer(string: "SSH-\r\n")
+        client.bufferInboundData(&version)
+
+        XCTAssertThrowsError(try client.processInboundMessage(allocator: allocator, loop: loop)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .protocolViolation)
+        }
+    }
+
+    func testVersionNotSupported() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
+
+        let message = client.start()
+        guard case message = Optional.some(SSHMultiMessage(SSHMessage.version(Constants.version))) else {
+            XCTFail("Unexpected message")
+            return
+        }
+
+        var buffer = allocator.buffer(capacity: 42)
+        XCTAssertNoThrow(try client.processOutboundMessage(SSHMessage.version(Constants.version), buffer: &buffer, allocator: allocator, loop: loop))
+
+        var version = ByteBuffer(string: "SSH-1.0-OpenSSH_8.1\r\n")
+        client.bufferInboundData(&version)
+
+        XCTAssertThrowsError(try client.processInboundMessage(allocator: allocator, loop: loop)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .unsupportedVersion)
+        }
+    }
 }
 
 extension Optional where Wrapped == SSHMultiMessage {
