@@ -18,7 +18,7 @@ here="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 function replace_acceptable_years() {
     # this needs to replace all acceptable forms with 'YEARS'
-    sed -e 's/2017-201[89]/YEARS/' -e 's/2019-2020/YEARS/' -e 's/2019/YEARS/' -e 's/2020/YEARS/'
+    sed -e 's/2017-20[12][890]/YEARS/' -e 's/2019-2020/YEARS/' -e 's/2019/YEARS/' -e 's/2020/YEARS/'
 }
 
 command -v swiftformat >/dev/null 2>&1 || { echo >&2 "swiftformat needs to be installed but is not available in the path."; exit 1; }
@@ -35,8 +35,27 @@ else
   printf "\033[0;32mokay.\033[0m\n"
 fi
 
+printf "=> Checking for unacceptable language... "
+# This greps for unacceptable terminology. The square bracket[s] are so that
+# "git grep" doesn't find the lines that greps :).
+unacceptable_terms=(
+    -e blacklis[t]
+    -e whitelis[t]
+    -e slav[e]
+    -e sanit[y]
+)
+
+# We have to exclude the code of conduct as it gives examples of unacceptable
+# language.
+if git grep --color=never -i "${unacceptable_terms[@]}" -- . ":(exclude)CODE_OF_CONDUCT.md" > /dev/null; then
+    printf "\033[0;31mUnacceptable language found.\033[0m\n"
+    git grep -i "${unacceptable_terms[@]}" -- . ":(exclude)CODE_OF_CONDUCT.md"
+    exit 1
+fi
+printf "\033[0;32mokay.\033[0m\n"
+
 printf "=> Checking license headers...\n"
-tmp=$(mktemp /tmp/.swift-nio-sanity_XXXXXX)
+tmp=$(mktemp /tmp/.swift-nio-soundness_XXXXXX)
 
 for language in swift-or-c bash dtrace; do
   printf "   * checking $language... "
