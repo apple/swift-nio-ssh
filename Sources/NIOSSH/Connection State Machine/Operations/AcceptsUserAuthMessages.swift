@@ -16,6 +16,11 @@ protocol AcceptsUserAuthMessages {
     var userAuthStateMachine: UserAuthenticationStateMachine { get set }
 }
 
+/// This event indicates that server accepted our response to authentication challenge. SSH session can be considered active after that.
+public struct UserAuthSuccessEvent: Hashable {
+    public init() {}
+}
+
 extension AcceptsUserAuthMessages {
     mutating func receiveServiceRequest(_ message: SSHMessage.ServiceRequestMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let result = try self.userAuthStateMachine.receiveServiceRequest(message)
@@ -52,7 +57,7 @@ extension AcceptsUserAuthMessages {
     /// If this method completes without throwing, user auth has completed.
     mutating func receiveUserAuthSuccess() throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         try self.userAuthStateMachine.receiveUserAuthSuccess()
-        return .noMessage
+        return .event(UserAuthSuccessEvent())
     }
 
     mutating func receiveUserAuthFailure(_ message: SSHMessage.UserAuthFailureMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
