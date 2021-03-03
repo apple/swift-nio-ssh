@@ -608,4 +608,77 @@ class EndToEndTests: XCTestCase {
         XCTAssertNotNil(err)
         XCTAssertEqual((err as? NIOSSHError)?.type, .creatingChannelAfterClosure)
     }
+
+    func testHandshakeSuccess() throws {
+        class ClientHandshakeHandler: ChannelInboundHandler {
+            typealias InboundIn = Any
+
+            let promise: EventLoopPromise<Void>
+
+            init(promise: EventLoopPromise<Void>) {
+                self.promise = promise
+            }
+
+            func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+                if event is UserAuthSuccessEvent {
+                    self.promise.succeed(())
+                }
+            }
+        }
+
+        let promise = self.channel.client.eventLoop.makePromise(of: Void.self)
+        let handshaker = ClientHandshakeHandler(promise: promise)
+
+        let harness = TestHarness()
+
+        // Set up the connection, validate all is well.
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(handshaker).wait())
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        XCTAssertNoThrow(try promise.futureResult.wait())
+    }
+
+    func testHandshakeFailure() throws {
+        class ClientHandshakeHandler: ChannelInboundHandler {
+            typealias InboundIn = Any
+
+            let promise: EventLoopPromise<Void>
+
+            init(promise: EventLoopPromise<Void>) {
+                self.promise = promise
+            }
+
+            func errorCaught(context: ChannelHandlerContext, error: Error) {
+                self.promise.fail(error)
+            }
+        }
+
+        enum TestError: Error {
+            case bang
+        }
+
+        struct BadPasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
+            func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
+                nextChallengePromise.fail(TestError.bang)
+            }
+        }
+
+        var harness = TestHarness()
+        harness.clientAuthDelegate = BadPasswordDelegate()
+
+        let promise = self.channel.client.eventLoop.makePromise(of: Void.self)
+        let handshaker = ClientHandshakeHandler(promise: promise)
+
+        // Set up the connection, validate all is well.
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(handshaker).wait())
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        XCTAssertThrowsError(try promise.futureResult.wait()) { error in
+            XCTAssertEqual(error as? TestError, TestError.bang)
+        }
+    }
 }
