@@ -27,7 +27,7 @@ let package = Package(
         .library(name: "NIOSSH", targets: ["NIOSSH"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.21.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.27.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", from: "1.0.0"),
     ],
     targets: [
