@@ -1657,4 +1657,40 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(readRecorder.reads.count, 5)
         XCTAssertTrue(eofHandler.seenEOF)
     }
+
+    func testChildChannelSupportsSyncOptions() throws {
+        var createdChannels = 0
+        let harness = self.harness { channel, _ in
+            createdChannels += 1
+
+            guard let sync = channel.syncOptions else {
+                XCTFail("\(channel) does not support syncOptions but should")
+                return channel.eventLoop.makeSucceededFuture(())
+            }
+
+            do {
+                let autoRead = try sync.getOption(ChannelOptions.autoRead)
+                try sync.setOption(ChannelOptions.autoRead, value: !autoRead)
+                XCTAssertNotEqual(try sync.getOption(ChannelOptions.autoRead), autoRead)
+            } catch {
+                XCTFail("Unable to get/set autoRead using synchronous options")
+            }
+
+            return channel.eventLoop.makeSucceededFuture(())
+        }
+        defer {
+            harness.finish()
+        }
+
+        XCTAssertEqual(createdChannels, 0)
+        XCTAssertEqual(harness.flushedMessages.count, 0)
+
+        let openRequest = self.openRequest(channelID: 1)
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(openRequest))
+        XCTAssertEqual(createdChannels, 1)
+        XCTAssertEqual(harness.flushedMessages.count, 1)
+        XCTAssertNil(harness.delegate.writes.first?.1)
+
+        self.assertChannelOpenConfirmation(harness.flushedMessages.first, recipientChannel: 1)
+    }
 }
