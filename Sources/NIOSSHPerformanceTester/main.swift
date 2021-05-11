@@ -60,4 +60,6 @@ public func measureAndPrint(desc: String, fn: () throws -> Int) rethrows {
 
 // MARK: Utilities
 
-try measureAndPrint(desc: "10000_handshakes", benchmark: BenchmarkHandshake(loopCount: 10000))
+try measureAndPrint(desc: "10_handshakes", benchmark: BenchmarkHandshake(loopCount: 10))
+try measureAndPrint(desc: "10000_messages_10b_throughput", benchmark: BenchmarkLinearThroughput(messageCount: 10000, messageSize: 10))
+try measureAndPrint(desc: "10000_messages_1k_throughput", benchmark: BenchmarkLinearThroughput(messageCount: 10000, messageSize: 1000))
