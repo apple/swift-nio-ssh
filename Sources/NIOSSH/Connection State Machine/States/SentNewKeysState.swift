@@ -39,6 +39,8 @@ extension SSHConnectionStateMachine {
         /// The user auth state machine that drives user authentication.
         var userAuthStateMachine: UserAuthenticationStateMachine
 
+        weak var connectionAttributes: SSHConnectionStateMachine.Attributes?
+
         init(keyExchangeState state: KeyExchangeState,
              loop: EventLoop) {
             self.role = state.role
@@ -53,6 +55,7 @@ extension SSHConnectionStateMachine {
             self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role,
                                                                        loop: loop,
                                                                        sessionID: self.sessionIdentifier)
+            self.connectionAttributes = state.connectionAttributes
         }
     }
 }

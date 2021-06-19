@@ -93,6 +93,9 @@ extension SSHChannelMultiplexer {
             self.erroredChannels.append(channelID)
         }
     }
+    
+    // The username which the server accepted in authorization
+    var username: String? { delegate?.username }
 }
 
 // MARK: Calls from SSH handlers.
@@ -218,6 +221,8 @@ extension SSHChannelMultiplexer {
 protocol SSHMultiplexerDelegate {
     var channel: Channel? { get }
 
+    var username: String? { get }
+    
     func writeFromChildChannel(_: SSHMessage, _: EventLoopPromise<Void>?)
 
     func flushFromChildChannel()

@@ -34,6 +34,8 @@ extension SSHConnectionStateMachine {
 
         internal var sessionIdentifier: ByteBuffer
 
+        internal weak var connectionAttributes: SSHConnectionStateMachine.Attributes?
+
         init(_ previous: ActiveState, allocator: ByteBufferAllocator, loop: EventLoop) {
             self.role = previous.role
             self.serializer = previous.serializer
@@ -42,6 +44,7 @@ extension SSHConnectionStateMachine {
             self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
             self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, loop: loop, role: previous.role, remoteVersion: previous.remoteVersion, protectionSchemes: previous.protectionSchemes, previousSessionIdentifier: self.sessionIdentifier)
+            self.connectionAttributes = previous.connectionAttributes
         }
     }
 }
