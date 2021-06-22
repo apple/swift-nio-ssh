@@ -3,17 +3,17 @@ version: "3"
 services:
 
   runtime-setup:
-    image: swift-nio-ssh:18.04-5.3
+    image: swift-nio-ssh:16.04-5.3
     build:
       args:
-        ubuntu_version: "bionic"
+        ubuntu_version: "xenial"
         swift_version: "5.3"
 
   test:
-    image: swift-nio-ssh:18.04-5.3
+    image: swift-nio-ssh:16.04-5.3
     environment: []
-      #- SANITIZER_ARG=--sanitize=thread
+      - SANITIZER_ARG=--sanitize=thread
       #- WARN_AS_ERROR_ARG=-Xswiftc -warnings-as-errors
 
   shell:
-    image: swift-nio-ssh:18.04-5.3
+    image: swift-nio-ssh:16.04-5.3
