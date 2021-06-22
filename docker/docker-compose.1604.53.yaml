@@ -11,7 +11,7 @@ services:
 
   test:
     image: swift-nio-ssh:16.04-5.3
-    environment: []
+    environment: 
       - SANITIZER_ARG=--sanitize=thread
       #- WARN_AS_ERROR_ARG=-Xswiftc -warnings-as-errors
 

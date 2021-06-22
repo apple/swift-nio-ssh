@@ -11,7 +11,7 @@ services:
 
   test:
     image: swift-nio-ssh:18.04-5.2
-    environment:
+    environment: []
       #- SANITIZER_ARG=--sanitize=thread
       #- WARN_AS_ERROR_ARG=-warnings-as-errors
 
