@@ -36,36 +36,41 @@ let package = Package(
             dependencies: [
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
-                .product(name: "Crypto", package: "swift-crypto")
-            ]),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ]
+        ),
         .target(
             name: "NIOSSHClient",
             dependencies: [
                 "NIOSSH",
                 .product(name: "NIO", package: "swift-nio"),
-                .product(name: "NIOConcurrencyHelpers", package: "swift-nio")
-            ]),
+                .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+            ]
+        ),
         .target(
             name: "NIOSSHServer",
             dependencies: [
                 "NIOSSH",
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
-                .product(name: "Crypto", package: "swift-crypto")
-            ]),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ]
+        ),
         .target(
             name: "NIOSSHPerformanceTester",
             dependencies: [
                 "NIOSSH",
                 .product(name: "NIO", package: "swift-nio"),
-                .product(name: "Crypto", package: "swift-crypto")
-            ]),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ]
+        ),
         .testTarget(
             name: "NIOSSHTests",
             dependencies: [
                 "NIOSSH",
                 .product(name: "NIO", package: "swift-nio"),
-                .product(name: "NIOFoundationCompat", package: "swift-nio")
-            ]),
+                .product(name: "NIOFoundationCompat", package: "swift-nio"),
+            ]
+        ),
     ]
 )
