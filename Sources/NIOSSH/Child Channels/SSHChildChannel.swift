@@ -198,7 +198,7 @@ extension SSHChildChannel: Channel, ChannelCore {
     }
 
     private func setOption0<Option: ChannelOption>(_ option: Option, value: Option.Value) throws {
-        assert(self.eventLoop.inEventLoop)
+        self.eventLoop.preconditionInEventLoop()
 
         switch option {
         case _ as ChannelOptions.Types.AutoReadOption:
@@ -211,7 +211,7 @@ extension SSHChildChannel: Channel, ChannelCore {
     }
 
     private func getOption0<Option: ChannelOption>(_ option: Option) throws -> Option.Value {
-        assert(self.eventLoop.inEventLoop)
+        self.eventLoop.preconditionInEventLoop()
 
         switch option {
         case _ as SSHChildChannelOptions.Types.LocalChannelIdentifierOption:
@@ -1130,6 +1130,35 @@ extension SSHChildChannel {
             let prefix = SSHChannelData(type: channelData.type, data: channelData.data.slicePrefix(maxLength))
             return (trimmed: .data(prefix), excess: .data(channelData))
         }
+    }
+}
+
+extension SSHChildChannel {
+    internal struct SynchronousOptions: NIOSynchronousChannelOptions {
+        private let channel: SSHChildChannel
+
+        fileprivate init(channel: SSHChildChannel) {
+            self.channel = channel
+        }
+
+        /// Set `option` to `value` on this `Channel`.
+        ///
+        /// - Important: Must be called on the `EventLoop` the `Channel` is running on.
+        internal func setOption<Option: ChannelOption>(_ option: Option, value: Option.Value) throws {
+            try self.channel.setOption0(option, value: value)
+        }
+
+        /// Get the value of `option` for this `Channel`.
+        ///
+        /// - Important: Must be called on the `EventLoop` the `Channel` is running on.
+        internal func getOption<Option: ChannelOption>(_ option: Option) throws -> Option.Value {
+            try self.channel.getOption0(option)
+        }
+    }
+
+    /// Returns a view of the `Channel` exposing synchronous versions of `setOption` and `getOption`.
+    public var syncOptions: NIOSynchronousChannelOptions? {
+        SynchronousOptions(channel: self)
     }
 }
 

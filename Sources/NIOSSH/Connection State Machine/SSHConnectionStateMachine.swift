@@ -1033,6 +1033,7 @@ extension SSHConnectionStateMachine {
         case globalRequest(SSHMessage.GlobalRequestMessage)
         case disconnect
         case noMessage
+        case event(Any)
 
         enum GlobalRequestResponse {
             case success(SSHMessage.RequestSuccessMessage)
