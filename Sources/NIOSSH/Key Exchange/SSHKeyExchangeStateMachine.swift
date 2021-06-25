@@ -513,7 +513,14 @@ extension SSHKeyExchangeStateMachine {
     }
 
     /// All known host key algorithms.
-    static let supportedServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521"]
+    static let bundledServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521"]
+    
+    static var supportedServerHostKeyAlgorithms: [Substring] {
+        let bundledAlgorithms = bundledServerHostKeyAlgorithms
+        let customAlgorithms = NIOSSHPublicKey.customPublicKeyAlgorithms.map { Substring($0.publicKeyPrefix) }
+        
+        return bundledAlgorithms + customAlgorithms
+    }
 }
 
 extension SSHKeyExchangeStateMachine {
