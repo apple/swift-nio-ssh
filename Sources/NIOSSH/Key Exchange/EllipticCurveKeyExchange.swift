@@ -16,33 +16,51 @@ import Crypto
 import NIO
 import NIOFoundationCompat
 
+public struct NIOSSHKeyExchangeServerReply {
+    let hostKey: NIOSSHPublicKey
+    let publicKey: ByteBuffer
+    let signature: NIOSSHSignature
+}
+
 /// This protocol defines a container used by the key exchange state machine to manage key exchange.
 /// This type erases the specific key exchanger.
-protocol EllipticCurveKeyExchangeProtocol {
+public protocol NIOSSHKeyExchangeAlgorithmProtocol {
+    static var keyExchangeInitMessageId: UInt8 { get }
+    static var keyExchangeReplyMessageId: UInt8 { get }
+    
     init(ourRole: SSHConnectionRole, previousSessionIdentifier: ByteBuffer?)
 
-    func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage
+    func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> ByteBuffer
 
-    mutating func completeKeyExchangeServerSide(clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
-                                                serverHostKey: NIOSSHPrivateKey,
-                                                initialExchangeBytes: inout ByteBuffer,
-                                                allocator: ByteBufferAllocator,
-                                                expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage)
+    mutating func completeKeyExchangeServerSide(
+        clientKeyExchangeMessage message: ByteBuffer,
+        serverHostKey: NIOSSHPrivateKey,
+        initialExchangeBytes: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> (KeyExchangeResult, NIOSSHKeyExchangeServerReply)
 
-    mutating func receiveServerKeyExchangePayload(serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
-                                                  initialExchangeBytes: inout ByteBuffer,
-                                                  allocator: ByteBufferAllocator,
-                                                  expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult
+    mutating func receiveServerKeyExchangePayload(
+        serverHostKey hostKey: NIOSSHPublicKey,
+        serverPublicKey publicKey: ByteBuffer,
+        serverSignature signature: NIOSSHSignature,
+        initialExchangeBytes: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> KeyExchangeResult
 
     static var keyExchangeAlgorithmNames: [Substring] { get }
 }
 
-struct EllipticCurveKeyExchange<PrivateKey: ECDHCompatiblePrivateKey>: EllipticCurveKeyExchangeProtocol {
+struct EllipticCurveKeyExchange<PrivateKey: ECDHCompatiblePrivateKey>:  NIOSSHKeyExchangeAlgorithmProtocol {
     private var previousSessionIdentifier: ByteBuffer?
     private var ourKey: PrivateKey
     private var theirKey: PrivateKey.PublicKey?
     private var ourRole: SSHConnectionRole
     private var sharedSecret: SharedSecret?
+    
+    static var keyExchangeInitMessageId: UInt8 { 30 }
+    static var keyExchangeReplyMessageId: UInt8 { 31 }
 
     init(ourRole: SSHConnectionRole, previousSessionIdentifier: ByteBuffer?) {
         self.ourRole = ourRole
@@ -59,14 +77,13 @@ extension EllipticCurveKeyExchange {
     /// Initiates key exchange by producing an SSH message.
     ///
     /// For now, we just return the ByteBuffer containing the SSH string.
-    func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage {
+    func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> ByteBuffer {
         precondition(self.ourRole.isClient, "Only clients may initiate the client side key exchange!")
 
         // The largest key we're likely to end up with here is 256 bytes.
         var buffer = allocator.buffer(capacity: 256)
         self.ourKey.publicKey.write(to: &buffer)
-
-        return .init(publicKey: buffer)
+        return buffer
     }
 
     /// Handles receiving the client key exchange payload on the server side.
@@ -77,15 +94,15 @@ extension EllipticCurveKeyExchange {
     ///     - initialExchangeBytes: The initial bytes of the exchange, suitable for writing into the exchange hash.
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
-    mutating func completeKeyExchangeServerSide(clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
+    mutating func completeKeyExchangeServerSide(clientKeyExchangeMessage message: ByteBuffer,
                                                 serverHostKey: NIOSSHPrivateKey,
                                                 initialExchangeBytes: inout ByteBuffer,
                                                 allocator: ByteBufferAllocator,
-                                                expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage) {
+                                                expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, NIOSSHKeyExchangeServerReply) {
         precondition(self.ourRole.isServer, "Only servers may receive a client key exchange packet!")
 
         // With that, we have enough to finalize the key exchange.
-        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: message.publicKey,
+        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: message,
                                                      initialExchangeBytes: &initialExchangeBytes,
                                                      serverHostKey: serverHostKey.publicKey,
                                                      allocator: allocator,
@@ -100,9 +117,9 @@ extension EllipticCurveKeyExchange {
         self.ourKey.publicKey.write(to: &publicKeyBytes)
 
         // Now we have all we need.
-        let responseMessage = SSHMessage.KeyExchangeECDHReplyMessage(hostKey: serverHostKey.publicKey,
-                                                                     publicKey: publicKeyBytes,
-                                                                     signature: exchangeHashSignature)
+        let responseMessage = NIOSSHKeyExchangeServerReply(hostKey: serverHostKey.publicKey,
+                                                           publicKey: publicKeyBytes,
+                                                           signature: exchangeHashSignature)
 
         return (KeyExchangeResult(kexResult), responseMessage)
     }
@@ -116,12 +133,16 @@ extension EllipticCurveKeyExchange {
     ///     - initialExchangeBytes: The initial bytes of the exchange, suitable for writing into the exchange hash.
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
-    mutating func receiveServerKeyExchangePayload(serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
-                                                  initialExchangeBytes: inout ByteBuffer,
-                                                  allocator: ByteBufferAllocator,
-                                                  expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult {
+    mutating func receiveServerKeyExchangePayload(
+        serverHostKey hostKey: NIOSSHPublicKey,
+        serverPublicKey publicKey: ByteBuffer,
+        serverSignature signature: NIOSSHSignature,
+        initialExchangeBytes: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> KeyExchangeResult {
         precondition(self.ourRole.isClient, "Only clients may receive a server key exchange packet!")
-
+        
         // Ok, we have a few steps here. Firstly, we need to extract the server's public key and generate our shared
         // secret. Then we need to validate that we didn't generate a weak shared secret (possible under some cases),
         // as this must fail the key exchange process.
@@ -131,14 +152,14 @@ extension EllipticCurveKeyExchange {
         //
         // Finally, we return our generated keys to the state machine.
 
-        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: message.publicKey,
+        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: publicKey,
                                                      initialExchangeBytes: &initialExchangeBytes,
-                                                     serverHostKey: message.hostKey,
+                                                     serverHostKey: hostKey,
                                                      allocator: allocator,
                                                      expectedKeySizes: expectedKeySizes)
 
         // We can now verify signature over the exchange hash.
-        guard message.hostKey.isValidSignature(message.signature, for: kexResult.exchangeHash) else {
+        guard hostKey.isValidSignature(signature, for: kexResult.exchangeHash) else {
             throw NIOSSHError.invalidExchangeHashSignature
         }
 

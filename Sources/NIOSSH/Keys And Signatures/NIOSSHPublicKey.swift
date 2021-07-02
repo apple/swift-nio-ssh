@@ -65,7 +65,7 @@ public struct NIOSSHPublicKey: Hashable {
 extension NIOSSHPublicKey {
     /// Verifies that a given `NIOSSHSignature` was created by the holder of the private key associated with this
     /// public key.
-    internal func isValidSignature<DigestBytes: Digest>(_ signature: NIOSSHSignature, for digest: DigestBytes) -> Bool {
+    public func isValidSignature<DigestBytes: Digest>(_ signature: NIOSSHSignature, for digest: DigestBytes) -> Bool {
         switch (self.backingKey, signature.backingSignature) {
         case (.ed25519(let key), .ed25519(let sig)):
             return digest.withUnsafeBytes { digestPtr in
@@ -200,23 +200,6 @@ extension NIOSSHPublicKey {
     
     internal static var customPublicKeyAlgorithms: [NIOSSHPublicKeyProtocol.Type] = []
     internal static var customSignatures: [NIOSSHSignatureProtocol.Type] = []
-    
-    /// Registers a custom type tuple for use in Public Key Authentication.
-    public static func registerPublicKeyType<
-        PublicKey: NIOSSHPublicKeyProtocol,
-        Signature: NIOSSHSignatureProtocol
-    >(
-        _ type: PublicKey.Type,
-        signature: Signature.Type
-    ) {
-        let utf8format = type.publicKeyPrefix.utf8
-        
-        if !knownAlgorithms.contains(where: { $0.elementsEqual(utf8format) }) {
-            knownAlgorithms.append(utf8format)
-            customPublicKeyAlgorithms.append(type)
-            customSignatures.append(signature)
-        }
-    }
 }
 
 extension NIOSSHPublicKey.BackingKey: Equatable {
@@ -271,6 +254,13 @@ extension NIOSSHPublicKey.BackingKey: Hashable {
             hasher.combine(6)
             hasher.combine(pkey)
         }
+    }
+}
+
+extension NIOSSHPublicKey {
+    @discardableResult
+    public func write(to buffer: inout ByteBuffer) -> Int {
+        return buffer.writeSSHHostKey(self)
     }
 }
 

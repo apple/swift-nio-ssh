@@ -63,6 +63,7 @@ struct CustomSignature: NIOSSHSignatureProtocol {
 
 struct CustomPublicKey: NIOSSHPublicKeyProtocol {
     static let publicKeyPrefix = "custom-prefix"
+    static let keyExchangeAlgorithmNames: [Substring] = ["custom-handshake"]
     
     func isValidSignature<D>(_ signature: NIOSSHSignatureProtocol, for data: D) -> Bool where D : DataProtocol {
         let testKeySize = testKey.count

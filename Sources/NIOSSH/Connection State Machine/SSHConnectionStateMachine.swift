@@ -60,7 +60,7 @@ struct SSHConnectionStateMachine {
     /// The state of this state machine.
     private var state: State
 
-    private static let defaultTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
+    internal static var defaultTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
         AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
     ]
 
@@ -181,6 +181,7 @@ struct SSHConnectionStateMachine {
                 return .noMessage
             case .unimplemented(let unimplemented):
                 throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+                
             default:
                 // TODO: enforce RFC 4253:
                 //

@@ -30,7 +30,7 @@ extension AcceptsKeyExchangeMessages {
     }
 
     mutating func receiveKeyExchangeInitMessage(_ message: SSHMessage.KeyExchangeECDHInitMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
-        let message = try self.keyExchangeStateMachine.handle(keyExchangeInit: message)
+        let message = try self.keyExchangeStateMachine.handle(keyExchangeInit: message.publicKey)
 
         if let message = message {
             return .emitMessage(message)

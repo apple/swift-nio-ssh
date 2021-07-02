@@ -19,11 +19,16 @@ import NIO
 ///
 /// A round of key exchange generates a number of keys and also generates an exchange hash.
 /// This exchange hash is used for a number of purposes.
-struct KeyExchangeResult {
+public struct KeyExchangeResult {
     /// The session ID to use for this connection. Will be static across the lifetime of a connection.
     var sessionID: ByteBuffer
 
     var keys: NIOSSHSessionKeys
+    
+    public init(sessionID: ByteBuffer, keys: NIOSSHSessionKeys) {
+        self.sessionID = sessionID
+        self.keys = keys
+    }
 }
 
 extension KeyExchangeResult: Equatable {}
@@ -46,18 +51,27 @@ extension KeyExchangeResult: Equatable {}
 /// Of these types, the encryption keys and the MAC keys are intended to be secret, and so
 /// we store them in the `SymmetricKey` types. The IVs do not need to be secret, and so are
 /// stored in regular heap buffers.
-struct NIOSSHSessionKeys {
-    var initialInboundIV: [UInt8]
+public struct NIOSSHSessionKeys {
+    public internal(set) var initialInboundIV: [UInt8]
 
-    var initialOutboundIV: [UInt8]
+    public internal(set) var initialOutboundIV: [UInt8]
 
-    var inboundEncryptionKey: SymmetricKey
+    public internal(set) var inboundEncryptionKey: SymmetricKey
 
-    var outboundEncryptionKey: SymmetricKey
+    public internal(set) var outboundEncryptionKey: SymmetricKey
 
-    var inboundMACKey: SymmetricKey
+    public internal(set) var inboundMACKey: SymmetricKey
 
-    var outboundMACKey: SymmetricKey
+    public internal(set) var outboundMACKey: SymmetricKey
+    
+    public init(initialInboundIV: [UInt8], initialOutboundIV: [UInt8], inboundEncryptionKey: SymmetricKey, outboundEncryptionKey: SymmetricKey, inboundMACKey: SymmetricKey, outboundMACKey: SymmetricKey) {
+        self.initialInboundIV = initialInboundIV
+        self.initialOutboundIV = initialOutboundIV
+        self.inboundEncryptionKey = inboundEncryptionKey
+        self.outboundEncryptionKey = outboundEncryptionKey
+        self.inboundMACKey = inboundMACKey
+        self.outboundMACKey = outboundMACKey
+    }
 }
 
 extension NIOSSHSessionKeys: Equatable {}
@@ -68,10 +82,16 @@ extension NIOSSHSessionKeys: Equatable {}
 /// hash function invocations. The output of these hash functions is truncated to an appropriate
 /// length as needed, which means we need to ensure the code doing the calculation knows how
 /// to truncate appropriately.
-struct ExpectedKeySizes {
-    var ivSize: Int
+public struct ExpectedKeySizes {
+    public internal(set) var ivSize: Int
 
-    var encryptionKeySize: Int
+    public internal(set) var encryptionKeySize: Int
 
-    var macKeySize: Int
+    public internal(set) var macKeySize: Int
+    
+    public init(ivSize: Int, encryptionKeySize: Int, macKeySize: Int) {
+        self.ivSize = ivSize
+        self.encryptionKeySize = encryptionKeySize
+        self.macKeySize = macKeySize
+    }
 }
