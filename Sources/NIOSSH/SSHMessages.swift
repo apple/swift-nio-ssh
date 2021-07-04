@@ -36,6 +36,7 @@ enum SSHMessage: Equatable {
     case userAuthRequest(UserAuthRequestMessage)
     case userAuthFailure(UserAuthFailureMessage)
     case userAuthSuccess
+    case userAuthBanner(UserAuthBannerMessage)
     case userAuthPKOK(UserAuthPKOKMessage)
     case globalRequest(GlobalRequestMessage)
     case requestSuccess(RequestSuccessMessage)
@@ -167,6 +168,13 @@ extension SSHMessage {
 
     enum UserAuthSuccessMessage {
         static let id: UInt8 = 52
+    }
+
+    struct UserAuthBannerMessage: Equatable {
+        static let id: UInt8 = 53
+        
+        let banner: String
+        let languageTag: String
     }
 
     struct UserAuthPKOKMessage: Equatable {
@@ -419,6 +427,11 @@ extension ByteBuffer {
                 return .userAuthFailure(message)
             case SSHMessage.UserAuthSuccessMessage.id:
                 return .userAuthSuccess
+            case SSHMessage.UserAuthBannerMessage.id:
+                guard let message = self.readUserAuthBannerMessage() else {
+                    return nil
+                }
+                return .userAuthBanner(message)
             case SSHMessage.UserAuthPKOKMessage.id:
                 guard let message = try self.readUserAuthPKOKMessage() else {
                     return nil
@@ -714,6 +727,22 @@ extension ByteBuffer {
             }
 
             return SSHMessage.UserAuthFailureMessage(authentications: authentications, partialSuccess: partialSuccess)
+        }
+    }
+    
+    mutating func readUserAuthBannerMessage() -> SSHMessage.UserAuthBannerMessage? {
+        self.rewindReaderOnNil { `self` in
+            guard
+                let banner = self.readSSHStringAsString(),
+                let languageTag = self.readSSHStringAsString()
+            else {
+                return nil
+            }
+
+            return SSHMessage.UserAuthBannerMessage(
+                banner: banner,
+                languageTag: languageTag
+            )
         }
     }
 
@@ -1133,7 +1162,11 @@ extension ByteBuffer {
             writtenBytes += self.writeInteger(SSHMessage.UserAuthFailureMessage.id)
             writtenBytes += self.writeUserAuthFailureMessage(message)
         case .userAuthSuccess:
-            writtenBytes += self.writeInteger(52 as UInt8)
+            writtenBytes += self.writeInteger(SSHMessage.UserAuthSuccessMessage.id)
+        case .userAuthBanner(let message):
+            writtenBytes += self.writeInteger(SSHMessage.UserAuthBannerMessage.id)
+            writtenBytes += self.writeSSHString(message.banner.utf8)
+            writtenBytes += self.writeSSHString(message.languageTag.utf8)
         case .userAuthPKOK(let message):
             writtenBytes += self.writeInteger(SSHMessage.UserAuthPKOKMessage.id)
             writtenBytes += self.writeUserAuthPKOKMessage(message)
