@@ -87,10 +87,10 @@ public protocol NIOSSHTransportProtection: AnyObject {
     /// length, the padding, or the MAC), and update source to indicate the consumed bytes.
     /// It must also perform any integrity checking that
     /// is required and throw if the integrity check fails.
-    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws -> ByteBuffer
+    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer, sequenceNumber: UInt32) throws -> ByteBuffer
 
     /// Encrypt an entire outbound packet
-    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws
+    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer, sequenceNumber: UInt32) throws
 }
 
 extension NIOSSHTransportProtection {

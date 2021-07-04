@@ -262,9 +262,32 @@ extension NIOSSHPublicKey {
     public func write(to buffer: inout ByteBuffer) -> Int {
         return buffer.writeSSHHostKey(self)
     }
+    
+    @discardableResult
+    public func writeWithoutHeader(to buffer: inout ByteBuffer) -> Int {
+        return buffer.writeSSHHostKeyWithoutHeader(self)
+    }
 }
 
 extension ByteBuffer {
+    @discardableResult
+    mutating func writeSSHHostKeyWithoutHeader(_ key: NIOSSHPublicKey) -> Int {
+        switch key.backingKey {
+        case .ed25519(let key):
+            return self.writeEd25519PublicKey(baseKey: key)
+        case .ecdsaP256(let key):
+            return self.writeECDSAP256PublicKey(baseKey: key)
+        case .ecdsaP384(let key):
+            return self.writeECDSAP384PublicKey(baseKey: key)
+        case .ecdsaP521(let key):
+            return self.writeECDSAP521PublicKey(baseKey: key)
+        case .custom(let key):
+            return key.write(to: &self)
+        case .certified(let key):
+            return self.writeCertifiedKey(key)
+        }
+    }
+    
     /// Writes an SSH host key to this `ByteBuffer`.
     @discardableResult
     mutating func writeSSHHostKey(_ key: NIOSSHPublicKey) -> Int {

@@ -493,7 +493,7 @@ struct SSHKeyExchangeStateMachine {
 
     /// The MAC algorithms supported by this peer, in order of preference.
     private var supportedMacAlgorithms: [Substring] {
-        var schemes = self.protectionSchemes.compactMap { $0.macName.map { Substring($0) } }
+        let schemes = self.protectionSchemes.compactMap { $0.macName.map { Substring($0) } }
 
         // We do a weird thing here: if there are no MAC schemes, we lie and put one in. This is
         // because some schemes (such as AES-GCM in OpenSSH mode) ignore the MAC negotiation.
@@ -516,20 +516,22 @@ extension SSHKeyExchangeStateMachine {
     ]
 
     static var supportedKeyExchangeAlgorithms: [Substring] {
-        let bundledAlgorithms = supportedKeyExchangeImplementations.flatMap { $0.keyExchangeAlgorithmNames }
+//        let bundledAlgorithms = supportedKeyExchangeImplementations.flatMap { $0.keyExchangeAlgorithmNames }
         let customAlgorithms = customKeyExchangeAlgorithms.reduce([]) { $0 + $1.keyExchangeAlgorithmNames }
         
-        return bundledAlgorithms + customAlgorithms
+//        return bundledAlgorithms + customAlgorithms
+        return customAlgorithms
     }
 
     /// All known host key algorithms.
     static let bundledServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521"]
     
     static var supportedServerHostKeyAlgorithms: [Substring] {
-        let bundledAlgorithms = bundledServerHostKeyAlgorithms
+//        let bundledAlgorithms = bundledServerHostKeyAlgorithms
         let customAlgorithms = NIOSSHPublicKey.customPublicKeyAlgorithms.map { Substring($0.publicKeyPrefix) }
         
-        return bundledAlgorithms + customAlgorithms
+//        return bundledAlgorithms + customAlgorithms
+        return customAlgorithms
     }
 }
 
