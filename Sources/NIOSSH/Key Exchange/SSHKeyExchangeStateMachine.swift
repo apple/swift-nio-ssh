@@ -516,22 +516,20 @@ extension SSHKeyExchangeStateMachine {
     ]
 
     static var supportedKeyExchangeAlgorithms: [Substring] {
-//        let bundledAlgorithms = supportedKeyExchangeImplementations.flatMap { $0.keyExchangeAlgorithmNames }
+        let bundledAlgorithms = supportedKeyExchangeImplementations.flatMap { $0.keyExchangeAlgorithmNames }
         let customAlgorithms = customKeyExchangeAlgorithms.reduce([]) { $0 + $1.keyExchangeAlgorithmNames }
         
-//        return bundledAlgorithms + customAlgorithms
-        return customAlgorithms
+        return bundledAlgorithms + customAlgorithms
     }
 
     /// All known host key algorithms.
     static let bundledServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521"]
     
     static var supportedServerHostKeyAlgorithms: [Substring] {
-//        let bundledAlgorithms = bundledServerHostKeyAlgorithms
+        let bundledAlgorithms = bundledServerHostKeyAlgorithms
         let customAlgorithms = NIOSSHPublicKey.customPublicKeyAlgorithms.map { Substring($0.publicKeyPrefix) }
         
-//        return bundledAlgorithms + customAlgorithms
-        return customAlgorithms
+        return bundledAlgorithms + customAlgorithms
     }
 }
 
