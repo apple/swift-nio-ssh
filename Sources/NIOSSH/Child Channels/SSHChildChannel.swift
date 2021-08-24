@@ -544,7 +544,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         self.notifyChannelInactive()
 
         self.eventLoop.execute {
-            self.removeHandlers(channel: self)
+            self.removeHandlers(pipeline: self.pipeline)
             self.closePromise.succeed(())
             self.multiplexer.childChannelClosed(channelID: self.state.localChannelIdentifier)
         }
@@ -581,7 +581,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         }
 
         self.eventLoop.execute {
-            self.removeHandlers(channel: self)
+            self.removeHandlers(pipeline: self.pipeline)
             self.closePromise.fail(error)
             self.multiplexer.childChannelErrored(channelID: self.state.localChannelIdentifier, expectClose: !self.state.isClosed)
         }
