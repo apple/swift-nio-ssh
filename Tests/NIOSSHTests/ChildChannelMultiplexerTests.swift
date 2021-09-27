@@ -1244,7 +1244,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
             return channel.setOption(ChannelOptions.autoRead, value: false)
         }
 
-        guard let channel = childChannel else {
+        guard childChannel != nil else {
             XCTFail("Did not create child channel")
             return
         }
@@ -1267,9 +1267,10 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Now we send a close message. This is going to forcibly close the channel immediately.
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.close(peerChannelID: channelID!)))
 
-        // This should trigger no message.
-        // (Actually, it should trigger a close, but that's a different bug and to be fixed in a different patch.)
-        XCTAssertEqual(harness.flushedMessages.count, 1)
+        // This should trigger a close and nothing else.
+        harness.multiplexer.parentChannelReadComplete()
+        XCTAssertEqual(harness.flushedMessages.count, 2)
+        self.assertChannelClose(harness.flushedMessages.last, recipientChannel: 1)
     }
 
     func testRespectingMaxMessageSize() throws {
