@@ -640,7 +640,8 @@ private extension SSHChildChannel {
     private func deliverSingleRead(_ data: PendingContent) {
         switch data {
         case .data(let data):
-            if let increment = self.windowManager.unbufferBytes(data.data.readableBytes) {
+            // We only futz with the window manager if the channel is not already closed.
+            if !self.didClose, let increment = self.windowManager.unbufferBytes(data.data.readableBytes) {
                 let update = SSHMessage.ChannelWindowAdjustMessage(recipientChannel: self.state.remoteChannelIdentifier!, bytesToAdd: UInt32(increment))
                 self.processOutboundMessage(.channelWindowAdjust(update), promise: nil)
             }
