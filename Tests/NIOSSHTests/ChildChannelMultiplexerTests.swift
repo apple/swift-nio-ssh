@@ -2,7 +2,7 @@
 //
 // This source file is part of the SwiftNIO open source project
 //
-// Copyright (c) 2019 Apple Inc. and the SwiftNIO project authors
+// Copyright (c) 2019-2021 Apple Inc. and the SwiftNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -1192,12 +1192,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
 
         // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
-        // Sorry for the unsafe code, but otherwise this test takes _ages_.
-        var buffer = channel.allocator.buffer(capacity: (1 << 24) + 1)
-        buffer.writeWithUnsafeMutableBytes(minimumWritableBytes: (1 << 24) + 1) { ptr in
-            memset(ptr.baseAddress!, 0, (1 << 24) + 1)
-            return (1 << 24) + 1
-        }
+        let buffer = ByteBuffer.bigBuffer
 
         // We're going to write one byte short.
         XCTAssertEqual(harness.flushedMessages.count, 1)
@@ -1235,6 +1230,46 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
         XCTAssertEqual(harness.flushedMessages.count, 4)
         self.assertChannelClose(harness.flushedMessages.last, recipientChannel: 1)
+    }
+
+    func testWeDontResizeTheWindowOnClose() throws {
+        let harness = self.harnessForbiddingInboundChannels()
+        defer {
+            harness.finish()
+        }
+
+        var childChannel: Channel?
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
+            childChannel = channel
+            return channel.setOption(ChannelOptions.autoRead, value: false)
+        }
+
+        guard let channel = childChannel else {
+            XCTFail("Did not create child channel")
+            return
+        }
+
+        // Activate channel.
+        let channelID = self.assertChannelOpen(harness.flushedMessages.first)
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+
+        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        let buffer = ByteBuffer.bigBuffer
+
+        // We're going to write the whole window.
+        XCTAssertEqual(harness.flushedMessages.count, 1)
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
+                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!)))
+
+        // Auto read is off, so nothing happens.
+        XCTAssertEqual(harness.flushedMessages.count, 1)
+
+        // Now we send a close message. This is going to forcibly close the channel immediately.
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.close(peerChannelID: channelID!)))
+
+        // This should trigger no message.
+        // (Actually, it should trigger a close, but that's a different bug and to be fixed in a different patch.)
+        XCTAssertEqual(harness.flushedMessages.count, 1)
     }
 
     func testRespectingMaxMessageSize() throws {
@@ -1693,4 +1728,13 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         self.assertChannelOpenConfirmation(harness.flushedMessages.first, recipientChannel: 1)
     }
+}
+
+extension ByteBuffer {
+    /// A buffer `(1 << 24) + 1` bytes large.
+    fileprivate static let bigBuffer: ByteBuffer = {
+        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        // We store it in a static so that we don't have to re-create it for every test.
+        ByteBuffer(repeating: 0, count: (1 << 24) + 1)
+    }()
 }
