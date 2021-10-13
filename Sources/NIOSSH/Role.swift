@@ -37,4 +37,13 @@ public enum SSHConnectionRole {
             return true
         }
     }
+
+    internal var transportProtectionSchemes: [NIOSSHTransportProtection.Type] {
+        switch self {
+        case .client(let configuration):
+            return configuration.transportProtectionSchemes
+        case .server(let configuration):
+            return configuration.transportProtectionSchemes
+        }
+    }
 }

@@ -64,7 +64,7 @@ public final class NIOSSHHandler {
     ///     - allocator: An allocator for `ByteBuffer`s
     ///     - inboundChildChannelInitializer: A callback that will be invoked whenever the remote peer attempts to construct a new SSH channel in a connection.
     public init(role: SSHConnectionRole, allocator: ByteBufferAllocator, inboundChildChannelInitializer: ((Channel, SSHChannelType) -> EventLoopFuture<Void>)?) {
-        self.stateMachine = SSHConnectionStateMachine(role: role)
+        self.stateMachine = SSHConnectionStateMachine(role: role, protectionSchemes: role.transportProtectionSchemes)
         self.pendingWrite = false
         self.outboundFrameBuffer = allocator.buffer(capacity: 1024)
         self.pendingChannelInitializations = CircularBuffer(initialCapacity: 4)

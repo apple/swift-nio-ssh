@@ -25,6 +25,7 @@ struct SSHPacketParser {
 
     private var buffer: ByteBuffer
     private var state: State
+    private(set) var sequenceNumber: UInt32
 
     /// Testing only: the number of bytes we can discard from this buffer.
     internal var _discardableBytes: Int {
@@ -34,6 +35,7 @@ struct SSHPacketParser {
     init(allocator: ByteBufferAllocator) {
         self.buffer = allocator.buffer(capacity: 0)
         self.state = .initialized
+        self.sequenceNumber = 0
     }
 
     mutating func append(bytes: inout ByteBuffer) {
@@ -73,6 +75,7 @@ struct SSHPacketParser {
             if let length = self.buffer.getInteger(at: self.buffer.readerIndex, as: UInt32.self) {
                 if let message = try self.parsePlaintext(length: length) {
                     self.state = .cleartextWaitingForLength
+                    self.sequenceNumber &+= 1
                     return message
                 }
                 self.state = .cleartextWaitingForBytes(length)
@@ -82,6 +85,7 @@ struct SSHPacketParser {
         case .cleartextWaitingForBytes(let length):
             if let message = try self.parsePlaintext(length: length) {
                 self.state = .cleartextWaitingForLength
+                self.sequenceNumber &+= 1
                 return message
             }
             return nil
@@ -92,6 +96,7 @@ struct SSHPacketParser {
 
             if let message = try self.parseCiphertext(length: length, protection: protection) {
                 self.state = .encryptedWaitingForLength(protection)
+                self.sequenceNumber &+= 1
                 return message
             }
             self.state = .encryptedWaitingForBytes(length, protection)
@@ -99,6 +104,7 @@ struct SSHPacketParser {
         case .encryptedWaitingForBytes(let length, let protection):
             if let message = try self.parseCiphertext(length: length, protection: protection) {
                 self.state = .encryptedWaitingForLength(protection)
+                self.sequenceNumber &+= 1
                 return message
             }
             return nil
@@ -169,7 +175,7 @@ struct SSHPacketParser {
                 return nil
             }
 
-            var content = try protection.decryptAndVerifyRemainingPacket(&buffer)
+            var content = try protection.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: self.sequenceNumber)
             guard let message = try content.readSSHMessage(), content.readableBytes == 0, buffer.readableBytes == 0 else {
                 // Throw this error if the content wasn't exactly the right length for the message.
                 throw NIOSSHError.invalidPacketFormat

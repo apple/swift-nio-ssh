@@ -26,15 +26,27 @@ public struct SSHServerConfiguration {
     /// The ssh banner to display to clients upon authentication
     public var banner: UserAuthBanner?
 
+    /// Supported data encryption algorithms
+    public var transportProtectionSchemes: [NIOSSHTransportProtection.Type]
+
     public init(hostKeys: [NIOSSHPrivateKey], userAuthDelegate: NIOSSHServerUserAuthenticationDelegate, globalRequestDelegate: GlobalRequestDelegate? = nil, banner: UserAuthBanner? = nil) {
-        self.hostKeys = hostKeys
-        self.userAuthDelegate = userAuthDelegate
-        self.globalRequestDelegate = globalRequestDelegate ?? DefaultGlobalRequestDelegate()
-        self.banner = banner
+        self.init(hostKeys: hostKeys, userAuthDelegate: userAuthDelegate, globalRequestDelegate: globalRequestDelegate, banner: banner, transportProtectionSchemes: Constants.bundledTransportProtectionSchemes)
     }
 
     public init(hostKeys: [NIOSSHPrivateKey], userAuthDelegate: NIOSSHServerUserAuthenticationDelegate, globalRequestDelegate: GlobalRequestDelegate? = nil) {
         self.init(hostKeys: hostKeys, userAuthDelegate: userAuthDelegate, globalRequestDelegate: globalRequestDelegate, banner: nil)
+    }
+
+    public init(hostKeys: [NIOSSHPrivateKey],
+                userAuthDelegate: NIOSSHServerUserAuthenticationDelegate,
+                globalRequestDelegate: GlobalRequestDelegate? = nil,
+                banner: UserAuthBanner? = nil,
+                transportProtectionSchemes: [NIOSSHTransportProtection.Type]) {
+        self.hostKeys = hostKeys
+        self.userAuthDelegate = userAuthDelegate
+        self.globalRequestDelegate = globalRequestDelegate ?? DefaultGlobalRequestDelegate()
+        self.banner = banner
+        self.transportProtectionSchemes = transportProtectionSchemes
     }
 }
 

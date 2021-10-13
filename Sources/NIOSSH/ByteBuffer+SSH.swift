@@ -169,7 +169,7 @@ extension ByteBuffer {
 
     /// Writes a given number of SSH-acceptable padding bytes to this buffer.
     @discardableResult
-    mutating func writeSSHPaddingBytes(count: Int) -> Int {
+    public mutating func writeSSHPaddingBytes(count: Int) -> Int {
         // Annoyingly, the system random number generator can only give bytes to us 8 bytes at a time.
         precondition(count >= 0, "Cannot write negative number of padding bytes: \(count)")
 
