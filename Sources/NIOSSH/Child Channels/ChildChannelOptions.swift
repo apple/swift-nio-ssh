@@ -26,6 +26,9 @@ public struct SSHChildChannelOptions {
 
     /// - seealso: `SSHChannelTypeOption`.
     public static let sshChannelType: SSHChildChannelOptions.Types.SSHChannelTypeOption = .init()
+    
+    /// - seealso: `UsernameOption`.
+    public static let username: SSHChildChannelOptions.Types.UsernameOption = .init()
 }
 
 extension SSHChildChannelOptions {
@@ -51,6 +54,13 @@ extension SSHChildChannelOptions.Types {
     public struct SSHChannelTypeOption: ChannelOption {
         public typealias Value = SSHChannelType
 
+        public init() {}
+    }
+    
+    /// `UsernameOption` allows users to query the authenticated username of the channel.
+    public struct UsernameOption: ChannelOption {
+        public typealias Value = String?
+        
         public init() {}
     }
 }

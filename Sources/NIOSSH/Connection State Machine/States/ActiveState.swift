@@ -31,6 +31,8 @@ extension SSHConnectionStateMachine {
 
         internal var sessionIdentifier: ByteBuffer
 
+        internal weak var connectionAttributes: SSHConnectionStateMachine.Attributes?
+
         init(_ previous: UserAuthenticationState) {
             self.role = previous.role
             self.serializer = previous.serializer
@@ -38,6 +40,7 @@ extension SSHConnectionStateMachine {
             self.remoteVersion = previous.remoteVersion
             self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
+            self.connectionAttributes = previous.connectionAttributes
         }
 
         init(_ previous: RekeyingReceivedNewKeysState) {
@@ -47,6 +50,7 @@ extension SSHConnectionStateMachine {
             self.remoteVersion = previous.remoteVersion
             self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
+            self.connectionAttributes = previous.connectionAttributes
         }
 
         init(_ previous: RekeyingSentNewKeysState) {
@@ -56,6 +60,7 @@ extension SSHConnectionStateMachine {
             self.remoteVersion = previous.remoteVersion
             self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
+            self.connectionAttributes = previous.connectionAttributes
         }
     }
 }
