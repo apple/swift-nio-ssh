@@ -171,12 +171,13 @@ extension SSHMessage {
     }
 
   struct UserAuthBannerMessage: Equatable {
+      // SSH_MSG_USERAUTH_BANNER
       static let id: UInt8 = 53
 
-      /// ISO-10646 UTF-8 encoding [RFC3629]
+      /// message to display to user in client, encoded as ISO-10646 UTF-8 following RFC 3629
       var message: String
 
-      /// language tag [RFC3066]
+      /// tag identifying language of banner, following RFC 3066
       var languageTag: String
     }
 
@@ -1326,7 +1327,7 @@ extension ByteBuffer {
         writtenBytes += self.writeSSHBoolean(message.partialSuccess)
         return writtenBytes
     }
-  
+
     mutating func writeUserAuthBannerMessage(_ message: SSHMessage.UserAuthBannerMessage) -> Int {
       var writtenBytes = 0
       writtenBytes += self.writeSSHString(message.message.utf8)

@@ -23,9 +23,30 @@ public struct SSHServerConfiguration {
     /// The host keys for this server.
     public var hostKeys: [NIOSSHPrivateKey]
 
-    public init(hostKeys: [NIOSSHPrivateKey], userAuthDelegate: NIOSSHServerUserAuthenticationDelegate, globalRequestDelegate: GlobalRequestDelegate? = nil) {
+    /// The ssh banner to display to clients upon authentication
+    public var banner: UserAuthBanner?
+
+    public init(hostKeys: [NIOSSHPrivateKey], userAuthDelegate: NIOSSHServerUserAuthenticationDelegate, globalRequestDelegate: GlobalRequestDelegate? = nil, banner: UserAuthBanner? = nil) {
         self.hostKeys = hostKeys
         self.userAuthDelegate = userAuthDelegate
         self.globalRequestDelegate = globalRequestDelegate ?? DefaultGlobalRequestDelegate()
+        self.banner = banner
+    }
+}
+
+// MARK: - UserAuthBanner
+public extension SSHServerConfiguration {
+    /**
+     Server sends `UserAuthBanner` to client some time during authentication.
+     Client is obligated to display this banner to the end user, unless explicitely told
+     to ignore banners.
+     */
+    struct UserAuthBanner {
+        /// The message to display. Note that control characters contained in message
+        /// might be filtered in  accordance with the SSH specification.
+        let message: String
+
+        /// Language tag describing the language used for message. Must obey RFC 3066
+        let languageTag: String
     }
 }

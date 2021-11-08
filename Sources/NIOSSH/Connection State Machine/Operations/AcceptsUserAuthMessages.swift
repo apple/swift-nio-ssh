@@ -14,6 +14,14 @@
 
 protocol AcceptsUserAuthMessages {
     var userAuthStateMachine: UserAuthenticationStateMachine { get set }
+
+    var role: SSHConnectionRole { get }
+}
+
+/// This event indicates that server wants us to display the following message to the end user.
+public struct UserAuthBannerEvent: Hashable {
+    public let message: String
+    public let languageTag: String
 }
 
 /// This event indicates that server accepted our response to authentication challenge. SSH session can be considered active after that.
@@ -36,7 +44,7 @@ extension AcceptsUserAuthMessages {
         let result = try self.userAuthStateMachine.receiveServiceAccept(message)
 
         if let future = result {
-            return .possibleFutureMessage(future.map(Self.transform(_:)))
+            return .possibleFutureMessage(future.map(self.transform(_:)))
         } else {
             return .noMessage
         }
@@ -46,7 +54,7 @@ extension AcceptsUserAuthMessages {
         let result = try self.userAuthStateMachine.receiveUserAuthRequest(message)
 
         if let future = result {
-            return .possibleFutureMessage(future.map(Self.transform(_:)))
+            return .possibleFutureMessage(future.map(self.transform(_:)))
         } else {
             return .noMessage
         }
@@ -64,15 +72,26 @@ extension AcceptsUserAuthMessages {
         let result = try self.userAuthStateMachine.receiveUserAuthFailure(message)
 
         if let future = result {
-            return .possibleFutureMessage(future.map(Self.transform(_:)))
+            return .possibleFutureMessage(future.map(self.transform(_:)))
         } else {
             return .noMessage
         }
     }
 
-    private static func transform(_ result: NIOSSHUserAuthenticationResponseMessage) -> SSHMultiMessage {
+    mutating func receiveUserAuthBanner(_ message: SSHMessage.UserAuthBannerMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
+      try self.userAuthStateMachine.receiveUserAuthBanner(message)
+      return .event(UserAuthBannerEvent(message: message.message, languageTag: message.languageTag))
+    }
+
+    private func transform(_ result: NIOSSHUserAuthenticationResponseMessage) -> SSHMultiMessage {
         switch result {
         case .success:
+            if case .server(let config) = self.role, let banner = config.banner {
+                // Send banner bundled with auth success to avoid leaking any information to unauthenticated clients.
+                // Note that this is by no means the only option
+                return SSHMultiMessage(.userAuthBanner(.init(message: banner.message, languageTag: banner.languageTag)), .userAuthSuccess)
+            }
+
             return SSHMultiMessage(.userAuthSuccess)
         case .failure(let message):
             return SSHMultiMessage(.userAuthFailure(message))
@@ -81,7 +100,7 @@ extension AcceptsUserAuthMessages {
         }
     }
 
-    private static func transform(_ result: SSHMessage.UserAuthRequestMessage?) -> SSHMultiMessage? {
+    private func transform(_ result: SSHMessage.UserAuthRequestMessage?) -> SSHMultiMessage? {
         result.map { SSHMultiMessage(.userAuthRequest($0)) }
     }
 }

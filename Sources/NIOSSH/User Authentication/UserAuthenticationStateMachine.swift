@@ -186,6 +186,10 @@ extension UserAuthenticationStateMachine {
             throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "client sent user auth failure")
         }
     }
+
+    mutating func receiveUserAuthBanner(_ message: SSHMessage.UserAuthBannerMessage) throws {
+      // TODO: implement validation
+    }
 }
 
 // MARK: Sending Messages
@@ -273,6 +277,28 @@ extension UserAuthenticationStateMachine {
 
     mutating func sendUserAuthFailure(_: SSHMessage.UserAuthFailureMessage) {
         self.sendUserAuthResponseMessage(success: false)
+    }
+
+    mutating func sendUserAuthBanner(_: SSHMessage.UserAuthBannerMessage) {
+        /*
+         Relevant passage from RFC 4252:
+
+         The SSH server may send an SSH_MSG_USERAUTH_BANNER message at any
+         time after this authentication protocol starts and before
+         authentication is successful.  This message contains text to be
+         displayed to the client user before authentication is attempted.  The
+         format is as follows:
+         */
+        switch (self.delegate, self.state) {
+        case (.server, .idle):
+            preconditionFailure("Banner sent before authentication protocol start")
+        case (.server, .authenticationSucceeded):
+            preconditionFailure("Banner sent after authentication suceeded")
+        case (.server, _):
+            break
+        case (.client, _):
+            preconditionFailure("Clients never send auth responses")
+        }
     }
 
     private mutating func sendUserAuthResponseMessage(success: Bool) {
