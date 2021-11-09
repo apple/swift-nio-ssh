@@ -52,7 +52,7 @@ extension AcceptsUserAuthMessages {
         let result = try self.userAuthStateMachine.receiveServiceAccept(message)
 
         if let future = result {
-            return .possibleFutureMessage(future.map(self.transform(_:)))
+            return .possibleFutureMessage(future.map(Self.transform(_:)))
         } else {
             return .noMessage
         }
@@ -62,7 +62,12 @@ extension AcceptsUserAuthMessages {
         let result = try self.userAuthStateMachine.receiveUserAuthRequest(message)
 
         if let future = result {
-            return .possibleFutureMessage(future.map(self.transform(_:)))
+            var banner: SSHServerConfiguration.UserAuthBanner?
+            if case .server(let config) = role {
+                banner = config.banner
+            }
+
+            return .possibleFutureMessage(future.map({ Self.transform($0, banner: banner)}))
         } else {
             return .noMessage
         }
@@ -80,7 +85,7 @@ extension AcceptsUserAuthMessages {
         let result = try self.userAuthStateMachine.receiveUserAuthFailure(message)
 
         if let future = result {
-            return .possibleFutureMessage(future.map(self.transform(_:)))
+            return .possibleFutureMessage(future.map(Self.transform(_:)))
         } else {
             return .noMessage
         }
@@ -91,10 +96,10 @@ extension AcceptsUserAuthMessages {
       return .event(NIOUserAuthBannerEvent(message: message.message, languageTag: message.languageTag))
     }
 
-    private func transform(_ result: NIOSSHUserAuthenticationResponseMessage) -> SSHMultiMessage {
+    private static func transform(_ result: NIOSSHUserAuthenticationResponseMessage, banner: SSHServerConfiguration.UserAuthBanner? = nil) -> SSHMultiMessage {
         switch result {
         case .success:
-            if case .server(let config) = self.role, let banner = config.banner {
+            if let banner = banner {
                 // Send banner bundled with auth success to avoid leaking any information to unauthenticated clients.
                 // Note that this is by no means the only option
                 return SSHMultiMessage(.userAuthBanner(.init(message: banner.message, languageTag: banner.languageTag)), .userAuthSuccess)
@@ -108,7 +113,7 @@ extension AcceptsUserAuthMessages {
         }
     }
 
-    private func transform(_ result: SSHMessage.UserAuthRequestMessage?) -> SSHMultiMessage? {
+    private static func transform(_ result: SSHMessage.UserAuthRequestMessage?) -> SSHMultiMessage? {
         result.map { SSHMultiMessage(.userAuthRequest($0)) }
     }
 }
