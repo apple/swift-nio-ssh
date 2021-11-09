@@ -19,9 +19,17 @@ protocol AcceptsUserAuthMessages {
 }
 
 /// This event indicates that server wants us to display the following message to the end user.
-public struct UserAuthBannerEvent: Hashable {
-    public let message: String
-    public let languageTag: String
+public struct NIOUserAuthBannerEvent: Hashable {
+    /// message to be displayed to end user
+    public var message: String
+
+    /// tag  identifying the language used for `message`, following RFC 3066
+    public var languageTag: String
+
+    public init(message: String, languageTag: String) {
+        self.message = message
+        self.languageTag = languageTag
+    }
 }
 
 /// This event indicates that server accepted our response to authentication challenge. SSH session can be considered active after that.
@@ -80,7 +88,7 @@ extension AcceptsUserAuthMessages {
 
     mutating func receiveUserAuthBanner(_ message: SSHMessage.UserAuthBannerMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
       try self.userAuthStateMachine.receiveUserAuthBanner(message)
-      return .event(UserAuthBannerEvent(message: message.message, languageTag: message.languageTag))
+      return .event(NIOUserAuthBannerEvent(message: message.message, languageTag: message.languageTag))
     }
 
     private func transform(_ result: NIOSSHUserAuthenticationResponseMessage) -> SSHMultiMessage {

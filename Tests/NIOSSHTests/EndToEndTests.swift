@@ -656,7 +656,7 @@ class EndToEndTests: XCTestCase {
                 guard let promise = self.promise else { return }
                 self.promise = nil
 
-                if event is UserAuthBannerEvent {
+                if event is NIOUserAuthBannerEvent {
                     promise.fail(HandshakeFailure.missingBanner)
                 } else if event is UserAuthSuccessEvent {
                     promise.succeed(())
@@ -700,7 +700,7 @@ class EndToEndTests: XCTestCase {
                 guard let promise = self.promise else { return }
                 self.promise = nil
 
-                if let event = event as? UserAuthBannerEvent {
+                if let event = event as? NIOUserAuthBannerEvent {
                     promise.succeed((event.message, event.languageTag))
                 } else if event is UserAuthSuccessEvent {
                     promise.fail(HandshakeFailure.missingBanner)
