@@ -432,10 +432,10 @@ extension ByteBuffer {
             case SSHMessage.UserAuthSuccessMessage.id:
                 return .userAuthSuccess
             case SSHMessage.UserAuthBannerMessage.id:
-              guard let message = self.readUserAuthBannerMessage()  else {
-                return nil
-              }
-              return .userAuthBanner(message)
+                guard let message = self.readUserAuthBannerMessage() else {
+                    return nil
+                }
+                return .userAuthBanner(message)
             case SSHMessage.UserAuthPKOKMessage.id:
                 guard let message = try self.readUserAuthPKOKMessage() else {
                     return nil
@@ -735,15 +735,15 @@ extension ByteBuffer {
     }
 
     mutating func readUserAuthBannerMessage() -> SSHMessage.UserAuthBannerMessage? {
-      self.rewindReaderOnNil { `self` in
-        guard let message = self.readSSHStringAsString(),
-              let languageTag = self.readSSHStringAsString()
-        else {
-          return nil
-        }
+        self.rewindReaderOnNil { `self` in
+            guard let message = self.readSSHStringAsString(),
+                  let languageTag = self.readSSHStringAsString()
+            else {
+                return nil
+            }
 
-        return SSHMessage.UserAuthBannerMessage(message: message, languageTag: languageTag)
-      }
+            return SSHMessage.UserAuthBannerMessage(message: message, languageTag: languageTag)
+        }
     }
 
     mutating func readUserAuthPKOKMessage() throws -> SSHMessage.UserAuthPKOKMessage? {
@@ -1329,10 +1329,10 @@ extension ByteBuffer {
     }
 
     mutating func writeUserAuthBannerMessage(_ message: SSHMessage.UserAuthBannerMessage) -> Int {
-      var writtenBytes = 0
-      writtenBytes += self.writeSSHString(message.message.utf8)
-      writtenBytes += self.writeSSHString(message.languageTag.utf8)
-      return writtenBytes
+        var writtenBytes = 0
+        writtenBytes += self.writeSSHString(message.message.utf8)
+        writtenBytes += self.writeSSHString(message.languageTag.utf8)
+        return writtenBytes
     }
 
     mutating func writeUserAuthPKOKMessage(_ message: SSHMessage.UserAuthPKOKMessage) -> Int {
