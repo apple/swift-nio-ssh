@@ -188,7 +188,17 @@ extension UserAuthenticationStateMachine {
     }
 
     mutating func receiveUserAuthBanner(_ message: SSHMessage.UserAuthBannerMessage) throws {
-      // TODO: implement validation
+        switch (self.delegate, self.state) {
+        case (.client, .idle), (.client, .authenticationSucceeded):
+            // Server sent a user auth success but we didn't ask them to!
+            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "server sent user auth banner at the wrong time")
+        case (.server, _):
+            // Servers may never receive user auth banner messages.
+            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "client sent user auth banner")
+        default:
+            // In all other instances, receiving user auth banner is legal and must be dealt with by client
+            return
+        }
     }
 }
 
