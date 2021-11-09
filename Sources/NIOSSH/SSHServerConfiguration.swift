@@ -32,6 +32,10 @@ public struct SSHServerConfiguration {
         self.globalRequestDelegate = globalRequestDelegate ?? DefaultGlobalRequestDelegate()
         self.banner = banner
     }
+
+    public init(hostKeys: [NIOSSHPrivateKey], userAuthDelegate: NIOSSHServerUserAuthenticationDelegate, globalRequestDelegate: GlobalRequestDelegate? = nil) {
+        self.init(hostKeys: hostKeys, userAuthDelegate: userAuthDelegate, globalRequestDelegate: globalRequestDelegate, banner: nil)
+    }
 }
 
 // MARK: - UserAuthBanner
