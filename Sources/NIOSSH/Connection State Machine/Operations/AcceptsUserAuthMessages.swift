@@ -101,7 +101,7 @@ extension AcceptsUserAuthMessages {
         case .success:
             if let banner = banner {
                 // Send banner bundled with auth success to avoid leaking any information to unauthenticated clients.
-                // Note that this is by no means the only option
+                // Note that this is by no means the only option according to RFC 4252
                 return SSHMultiMessage(.userAuthBanner(.init(message: banner.message, languageTag: banner.languageTag)), .userAuthSuccess)
             }
 
