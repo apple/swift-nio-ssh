@@ -544,7 +544,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         self.notifyChannelInactive()
 
         self.eventLoop.execute {
-            self.removeHandlers(channel: self)
+            self.removeHandlers(pipeline: self.pipeline)
             self.closePromise.succeed(())
             self.multiplexer.childChannelClosed(channelID: self.state.localChannelIdentifier)
         }
@@ -581,7 +581,7 @@ extension SSHChildChannel: Channel, ChannelCore {
         }
 
         self.eventLoop.execute {
-            self.removeHandlers(channel: self)
+            self.removeHandlers(pipeline: self.pipeline)
             self.closePromise.fail(error)
             self.multiplexer.childChannelErrored(channelID: self.state.localChannelIdentifier, expectClose: !self.state.isClosed)
         }
@@ -640,7 +640,8 @@ private extension SSHChildChannel {
     private func deliverSingleRead(_ data: PendingContent) {
         switch data {
         case .data(let data):
-            if let increment = self.windowManager.unbufferBytes(data.data.readableBytes) {
+            // We only futz with the window manager if the channel is not already closed.
+            if !self.didClose, let increment = self.windowManager.unbufferBytes(data.data.readableBytes) {
                 let update = SSHMessage.ChannelWindowAdjustMessage(recipientChannel: self.state.remoteChannelIdentifier!, bytesToAdd: UInt32(increment))
                 self.processOutboundMessage(.channelWindowAdjust(update), promise: nil)
             }
