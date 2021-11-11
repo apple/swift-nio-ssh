@@ -2,7 +2,7 @@
 //
 // This source file is part of the SwiftNIO open source project
 //
-// Copyright (c) 2019 Apple Inc. and the SwiftNIO project authors
+// Copyright (c) 2019-2021 Apple Inc. and the SwiftNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -1192,12 +1192,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
 
         // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
-        // Sorry for the unsafe code, but otherwise this test takes _ages_.
-        var buffer = channel.allocator.buffer(capacity: (1 << 24) + 1)
-        buffer.writeWithUnsafeMutableBytes(minimumWritableBytes: (1 << 24) + 1) { ptr in
-            memset(ptr.baseAddress!, 0, (1 << 24) + 1)
-            return (1 << 24) + 1
-        }
+        let buffer = ByteBuffer.bigBuffer
 
         // We're going to write one byte short.
         XCTAssertEqual(harness.flushedMessages.count, 1)
@@ -1234,6 +1229,47 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Finally, issue an excessively large read. This should cause an error.
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
         XCTAssertEqual(harness.flushedMessages.count, 4)
+        self.assertChannelClose(harness.flushedMessages.last, recipientChannel: 1)
+    }
+
+    func testWeDontResizeTheWindowOnClose() throws {
+        let harness = self.harnessForbiddingInboundChannels()
+        defer {
+            harness.finish()
+        }
+
+        var childChannel: Channel?
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
+            childChannel = channel
+            return channel.setOption(ChannelOptions.autoRead, value: false)
+        }
+
+        guard childChannel != nil else {
+            XCTFail("Did not create child channel")
+            return
+        }
+
+        // Activate channel.
+        let channelID = self.assertChannelOpen(harness.flushedMessages.first)
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+
+        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        let buffer = ByteBuffer.bigBuffer
+
+        // We're going to write the whole window.
+        XCTAssertEqual(harness.flushedMessages.count, 1)
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
+                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!)))
+
+        // Auto read is off, so nothing happens.
+        XCTAssertEqual(harness.flushedMessages.count, 1)
+
+        // Now we send a close message. This is going to forcibly close the channel immediately.
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.close(peerChannelID: channelID!)))
+
+        // This should trigger a close and nothing else.
+        harness.multiplexer.parentChannelReadComplete()
+        XCTAssertEqual(harness.flushedMessages.count, 2)
         self.assertChannelClose(harness.flushedMessages.last, recipientChannel: 1)
     }
 
@@ -1657,4 +1693,49 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(readRecorder.reads.count, 5)
         XCTAssertTrue(eofHandler.seenEOF)
     }
+
+    func testChildChannelSupportsSyncOptions() throws {
+        var createdChannels = 0
+        let harness = self.harness { channel, _ in
+            createdChannels += 1
+
+            guard let sync = channel.syncOptions else {
+                XCTFail("\(channel) does not support syncOptions but should")
+                return channel.eventLoop.makeSucceededFuture(())
+            }
+
+            do {
+                let autoRead = try sync.getOption(ChannelOptions.autoRead)
+                try sync.setOption(ChannelOptions.autoRead, value: !autoRead)
+                XCTAssertNotEqual(try sync.getOption(ChannelOptions.autoRead), autoRead)
+            } catch {
+                XCTFail("Unable to get/set autoRead using synchronous options")
+            }
+
+            return channel.eventLoop.makeSucceededFuture(())
+        }
+        defer {
+            harness.finish()
+        }
+
+        XCTAssertEqual(createdChannels, 0)
+        XCTAssertEqual(harness.flushedMessages.count, 0)
+
+        let openRequest = self.openRequest(channelID: 1)
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(openRequest))
+        XCTAssertEqual(createdChannels, 1)
+        XCTAssertEqual(harness.flushedMessages.count, 1)
+        XCTAssertNil(harness.delegate.writes.first?.1)
+
+        self.assertChannelOpenConfirmation(harness.flushedMessages.first, recipientChannel: 1)
+    }
+}
+
+extension ByteBuffer {
+    /// A buffer `(1 << 24) + 1` bytes large.
+    fileprivate static let bigBuffer: ByteBuffer = {
+        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        // We store it in a static so that we don't have to re-create it for every test.
+        ByteBuffer(repeating: 0, count: (1 << 24) + 1)
+    }()
 }

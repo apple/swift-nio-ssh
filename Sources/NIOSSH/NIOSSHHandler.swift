@@ -216,6 +216,8 @@ extension NIOSSHHandler: ChannelDuplexHandler {
         case .disconnect:
             // Welp, we immediately have to close.
             context.close(promise: nil)
+        case .event(let event):
+            context.fireUserInboundEventTriggered(event)
         }
     }
 }

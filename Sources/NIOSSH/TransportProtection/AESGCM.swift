@@ -170,7 +170,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
 
         // We now want to overwrite the portion of the bytebuffer that contains the plaintext with the ciphertext, and then append the
         // tag.
-        outboundBuffer.setBytes(sealedBox.ciphertext, at: packetPaddingIndex)
+        outboundBuffer.setContiguousBytes(sealedBox.ciphertext, at: packetPaddingIndex)
         let tagLength = outboundBuffer.writeContiguousBytes(sealedBox.tag)
         precondition(tagLength == self.macBytes, "Unexpected short tag")
 
@@ -349,7 +349,7 @@ extension ByteBuffer {
     /// Will crash if there isn't space in the front of this buffer, so please ensure there is!
     fileprivate mutating func prependData(_ data: Data) {
         self.moveReaderIndex(to: self.readerIndex - data.count)
-        self.setBytes(data, at: self.readerIndex)
+        self.setContiguousBytes(data, at: self.readerIndex)
     }
 }
 
