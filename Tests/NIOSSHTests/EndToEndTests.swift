@@ -83,7 +83,7 @@ class BackToBackEmbeddedChannel {
         let clientHandler = NIOSSHHandler(role: .client(.init(userAuthDelegate: harness.clientAuthDelegate, serverAuthDelegate: harness.clientServerAuthDelegate, globalRequestDelegate: harness.clientGlobalRequestDelegate)),
                                           allocator: self.client.allocator,
                                           inboundChildChannelInitializer: nil)
-        let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate)),
+        let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate, banner: harness.serverAuthBanner)),
                                           allocator: self.server.allocator) { channel, _ in
             self.activeServerChannels.append(channel)
             channel.closeFuture.whenComplete { _ in self.activeServerChannels.removeAll(where: { $0 === channel }) }
@@ -129,6 +129,8 @@ struct TestHarness {
     var serverGlobalRequestDelegate: GlobalRequestDelegate?
 
     var serverHostKeys: [NIOSSHPrivateKey] = [.init(ed25519Key: .init())]
+
+    var serverAuthBanner: SSHServerConfiguration.UserAuthBanner?
 }
 
 final class UserEventExpecter: ChannelInboundHandler {
@@ -638,6 +640,94 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
         XCTAssertNoThrow(try promise.futureResult.wait())
+    }
+
+    func testServerDoesNotSendBanner() throws {
+        class ClientHandshakeHandler: ChannelInboundHandler {
+            typealias InboundIn = Any
+
+            var promise: EventLoopPromise<Void>?
+
+            init(promise: EventLoopPromise<Void>) {
+                self.promise = promise
+            }
+
+            func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+                guard let promise = self.promise else { return }
+                self.promise = nil
+
+                if event is NIOUserAuthBannerEvent {
+                    promise.fail(HandshakeFailure.missingBanner)
+                } else if event is UserAuthSuccessEvent {
+                    promise.succeed(())
+                }
+            }
+
+            enum HandshakeFailure: Error {
+                case missingBanner
+            }
+        }
+
+        let promise = self.channel.client.eventLoop.makePromise(of: Void.self)
+        let handshaker = ClientHandshakeHandler(promise: promise)
+
+        var harness = TestHarness()
+        harness.serverAuthBanner = nil
+
+        // Set up the connection, validate all is well.
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(handshaker).wait())
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        XCTAssertNoThrow(try promise.futureResult.wait())
+    }
+
+    func testCorrectBannerReceived() throws {
+        class ClientHandshakeHandler: ChannelInboundHandler {
+            typealias InboundIn = Any
+
+            static let expectedAuthBannerMessage = "This is a demo user auth banner."
+            static let expectedAuthBannerLanguageTag = "en"
+
+            var promise: EventLoopPromise<(String, String)>?
+
+            init(promise: EventLoopPromise<(String, String)>) {
+                self.promise = promise
+            }
+
+            func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+                guard let promise = self.promise else { return }
+                self.promise = nil
+
+                if let event = event as? NIOUserAuthBannerEvent {
+                    promise.succeed((event.message, event.languageTag))
+                } else if event is UserAuthSuccessEvent {
+                    promise.fail(HandshakeFailure.missingBanner)
+                }
+            }
+
+            enum HandshakeFailure: Error {
+                case missingBanner
+            }
+        }
+
+        let promise = self.channel.client.eventLoop.makePromise(of: (String, String).self)
+        let handshaker = ClientHandshakeHandler(promise: promise)
+
+        var harness = TestHarness()
+        harness.serverAuthBanner = .init(message: ClientHandshakeHandler.expectedAuthBannerMessage, languageTag: ClientHandshakeHandler.expectedAuthBannerLanguageTag)
+
+        // Set up the connection, validate all is well.
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(handshaker).wait())
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        var banner = ("", "")
+        XCTAssertNoThrow(banner = try promise.futureResult.wait())
+        XCTAssertEqual(banner.0, ClientHandshakeHandler.expectedAuthBannerMessage)
+        XCTAssertEqual(banner.1, ClientHandshakeHandler.expectedAuthBannerLanguageTag)
     }
 
     func testHandshakeFailure() throws {

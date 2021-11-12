@@ -186,6 +186,20 @@ extension UserAuthenticationStateMachine {
             throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "client sent user auth failure")
         }
     }
+
+    mutating func receiveUserAuthBanner(_: SSHMessage.UserAuthBannerMessage) throws {
+        switch (self.delegate, self.state) {
+        case (.client, .idle), (.client, .authenticationSucceeded):
+            // Server sent a user auth success but we didn't ask them to!
+            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "server sent user auth banner at the wrong time")
+        case (.server, _):
+            // Servers may never receive user auth banner messages.
+            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "client sent user auth banner")
+        default:
+            // In all other instances, receiving user auth banner is legal and must be dealt with by client
+            return
+        }
+    }
 }
 
 // MARK: Sending Messages
@@ -273,6 +287,28 @@ extension UserAuthenticationStateMachine {
 
     mutating func sendUserAuthFailure(_: SSHMessage.UserAuthFailureMessage) {
         self.sendUserAuthResponseMessage(success: false)
+    }
+
+    mutating func sendUserAuthBanner(_: SSHMessage.UserAuthBannerMessage) {
+        /*
+         Relevant passage from RFC 4252:
+
+         The SSH server may send an SSH_MSG_USERAUTH_BANNER message at any
+         time after this authentication protocol starts and before
+         authentication is successful.  This message contains text to be
+         displayed to the client user before authentication is attempted.  The
+         format is as follows:
+         */
+        switch (self.delegate, self.state) {
+        case (.server, .idle):
+            preconditionFailure("Banner sent before authentication protocol start")
+        case (.server, .authenticationSucceeded):
+            preconditionFailure("Banner sent after authentication suceeded")
+        case (.server, _):
+            break
+        case (.client, _):
+            preconditionFailure("Clients never send auth responses")
+        }
     }
 
     private mutating func sendUserAuthResponseMessage(success: Bool) {
