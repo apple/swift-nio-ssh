@@ -398,18 +398,18 @@ final class SSHMessagesTests: XCTestCase {
     }
 
     func testUserAuthBanner() throws {
-      var buffer = ByteBufferAllocator().buffer(capacity: 100)
-      let message = SSHMessage.userAuthBanner(.init(message: "Very important banner message containing crucial legal information.", languageTag: "en"))
-      
-      buffer.writeSSHMessage(message)
-      XCTAssertEqual(try buffer.readSSHMessage(), message)
-      
-      buffer.writeBytes([SSHMessage.UserAuthBannerMessage.id, 0, 0])
-      XCTAssertNil(try buffer.readSSHMessage())
-      
-      try self.assertCorrectlyManagesPartialRead(message)
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+        let message = SSHMessage.userAuthBanner(.init(message: "Very important banner message containing crucial legal information.", languageTag: "en"))
+
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        buffer.writeBytes([SSHMessage.UserAuthBannerMessage.id, 0, 0])
+        XCTAssertNil(try buffer.readSSHMessage())
+
+        try self.assertCorrectlyManagesPartialRead(message)
     }
-  
+
     func testGlobalRequest() throws {
         let allocator = ByteBufferAllocator()
         var buffer = allocator.buffer(capacity: 100)

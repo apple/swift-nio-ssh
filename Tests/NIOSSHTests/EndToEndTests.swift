@@ -130,7 +130,7 @@ struct TestHarness {
 
     var serverHostKeys: [NIOSSHPrivateKey] = [.init(ed25519Key: .init())]
 
-    var serverAuthBanner: SSHServerConfiguration.UserAuthBanner? = nil
+    var serverAuthBanner: SSHServerConfiguration.UserAuthBanner?
 }
 
 final class UserEventExpecter: ChannelInboundHandler {

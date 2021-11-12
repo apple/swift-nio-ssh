@@ -67,7 +67,7 @@ extension AcceptsUserAuthMessages {
                 banner = config.banner
             }
 
-            return .possibleFutureMessage(future.map({ Self.transform($0, banner: banner)}))
+            return .possibleFutureMessage(future.map { Self.transform($0, banner: banner) })
         } else {
             return .noMessage
         }
@@ -92,8 +92,8 @@ extension AcceptsUserAuthMessages {
     }
 
     mutating func receiveUserAuthBanner(_ message: SSHMessage.UserAuthBannerMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
-      try self.userAuthStateMachine.receiveUserAuthBanner(message)
-      return .event(NIOUserAuthBannerEvent(message: message.message, languageTag: message.languageTag))
+        try self.userAuthStateMachine.receiveUserAuthBanner(message)
+        return .event(NIOUserAuthBannerEvent(message: message.message, languageTag: message.languageTag))
     }
 
     private static func transform(_ result: NIOSSHUserAuthenticationResponseMessage, banner: SSHServerConfiguration.UserAuthBanner? = nil) -> SSHMultiMessage {

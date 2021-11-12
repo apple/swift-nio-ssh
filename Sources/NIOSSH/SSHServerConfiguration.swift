@@ -50,7 +50,7 @@ extension SSHServerConfiguration {
          The message to be displayed by client to end user during authentication.
          Note that control characters contained in message might be filtered by
          client in accordance with RFC 4252.
-        */
+         */
         public var message: String
 
         /// Tag describing the language used for message. Must obey RFC 3066

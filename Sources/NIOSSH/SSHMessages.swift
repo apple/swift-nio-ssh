@@ -170,15 +170,15 @@ extension SSHMessage {
         static let id: UInt8 = 52
     }
 
-  struct UserAuthBannerMessage: Equatable {
-      // SSH_MSG_USERAUTH_BANNER
-      static let id: UInt8 = 53
+    struct UserAuthBannerMessage: Equatable {
+        // SSH_MSG_USERAUTH_BANNER
+        static let id: UInt8 = 53
 
-      /// message to display to user in client, encoded as ISO-10646 UTF-8 following RFC 3629
-      var message: String
+        /// message to display to user in client, encoded as ISO-10646 UTF-8 following RFC 3629
+        var message: String
 
-      /// tag identifying language of banner, following RFC 3066
-      var languageTag: String
+        /// tag identifying language of banner, following RFC 3066
+        var languageTag: String
     }
 
     struct UserAuthPKOKMessage: Equatable {
@@ -737,7 +737,7 @@ extension ByteBuffer {
     mutating func readUserAuthBannerMessage() -> SSHMessage.UserAuthBannerMessage? {
         self.rewindReaderOnNil { `self` in
             guard let message = self.readSSHStringAsString(),
-                  let languageTag = self.readSSHStringAsString()
+                let languageTag = self.readSSHStringAsString()
             else {
                 return nil
             }

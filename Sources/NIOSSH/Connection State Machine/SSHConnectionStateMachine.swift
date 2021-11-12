@@ -318,9 +318,9 @@ struct SSHConnectionStateMachine {
                 return result
 
             case .userAuthBanner(let message):
-              let result = try state.receiveUserAuthBanner(message)
-              self.state = .userAuthentication(state)
-              return result
+                let result = try state.receiveUserAuthBanner(message)
+                self.state = .userAuthentication(state)
+                return result
 
             case .disconnect:
                 self.state = .receivedDisconnect(state.role)

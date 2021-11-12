@@ -187,7 +187,7 @@ extension UserAuthenticationStateMachine {
         }
     }
 
-    mutating func receiveUserAuthBanner(_ message: SSHMessage.UserAuthBannerMessage) throws {
+    mutating func receiveUserAuthBanner(_: SSHMessage.UserAuthBannerMessage) throws {
         switch (self.delegate, self.state) {
         case (.client, .idle), (.client, .authenticationSucceeded):
             // Server sent a user auth success but we didn't ask them to!
