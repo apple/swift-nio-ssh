@@ -39,6 +39,7 @@ public struct SSHServerConfiguration {
 }
 
 // MARK: - UserAuthBanner
+
 extension SSHServerConfiguration {
     /**
      Server sends `UserAuthBanner` to client some time during authentication.
