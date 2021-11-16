@@ -25,16 +25,21 @@ struct SSHPacketParser {
 
     private var buffer: ByteBuffer
     private var state: State
-    private let maximumPacketSize = 32768
+    private let maximumPacketSize: Int
 
     /// Testing only: the number of bytes we can discard from this buffer.
     internal var _discardableBytes: Int {
         self.buffer.readerIndex
     }
 
-    init(allocator: ByteBufferAllocator) {
+    init(allocator: ByteBufferAllocator, maximumPacketSize: Int = 1 << 17) {
+        // Assert that users don't provide a packet size lower than allowed by spec
+        assert(maximumPacketSize >= 32_768, "Maximum Packet Size is below minimum requirement as specified by RFC 4254")
+        assert(maximumPacketSize <= (1 << 24), "Maximum Packet Size is set abnormally high")
+        
         self.buffer = allocator.buffer(capacity: 0)
         self.state = .initialized
+        self.maximumPacketSize = maximumPacketSize
     }
 
     mutating func append(bytes: inout ByteBuffer) {
@@ -120,17 +125,25 @@ struct SSHPacketParser {
         // Looking for a string ending with \r\n
         let slice = self.buffer.readableBytesView
         
-        // Prevent the consumed bytes for a version from exceeding the maximum packet size
+        // Prevent the consumed bytes for a version from exceeding 4_096
         // In practice, if SSH version packets come anywhere near this it's already likely an attack
-        // More data cannot be blindly regarded as malicious though, since these might be multiple packets
-        let maximumVersionSize = min(slice.endIndex, self.maximumPacketSize)
+        // More data cannot be blindly regarded as malicious though, since this might contain multiple packets
+        let maxIndex = slice.index(slice.startIndex, offsetBy: min(slice.count, 4_096))
         
-        if let cr = slice.firstIndex(of: 13), cr.advanced(by: 1) < maximumVersionSize, slice[cr.advanced(by: 1)] == 10 {
-            let version = String(decoding: slice[slice.startIndex ..< cr], as: UTF8.self)
-            // read \r\n
-            self.buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: cr).advanced(by: 2))
-            return version
+        for index in slice.startIndex ..< slice.endIndex {
+            if index > maxIndex {
+                // Does not account for `CRLF`
+                throw NIOSSHError.excessiveVersionLength
+            }
+            
+            if slice[index] == 13, index.advanced(by: 1) < slice.endIndex, slice[index.advanced(by: 1)] == 10 {
+                let version = String(decoding: slice[slice.startIndex ..< index], as: UTF8.self)
+                // read \r\n
+                self.buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: index).advanced(by: 2))
+                return version
+            }
         }
+        
         return nil
     }
 
