@@ -171,10 +171,14 @@ extension SSHMessage {
     }
 
     struct UserAuthBannerMessage: Equatable {
+        // SSH_MSG_USERAUTH_BANNER
         static let id: UInt8 = 53
-        
-        let banner: String
-        let languageTag: String
+
+        /// message to display to user in client, encoded as ISO-10646 UTF-8 following RFC 3629
+        var message: String
+
+        /// tag identifying language of banner, following RFC 3066
+        var languageTag: String
     }
 
     struct UserAuthPKOKMessage: Equatable {
@@ -746,6 +750,18 @@ extension ByteBuffer {
         }
     }
 
+    mutating func readUserAuthBannerMessage() -> SSHMessage.UserAuthBannerMessage? {
+        self.rewindReaderOnNil { `self` in
+            guard let message = self.readSSHStringAsString(),
+                let languageTag = self.readSSHStringAsString()
+            else {
+                return nil
+            }
+
+            return SSHMessage.UserAuthBannerMessage(message: message, languageTag: languageTag)
+        }
+    }
+
     mutating func readUserAuthPKOKMessage() throws -> SSHMessage.UserAuthPKOKMessage? {
         try self.rewindOnNilOrError { `self` in
             guard
@@ -1162,11 +1178,10 @@ extension ByteBuffer {
             writtenBytes += self.writeInteger(SSHMessage.UserAuthFailureMessage.id)
             writtenBytes += self.writeUserAuthFailureMessage(message)
         case .userAuthSuccess:
-            writtenBytes += self.writeInteger(SSHMessage.UserAuthSuccessMessage.id)
         case .userAuthBanner(let message):
             writtenBytes += self.writeInteger(SSHMessage.UserAuthBannerMessage.id)
-            writtenBytes += self.writeSSHString(message.banner.utf8)
-            writtenBytes += self.writeSSHString(message.languageTag.utf8)
+            writtenBytes += self.writeUserAuthBannerMessage(message)
+            writtenBytes += self.writeInteger(SSHMessage.UserAuthSuccessMessage.id)
         case .userAuthPKOK(let message):
             writtenBytes += self.writeInteger(SSHMessage.UserAuthPKOKMessage.id)
             writtenBytes += self.writeUserAuthPKOKMessage(message)
@@ -1326,6 +1341,13 @@ extension ByteBuffer {
         var writtenBytes = 0
         writtenBytes += self.writeAlgorithms(message.authentications)
         writtenBytes += self.writeSSHBoolean(message.partialSuccess)
+        return writtenBytes
+    }
+
+    mutating func writeUserAuthBannerMessage(_ message: SSHMessage.UserAuthBannerMessage) -> Int {
+        var writtenBytes = 0
+        writtenBytes += self.writeSSHString(message.message.utf8)
+        writtenBytes += self.writeSSHString(message.languageTag.utf8)
         return writtenBytes
     }
 

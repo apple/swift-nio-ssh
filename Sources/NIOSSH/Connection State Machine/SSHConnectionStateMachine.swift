@@ -323,6 +323,11 @@ struct SSHConnectionStateMachine {
                 self.state = .userAuthentication(state)
                 return result
 
+            case .userAuthBanner(let message):
+                let result = try state.receiveUserAuthBanner(message)
+                self.state = .userAuthentication(state)
+                return result
+
             case .disconnect:
                 self.state = .receivedDisconnect(state.role)
                 return .disconnect
@@ -810,6 +815,10 @@ struct SSHConnectionStateMachine {
 
             case .serviceAccept(let message):
                 try state.writeServiceAccept(message, into: &buffer)
+                self.state = .userAuthentication(state)
+
+            case .userAuthBanner(let message):
+                try state.writeUserAuthBanner(message, into: &buffer)
                 self.state = .userAuthentication(state)
 
             case .userAuthRequest(let message):
