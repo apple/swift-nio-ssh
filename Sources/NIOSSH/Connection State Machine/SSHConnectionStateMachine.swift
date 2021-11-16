@@ -307,11 +307,6 @@ struct SSHConnectionStateMachine {
                 self.state = .userAuthentication(state)
                 return result
                 
-            case .userAuthBanner:
-                // Ignore the banner for now
-                self.state = .userAuthentication(state)
-                return .noMessage
-
             case .userAuthSuccess:
                 let result = try state.receiveUserAuthSuccess()
                 // Hey, auth succeeded!
@@ -825,9 +820,6 @@ struct SSHConnectionStateMachine {
                 try state.writeUserAuthRequest(message, into: &buffer)
                 self.state = .userAuthentication(state)
                 
-            case .userAuthBanner:
-                // Nothing to be done, we don't display the banner (yet)
-                self.state = .userAuthentication(state)
             case .userAuthSuccess:
                 try state.writeUserAuthSuccess(into: &buffer)
                 // Ok we're good to go!
