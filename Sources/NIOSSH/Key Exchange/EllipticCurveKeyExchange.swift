@@ -41,9 +41,7 @@ public protocol NIOSSHKeyExchangeAlgorithmProtocol {
     ) throws -> (KeyExchangeResult, NIOSSHKeyExchangeServerReply)
 
     mutating func receiveServerKeyExchangePayload(
-        serverHostKey hostKey: NIOSSHPublicKey,
-        serverPublicKey publicKey: ByteBuffer,
-        serverSignature signature: NIOSSHSignature,
+        serverKeyExchangeMessage: NIOSSHKeyExchangeServerReply,
         initialExchangeBytes: inout ByteBuffer,
         allocator: ByteBufferAllocator,
         expectedKeySizes: ExpectedKeySizes
@@ -134,9 +132,7 @@ extension EllipticCurveKeyExchange {
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
     mutating func receiveServerKeyExchangePayload(
-        serverHostKey hostKey: NIOSSHPublicKey,
-        serverPublicKey publicKey: ByteBuffer,
-        serverSignature signature: NIOSSHSignature,
+        serverKeyExchangeMessage: NIOSSHKeyExchangeServerReply,
         initialExchangeBytes: inout ByteBuffer,
         allocator: ByteBufferAllocator,
         expectedKeySizes: ExpectedKeySizes
@@ -152,14 +148,14 @@ extension EllipticCurveKeyExchange {
         //
         // Finally, we return our generated keys to the state machine.
 
-        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: publicKey,
+        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: serverKeyExchangeMessage.publicKey,
                                                      initialExchangeBytes: &initialExchangeBytes,
-                                                     serverHostKey: hostKey,
+                                                     serverHostKey: serverKeyExchangeMessage.hostKey,
                                                      allocator: allocator,
                                                      expectedKeySizes: expectedKeySizes)
 
         // We can now verify signature over the exchange hash.
-        guard hostKey.isValidSignature(signature, for: kexResult.exchangeHash) else {
+        guard serverKeyExchangeMessage.hostKey.isValidSignature(serverKeyExchangeMessage.signature, for: kexResult.exchangeHash) else {
             throw NIOSSHError.invalidExchangeHashSignature
         }
 

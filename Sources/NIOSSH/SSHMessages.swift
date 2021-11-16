@@ -733,22 +733,6 @@ extension ByteBuffer {
             return SSHMessage.UserAuthFailureMessage(authentications: authentications, partialSuccess: partialSuccess)
         }
     }
-    
-    mutating func readUserAuthBannerMessage() -> SSHMessage.UserAuthBannerMessage? {
-        self.rewindReaderOnNil { `self` in
-            guard
-                let banner = self.readSSHStringAsString(),
-                let languageTag = self.readSSHStringAsString()
-            else {
-                return nil
-            }
-
-            return SSHMessage.UserAuthBannerMessage(
-                banner: banner,
-                languageTag: languageTag
-            )
-        }
-    }
 
     mutating func readUserAuthBannerMessage() -> SSHMessage.UserAuthBannerMessage? {
         self.rewindReaderOnNil { `self` in
@@ -1178,10 +1162,10 @@ extension ByteBuffer {
             writtenBytes += self.writeInteger(SSHMessage.UserAuthFailureMessage.id)
             writtenBytes += self.writeUserAuthFailureMessage(message)
         case .userAuthSuccess:
+            writtenBytes += self.writeInteger(SSHMessage.UserAuthSuccessMessage.id)
         case .userAuthBanner(let message):
             writtenBytes += self.writeInteger(SSHMessage.UserAuthBannerMessage.id)
             writtenBytes += self.writeUserAuthBannerMessage(message)
-            writtenBytes += self.writeInteger(SSHMessage.UserAuthSuccessMessage.id)
         case .userAuthPKOK(let message):
             writtenBytes += self.writeInteger(SSHMessage.UserAuthPKOKMessage.id)
             writtenBytes += self.writeUserAuthPKOKMessage(message)

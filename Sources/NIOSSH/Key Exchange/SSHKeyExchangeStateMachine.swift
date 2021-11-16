@@ -255,9 +255,11 @@ struct SSHKeyExchangeStateMachine {
                 }
 
                 let result = try exchanger.receiveServerKeyExchangePayload(
-                    serverHostKey: message.hostKey,
-                    serverPublicKey: message.publicKey,
-                    serverSignature: message.signature,
+                    serverKeyExchangeMessage: .init(
+                        hostKey: message.hostKey,
+                        publicKey: message.publicKey,
+                        signature: message.signature
+                    ),
                     initialExchangeBytes: &self.initialExchangeBytes,
                     allocator: self.allocator,
                     expectedKeySizes: negotiated.negotiatedProtection.keySizes

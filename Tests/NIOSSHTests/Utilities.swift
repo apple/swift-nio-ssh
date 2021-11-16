@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 @testable import NIOSSH
+import NIO
 import XCTest
 
 func assertNoThrowWithValue<T>(_ body: @autoclosure () throws -> T, defaultValue: T? = nil, message: String? = nil, file: StaticString = #file, line: UInt = #line) throws -> T {
@@ -25,5 +26,11 @@ func assertNoThrowWithValue<T>(_ body: @autoclosure () throws -> T, defaultValue
         } else {
             throw error
         }
+    }
+}
+
+extension SSHKeyExchangeStateMachine {
+    mutating func handle(keyExchangeInit message: SSHMessage.KeyExchangeECDHInitMessage) throws -> SSHMultiMessage? {
+        return try handle(keyExchangeInit: message.publicKey)
     }
 }

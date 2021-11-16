@@ -60,10 +60,6 @@ public enum NIOSSHAlgoritms {
     }
 }
 
-//public protocol MACAlgorithmProtocol {
-//
-//}
-
 internal var customKeyExchangeAlgorithms = [NIOSSHKeyExchangeAlgorithmProtocol.Type]()
 //internal var macAlgorithms = [MACAlgorithmProtocol.Type]()
 
