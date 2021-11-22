@@ -222,6 +222,8 @@ extension SSHChildChannel: Channel, ChannelCore {
             // This force-unwrap is safe: we set type before we call the initializer, so
             // users can only get this after this value is set.
             return self.type! as! Option.Value
+        case _ as SSHChildChannelOptions.Types.PeerMaximumMessageLengthOption:
+            return self.peerMaxMessageSize as! Option.Value
         case _ as ChannelOptions.Types.AutoReadOption:
             return self.autoRead as! Option.Value
         case _ as ChannelOptions.Types.AllowRemoteHalfClosureOption:

@@ -1729,6 +1729,31 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         self.assertChannelOpenConfirmation(harness.flushedMessages.first, recipientChannel: 1)
     }
+
+    func testChildChannelMaxMessageLengthOption() throws {
+        let harness = self.harnessForbiddingInboundChannels()
+        defer {
+            harness.finish()
+        }
+
+        var childChannel: Channel?
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
+            childChannel = channel
+            return channel.eventLoop.makeSucceededFuture(())
+        }
+
+        guard let channel = childChannel else {
+            XCTFail("Did not create child channel")
+            return
+        }
+
+        // Activate channel.
+        let channelID = self.assertChannelOpen(harness.flushedMessages.first)
+        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1, initialWindowSize: 5, maxPacketSize: 4247)))
+        XCTAssertTrue(channel.isWritable)
+
+        XCTAssertEqual(try channel.getOption(SSHChildChannelOptions.peerMaximumMessageLength).wait(), 4247)
+    }
 }
 
 extension ByteBuffer {

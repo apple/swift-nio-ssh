@@ -26,6 +26,9 @@ public struct SSHChildChannelOptions {
 
     /// - seealso: `SSHChannelTypeOption`.
     public static let sshChannelType: SSHChildChannelOptions.Types.SSHChannelTypeOption = .init()
+
+    /// - seealso: `PeerMaximumMessageLengthOption`.
+    public static let peerMaximumMessageLength: SSHChildChannelOptions.Types.PeerMaximumMessageLengthOption = .init()
 }
 
 extension SSHChildChannelOptions {
@@ -50,6 +53,13 @@ extension SSHChildChannelOptions.Types {
     /// `SSHChannelTypeOption` allows users to query the type of the channel they're currently using.
     public struct SSHChannelTypeOption: ChannelOption {
         public typealias Value = SSHChannelType
+
+        public init() {}
+    }
+
+    /// `PeerMaximumMessageLengthOption` allows users to query the maximum packet size value reported by the remote peer for a given channel.
+    public struct PeerMaximumMessageLengthOption: ChannelOption {
+        public typealias Value = UInt32
 
         public init() {}
     }
