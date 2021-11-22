@@ -1751,7 +1751,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1, initialWindowSize: 5, maxPacketSize: 4247)))
         XCTAssertTrue(channel.isWritable)
-        
+
         XCTAssertEqual(try channel.getOption(SSHChildChannelOptions.peerMaximumMessageLength).wait(), 4247)
     }
 }
