@@ -46,6 +46,11 @@ extension SendsUserAuthMessages {
         try self.serializer.serialize(message: .userAuthFailure(message), to: &buffer)
     }
 
+    mutating func writeUserAuthBanner(_ message: SSHMessage.UserAuthBannerMessage, into buffer: inout ByteBuffer) throws {
+        self.userAuthStateMachine.sendUserAuthBanner(message)
+        try self.serializer.serialize(message: .userAuthBanner(message), to: &buffer)
+    }
+
     mutating func writeUserAuthPKOK(_ message: SSHMessage.UserAuthPKOKMessage, into buffer: inout ByteBuffer) throws {
         self.userAuthStateMachine.sendUserAuthPKOK(message)
         try self.serializer.serialize(message: .userAuthPKOK(message), to: &buffer)
