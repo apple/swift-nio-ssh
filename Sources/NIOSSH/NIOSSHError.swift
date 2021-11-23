@@ -199,7 +199,7 @@ extension NIOSSHError {
         /// The length of the nonce provided to a cipher is invalid for that cipher.
         public static let invalidNonceLength: ErrorType = .init(.invalidNonceLength)
         
-        /// The length of the nonce provided to a cipher is invalid for that cipher.
+        /// The version length sent by a client was excessively large.
         public static let excessiveVersionLength: ErrorType = .init(.excessiveVersionLength)
 
         /// The encrypted packet received has an invalid length for the negotiated encyption scheme

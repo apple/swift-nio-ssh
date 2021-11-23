@@ -34,8 +34,8 @@ struct SSHPacketParser {
 
     init(allocator: ByteBufferAllocator, maximumPacketSize: Int = 1 << 17) {
         // Assert that users don't provide a packet size lower than allowed by spec
-        assert(maximumPacketSize >= 32_768, "Maximum Packet Size is below minimum requirement as specified by RFC 4254")
-        assert(maximumPacketSize <= (1 << 24), "Maximum Packet Size is set abnormally high")
+        precondition(maximumPacketSize >= 32_768, "Maximum Packet Size is below minimum requirement as specified by RFC 4254")
+        precondition(maximumPacketSize <= (1 << 24), "Maximum Packet Size is set abnormally high")
         
         self.buffer = allocator.buffer(capacity: 0)
         self.state = .initialized
@@ -121,14 +121,15 @@ struct SSHPacketParser {
         }
     }
 
+    internal static let maximumAllowedVersionSize = 4_096
     private mutating func readVersion() throws -> String? {
         // Looking for a string ending with \r\n
         let slice = self.buffer.readableBytesView
         
-        // Prevent the consumed bytes for a version from exceeding 4_096
+        // Prevent the consumed bytes for a version from exceeding the defined maximum allowed size
         // In practice, if SSH version packets come anywhere near this it's already likely an attack
         // More data cannot be blindly regarded as malicious though, since this might contain multiple packets
-        let maxIndex = slice.index(slice.startIndex, offsetBy: min(slice.count, 4_096))
+        let maxIndex = slice.index(slice.startIndex, offsetBy: min(slice.count, Self.maximumAllowedVersionSize))
         
         for index in slice.startIndex ..< slice.endIndex {
             if index > maxIndex {
@@ -157,12 +158,13 @@ struct SSHPacketParser {
 
         // This force unwrap is safe because we must have a block size, and a block size is always going to be more than 4 bytes.
         let packetLength = self.buffer.getInteger(at: self.buffer.readerIndex, as: UInt32.self)!
+        let decryptedLength = packetLength + UInt32(protection.macBytes)
         
-        if packetLength >= self.maximumPacketSize {
+        if decryptedLength >= self.maximumPacketSize {
             throw NIOSSHError.invalidEncryptedPacketLength
         }
         
-        return packetLength + UInt32(protection.macBytes)
+        return decryptedLength
     }
 
     private mutating func parsePlaintext(length: UInt32) throws -> SSHMessage? {

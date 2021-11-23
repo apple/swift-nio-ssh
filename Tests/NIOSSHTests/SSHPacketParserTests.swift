@@ -145,7 +145,7 @@ final class SSHPacketParserTests: XCTestCase {
     
     func testMaximumPacketSizeInVersion() throws {
         var parser = SSHPacketParser(allocator: ByteBufferAllocator(), maximumPacketSize: 1 << 15)
-        let longVersionString = String(repeating: "z", count: 5000)
+        let longVersionString = String(repeating: "z", count: SSHPacketParser.maximumAllowedVersionSize + 256)
         var version = ByteBuffer.of(string: longVersionString + "\r\n")
         parser.append(bytes: &version)
 
