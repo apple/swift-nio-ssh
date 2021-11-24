@@ -180,7 +180,7 @@ extension ByteBuffer {
             let writtenBytes: Int
             switch necessaryPaddingBytes {
             case 8...:
-                writtenBytes = self.writeInteger(rng.next(), as: UInt32.self)
+                writtenBytes = self.writeInteger(rng.next(), as: UInt64.self)
             case 4 ... 7:
                 writtenBytes = self.writeInteger(rng.next(), as: UInt32.self)
             case 2 ... 3:
