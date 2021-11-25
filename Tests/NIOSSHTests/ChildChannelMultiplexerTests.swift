@@ -1197,7 +1197,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // We're going to write one byte short.
         XCTAssertEqual(harness.flushedMessages.count, 1)
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
-                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: SSHPacketParser.defaultMaximumPacketSize - 1)!)))
+                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: (SSHPacketParser.defaultMaximumPacketSize >> 1) - 1)!)))
 
         // Auto read is off, so nothing happens.
         XCTAssertEqual(harness.flushedMessages.count, 1)
@@ -1214,7 +1214,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Now issue a read. This triggers an outbound message.
         channel.read()
         XCTAssertEqual(harness.flushedMessages.count, 2)
-        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: SSHPacketParser.defaultMaximumPacketSize)
+        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: UInt32(SSHPacketParser.defaultMaximumPacketSize >> 1))
 
         // Now issue a really big read. Again, there's no autoread, so this does nothing.
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
