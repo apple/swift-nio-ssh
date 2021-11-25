@@ -193,14 +193,14 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
     }
 
-    private func openRequest(channelID: UInt32, initialWindowSize: UInt32 = 1 << 24, maxPacketSize: UInt32 = 1 << 24) -> SSHMessage {
+    private func openRequest(channelID: UInt32, initialWindowSize: UInt32 = UInt32(SSHPacketParser.defaultMaximumPacketSize), maxPacketSize: UInt32 = UInt32(SSHPacketParser.defaultMaximumPacketSize)) -> SSHMessage {
         .channelOpen(.init(type: .session,
                            senderChannel: channelID,
                            initialWindowSize: initialWindowSize,
                            maximumPacketSize: maxPacketSize))
     }
 
-    private func openConfirmation(originalChannelID: UInt32, peerChannelID: UInt32, initialWindowSize: UInt32 = 1 << 24, maxPacketSize: UInt32 = 1 << 24) -> SSHMessage {
+    private func openConfirmation(originalChannelID: UInt32, peerChannelID: UInt32, initialWindowSize: UInt32 = UInt32(SSHPacketParser.defaultMaximumPacketSize), maxPacketSize: UInt32 = UInt32(SSHPacketParser.defaultMaximumPacketSize)) -> SSHMessage {
         .channelOpenConfirmation(.init(recipientChannel: originalChannelID,
                                        senderChannel: peerChannelID,
                                        initialWindowSize: initialWindowSize,
@@ -231,8 +231,8 @@ final class ChildChannelMultiplexerTests: XCTestCase {
     func assertChannelOpen(_ message: SSHMessage?) -> UInt32? {
         switch message {
         case .some(.channelOpen(let message)):
-            XCTAssertEqual(message.maximumPacketSize, 1 << 24)
-            XCTAssertEqual(message.initialWindowSize, 1 << 24)
+            XCTAssertEqual(message.maximumPacketSize, UInt32(SSHPacketParser.defaultMaximumPacketSize))
+            XCTAssertEqual(message.initialWindowSize, UInt32(SSHPacketParser.defaultMaximumPacketSize))
             return message.senderChannel
 
         case let fallback:
@@ -246,8 +246,8 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         switch message {
         case .some(.channelOpenConfirmation(let message)):
             XCTAssertEqual(message.recipientChannel, recipientChannel)
-            XCTAssertEqual(message.maximumPacketSize, 1 << 24)
-            XCTAssertEqual(message.initialWindowSize, 1 << 24)
+            XCTAssertEqual(message.maximumPacketSize, UInt32(SSHPacketParser.defaultMaximumPacketSize))
+            XCTAssertEqual(message.initialWindowSize, UInt32(SSHPacketParser.defaultMaximumPacketSize))
             return message.senderChannel
 
         case let fallback:
@@ -1191,13 +1191,13 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
 
-        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        // Make a buffer the size of the default window size
         let buffer = ByteBuffer.bigBuffer
 
         // We're going to write one byte short.
         XCTAssertEqual(harness.flushedMessages.count, 1)
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
-                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: (1 << 23) - 1)!)))
+                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: SSHPacketParser.defaultMaximumPacketSize - 1)!)))
 
         // Auto read is off, so nothing happens.
         XCTAssertEqual(harness.flushedMessages.count, 1)
@@ -1214,17 +1214,17 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Now issue a read. This triggers an outbound message.
         channel.read()
         XCTAssertEqual(harness.flushedMessages.count, 2)
-        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: 1 << 23)
+        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: SSHPacketParser.defaultMaximumPacketSize)
 
         // Now issue a really big read. Again, there's no autoread, so this does nothing.
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
-                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!)))
+                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: SSHPacketParser.defaultMaximumPacketSize)!)))
         XCTAssertEqual(harness.flushedMessages.count, 2)
 
         // Issue the read. A new outbound message with a bigger window increment.
         channel.read()
         XCTAssertEqual(harness.flushedMessages.count, 3)
-        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: 1 << 24)
+        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: UInt32(SSHPacketParser.defaultMaximumPacketSize))
 
         // Finally, issue an excessively large read. This should cause an error.
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
@@ -1253,13 +1253,13 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
 
-        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        // Make a buffer the size of the default window size
         let buffer = ByteBuffer.bigBuffer
 
         // We're going to write the whole window.
         XCTAssertEqual(harness.flushedMessages.count, 1)
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
-                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!)))
+                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: SSHPacketParser.defaultMaximumPacketSize)!)))
 
         // Auto read is off, so nothing happens.
         XCTAssertEqual(harness.flushedMessages.count, 1)
@@ -1561,7 +1561,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         ]
 
         for (channelID, channelType) in channelTypes.enumerated() {
-            let message = SSHMessage.channelOpen(.init(type: .init(channelType), senderChannel: UInt32(channelID), initialWindowSize: 1 << 24, maximumPacketSize: 1 << 24))
+            let message = SSHMessage.channelOpen(.init(type: .init(channelType), senderChannel: UInt32(channelID), initialWindowSize: UInt32(SSHPacketParser.defaultMaximumPacketSize), maximumPacketSize: UInt32(SSHPacketParser.defaultMaximumPacketSize)))
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(message))
         }
 
@@ -1757,10 +1757,10 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 }
 
 extension ByteBuffer {
-    /// A buffer `(1 << 24) + 1` bytes large.
+    /// A buffer `(SSHPacketParser.defaultMaximumPacketSize) + 1` bytes large.
     fileprivate static let bigBuffer: ByteBuffer = {
-        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        // Make a buffer the size of the default window size
         // We store it in a static so that we don't have to re-create it for every test.
-        ByteBuffer(repeating: 0, count: (1 << 24) + 1)
+        ByteBuffer(repeating: 0, count: (SSHPacketParser.defaultMaximumPacketSize) + 1)
     }()
 }

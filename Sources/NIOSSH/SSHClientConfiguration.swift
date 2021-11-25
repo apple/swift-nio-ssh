@@ -24,7 +24,7 @@ public struct SSHClientConfiguration {
     public var globalRequestDelegate: GlobalRequestDelegate
     
     /// The maximum packet size that this NIOSSH client will accept
-    public var maximumPacketSize = 1 << 17
+    public var maximumPacketSize = SSHPacketParser.defaultMaximumPacketSize
 
     public init(userAuthDelegate: NIOSSHClientUserAuthenticationDelegate,
                 serverAuthDelegate: NIOSSHClientServerAuthenticationDelegate,

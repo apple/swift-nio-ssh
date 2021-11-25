@@ -82,7 +82,7 @@ class BackToBackEmbeddedChannel {
     func configureWithHarness(_ harness: TestHarness, maximumPacketSize: Int? = nil) throws {
         var clientConfiguration = SSHClientConfiguration(userAuthDelegate: harness.clientAuthDelegate, serverAuthDelegate: harness.clientServerAuthDelegate, globalRequestDelegate: harness.clientGlobalRequestDelegate)
         
-        var serverConfiguration = SSHServerConfiguration(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate)
+        var serverConfiguration = SSHServerConfiguration(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate, banner: harness.serverAuthBanner)
         
         if let maximumPacketSize = maximumPacketSize {
             clientConfiguration.maximumPacketSize = maximumPacketSize
@@ -92,7 +92,7 @@ class BackToBackEmbeddedChannel {
         let clientHandler = NIOSSHHandler(role: .client(clientConfiguration),
                                           allocator: self.client.allocator,
                                           inboundChildChannelInitializer: nil)
-        let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate, banner: harness.serverAuthBanner)),
+        let serverHandler = NIOSSHHandler(role: .server(serverConfiguration),
                                           allocator: self.server.allocator) { channel, _ in
             self.activeServerChannels.append(channel)
             channel.closeFuture.whenComplete { _ in self.activeServerChannels.removeAll(where: { $0 === channel }) }

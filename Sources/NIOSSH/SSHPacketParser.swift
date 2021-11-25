@@ -26,13 +26,14 @@ struct SSHPacketParser {
     private var buffer: ByteBuffer
     private var state: State
     private let maximumPacketSize: Int
+    internal static let defaultMaximumPacketSize = 1 << 17
 
     /// Testing only: the number of bytes we can discard from this buffer.
     internal var _discardableBytes: Int {
         self.buffer.readerIndex
     }
 
-    init(allocator: ByteBufferAllocator, maximumPacketSize: Int = 1 << 17) {
+    init(allocator: ByteBufferAllocator, maximumPacketSize: Int = defaultMaximumPacketSize) {
         // Assert that users don't provide a packet size lower than allowed by spec
         precondition(maximumPacketSize >= 32_768, "Maximum Packet Size is below minimum requirement as specified by RFC 4254")
         precondition(maximumPacketSize <= (1 << 24), "Maximum Packet Size is set abnormally high")
