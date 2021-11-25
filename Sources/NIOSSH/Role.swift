@@ -34,4 +34,26 @@ public enum SSHConnectionRole {
             return true
         }
     }
+    
+    internal var transportProtectionSchemes: [NIOSSHTransportProtection.Type] {
+        switch self {
+        case .client(let client):
+            return client.transportProtectionSchemes
+        case .server(let server):
+            return server.transportProtectionSchemes
+        }
+    }
+    
+    internal var keyExchangeAlgorithmNames: [Substring] {
+        keyExchangeAlgorithms.flatMap { $0.keyExchangeAlgorithmNames }
+    }
+    
+    internal var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type] {
+        switch self {
+        case .client(let client):
+            return client.keyExchangeAlgorithms
+        case .server(let server):
+            return server.keyExchangeAlgorithms
+        }
+    }
 }

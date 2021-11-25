@@ -60,12 +60,12 @@ struct SSHConnectionStateMachine {
     /// The state of this state machine.
     private var state: State
 
-    internal static var defaultTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
+    public static let bundledTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
         AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
     ]
 
-    init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type] = Self.defaultTransportProtectionSchemes) {
-        self.state = .idle(IdleState(role: role, protectionSchemes: protectionSchemes))
+    init(role: SSHConnectionRole) {
+        self.state = .idle(IdleState(role: role))
     }
 
     func start() -> SSHMultiMessage? {

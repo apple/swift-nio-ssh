@@ -25,7 +25,13 @@ public struct SSHServerConfiguration {
 
     /// The ssh banner to display to clients upon authentication
     public var banner: UserAuthBanner?
-
+    
+    /// The enabled TransportProtectionSchemes
+    public var transportProtectionSchemes: [NIOSSHTransportProtection.Type] = SSHConnectionStateMachine.bundledTransportProtectionSchemes
+    
+    /// The enabled KeyExchangeAlgorithms
+    public var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type] = SSHKeyExchangeStateMachine.bundledKeyExchangeImplementations
+    
     public init(hostKeys: [NIOSSHPrivateKey], userAuthDelegate: NIOSSHServerUserAuthenticationDelegate, globalRequestDelegate: GlobalRequestDelegate? = nil, banner: UserAuthBanner? = nil) {
         self.hostKeys = hostKeys
         self.userAuthDelegate = userAuthDelegate

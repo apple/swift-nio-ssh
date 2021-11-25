@@ -71,16 +71,18 @@ struct SSHKeyExchangeStateMachine {
     private let role: SSHConnectionRole
     private var state: State
     private var initialExchangeBytes: ByteBuffer
-    private var protectionSchemes: [NIOSSHTransportProtection.Type]
+    private var transportProtectionSchemes: [NIOSSHTransportProtection.Type]
+    private var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type]
     private var previousSessionIdentifier: ByteBuffer?
 
-    init(allocator: ByteBufferAllocator, loop: EventLoop, role: SSHConnectionRole, remoteVersion: String, protectionSchemes: [NIOSSHTransportProtection.Type], previousSessionIdentifier: ByteBuffer?) {
+    init(allocator: ByteBufferAllocator, loop: EventLoop, role: SSHConnectionRole, remoteVersion: String, keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type] = SSHKeyExchangeStateMachine.bundledKeyExchangeImplementations, transportProtectionSchemes: [NIOSSHTransportProtection.Type] = SSHConnectionStateMachine.bundledTransportProtectionSchemes, previousSessionIdentifier: ByteBuffer?) {
         self.allocator = allocator
         self.loop = loop
         self.role = role
         self.initialExchangeBytes = allocator.buffer(capacity: 1024)
         self.state = .idle
-        self.protectionSchemes = protectionSchemes
+        self.keyExchangeAlgorithms = keyExchangeAlgorithms
+        self.transportProtectionSchemes = transportProtectionSchemes
         self.previousSessionIdentifier = previousSessionIdentifier
 
         switch self.role {
@@ -103,7 +105,7 @@ struct SSHKeyExchangeStateMachine {
 
         return .init(
             cookie: rng.randomCookie(allocator: self.allocator),
-            keyExchangeAlgorithms: Self.supportedKeyExchangeAlgorithms,
+            keyExchangeAlgorithms: role.keyExchangeAlgorithmNames,
             serverHostKeyAlgorithms: self.supportedHostKeyAlgorithms,
             encryptionAlgorithmsClientToServer: encryptionAlgorithms,
             encryptionAlgorithmsServerToClient: encryptionAlgorithms,
@@ -334,7 +336,7 @@ struct SSHKeyExchangeStateMachine {
         }
 
         // Ok, now we need to find the right transport protection scheme. This can technically fail.
-        guard let scheme = self.protectionSchemes.first(where: { $0.cipherName == clientEncryption && ($0.macName == nil || $0.macName! == clientMAC) }) else {
+        guard let scheme = self.transportProtectionSchemes.first(where: { $0.cipherName == clientEncryption && ($0.macName == nil || $0.macName! == clientMAC) }) else {
             throw NIOSSHError.keyExchangeNegotiationFailure
         }
 
@@ -375,13 +377,13 @@ struct SSHKeyExchangeStateMachine {
 
         switch self.role {
         case .client:
-            clientAlgorithms = Self.supportedKeyExchangeAlgorithms
+            clientAlgorithms = role.keyExchangeAlgorithms.flatMap { $0.keyExchangeAlgorithmNames }
             serverAlgorithms = peerKeyExchangeAlgorithms
             clientHostKeyAlgorithms = self.supportedHostKeyAlgorithms
             serverHostKeyAlgorithms = peerHostKeyAlgorithms
         case .server:
             clientAlgorithms = peerKeyExchangeAlgorithms
-            serverAlgorithms = Self.supportedKeyExchangeAlgorithms
+            serverAlgorithms = role.keyExchangeAlgorithms.flatMap { $0.keyExchangeAlgorithmNames }
             clientHostKeyAlgorithms = peerHostKeyAlgorithms
             serverHostKeyAlgorithms = self.supportedHostKeyAlgorithms
         }
@@ -454,26 +456,20 @@ struct SSHKeyExchangeStateMachine {
     }
 
     private func exchangerForAlgorithm(_ algorithm: Substring) throws -> NIOSSHKeyExchangeAlgorithmProtocol {
-        for implementation in Self.supportedKeyExchangeImplementations {
-            if implementation.keyExchangeAlgorithmNames.contains(algorithm) {
-                return implementation.init(ourRole: self.role, previousSessionIdentifier: self.previousSessionIdentifier)
-            }
-        }
-        
-        for implementation in customKeyExchangeAlgorithms {
+        for implementation in keyExchangeAlgorithms {
             if implementation.keyExchangeAlgorithmNames.contains(algorithm) {
                 return implementation.init(ourRole: self.role, previousSessionIdentifier: self.previousSessionIdentifier)
             }
         }
 
-        // Huh, we didn't find it. Weird error.
+        // We didn't find a match
         throw NIOSSHError.keyExchangeNegotiationFailure
     }
 
     private func expectingIncorrectGuess(_ kexMessage: SSHMessage.KeyExchangeMessage) -> Bool {
         // A guess is wrong if the key exchange algorithm and/or the host key algorithm differ from our preference.
         kexMessage.firstKexPacketFollows && (
-            kexMessage.keyExchangeAlgorithms.first != Self.supportedKeyExchangeAlgorithms.first ||
+            kexMessage.keyExchangeAlgorithms.first != role.keyExchangeAlgorithmNames.first ||
                 kexMessage.serverHostKeyAlgorithms.first != self.supportedHostKeyAlgorithms.first
         )
     }
@@ -490,12 +486,12 @@ struct SSHKeyExchangeStateMachine {
 
     /// The encryption algorithms supported by this peer, in order of preference.
     private var supportedEncryptionAlgorithms: [Substring] {
-        self.protectionSchemes.map { Substring($0.cipherName) }
+        self.transportProtectionSchemes.map { Substring($0.cipherName) }
     }
 
     /// The MAC algorithms supported by this peer, in order of preference.
     private var supportedMacAlgorithms: [Substring] {
-        let schemes = self.protectionSchemes.compactMap { $0.macName.map { Substring($0) } }
+        let schemes = self.transportProtectionSchemes.compactMap { $0.macName.map { Substring($0) } }
 
         // We do a weird thing here: if there are no MAC schemes, we lie and put one in. This is
         // because some schemes (such as AES-GCM in OpenSSH mode) ignore the MAC negotiation.
@@ -510,19 +506,12 @@ struct SSHKeyExchangeStateMachine {
 
 extension SSHKeyExchangeStateMachine {
     // For now this is a static list.
-    static var supportedKeyExchangeImplementations: [NIOSSHKeyExchangeAlgorithmProtocol.Type] = [
+    static let bundledKeyExchangeImplementations: [NIOSSHKeyExchangeAlgorithmProtocol.Type] = [
         EllipticCurveKeyExchange<P384.KeyAgreement.PrivateKey>.self,
         EllipticCurveKeyExchange<P256.KeyAgreement.PrivateKey>.self,
         EllipticCurveKeyExchange<P521.KeyAgreement.PrivateKey>.self,
         EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>.self,
     ]
-
-    static var supportedKeyExchangeAlgorithms: [Substring] {
-        let bundledAlgorithms = supportedKeyExchangeImplementations.flatMap { $0.keyExchangeAlgorithmNames }
-        let customAlgorithms = customKeyExchangeAlgorithms.reduce([]) { $0 + $1.keyExchangeAlgorithmNames }
-        
-        return bundledAlgorithms + customAlgorithms
-    }
 
     /// All known host key algorithms.
     static let bundledServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521"]

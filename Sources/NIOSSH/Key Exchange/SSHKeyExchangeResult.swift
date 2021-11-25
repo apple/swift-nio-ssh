@@ -21,9 +21,9 @@ import NIO
 /// This exchange hash is used for a number of purposes.
 public struct KeyExchangeResult {
     /// The session ID to use for this connection. Will be static across the lifetime of a connection.
-    var sessionID: ByteBuffer
+    public var sessionID: ByteBuffer
 
-    var keys: NIOSSHSessionKeys
+    public var keys: NIOSSHSessionKeys
     
     public init(sessionID: ByteBuffer, keys: NIOSSHSessionKeys) {
         self.sessionID = sessionID
@@ -52,17 +52,17 @@ extension KeyExchangeResult: Equatable {}
 /// we store them in the `SymmetricKey` types. The IVs do not need to be secret, and so are
 /// stored in regular heap buffers.
 public struct NIOSSHSessionKeys {
-    public internal(set) var initialInboundIV: [UInt8]
+    public var initialInboundIV: [UInt8]
 
-    public internal(set) var initialOutboundIV: [UInt8]
+    public var initialOutboundIV: [UInt8]
 
-    public internal(set) var inboundEncryptionKey: SymmetricKey
+    public var inboundEncryptionKey: SymmetricKey
 
-    public internal(set) var outboundEncryptionKey: SymmetricKey
+    public var outboundEncryptionKey: SymmetricKey
 
-    public internal(set) var inboundMACKey: SymmetricKey
+    public var inboundMACKey: SymmetricKey
 
-    public internal(set) var outboundMACKey: SymmetricKey
+    public var outboundMACKey: SymmetricKey
     
     public init(initialInboundIV: [UInt8], initialOutboundIV: [UInt8], inboundEncryptionKey: SymmetricKey, outboundEncryptionKey: SymmetricKey, inboundMACKey: SymmetricKey, outboundMACKey: SymmetricKey) {
         self.initialInboundIV = initialInboundIV
@@ -83,11 +83,11 @@ extension NIOSSHSessionKeys: Equatable {}
 /// length as needed, which means we need to ensure the code doing the calculation knows how
 /// to truncate appropriately.
 public struct ExpectedKeySizes {
-    public internal(set) var ivSize: Int
+    public var ivSize: Int
 
-    public internal(set) var encryptionKeySize: Int
+    public var encryptionKeySize: Int
 
-    public internal(set) var macKeySize: Int
+    public var macKeySize: Int
     
     public init(ivSize: Int, encryptionKeySize: Int, macKeySize: Int) {
         self.ivSize = ivSize

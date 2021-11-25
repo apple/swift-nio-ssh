@@ -201,7 +201,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -209,7 +209,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -267,7 +267,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -275,7 +275,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -320,7 +320,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
                                                 role: .server(.init(hostKeys: [.init(ed25519Key: .init())],
                                                                     userAuthDelegate: DenyAllServerAuthDelegate())),
                                                 remoteVersion: Constants.version,
-                                                protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+                                                transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
                                                 previousSessionIdentifier: nil)
 
         // Server generates a key exchange message.
@@ -362,7 +362,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         let serverMessage = server.createKeyExchangeMessage()
@@ -393,7 +393,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -401,7 +401,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -459,7 +459,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -467,7 +467,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [hostKey], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -513,7 +513,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
                 loop: loop,
                 role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
                 remoteVersion: Constants.version,
-                protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+                transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
                 previousSessionIdentifier: nil
             )
             let clientMessage = client.createKeyExchangeMessage()
@@ -539,7 +539,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -547,7 +547,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -579,7 +579,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES128GCMOpenSSHTransportProtection.self, AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES128GCMOpenSSHTransportProtection.self, AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -587,7 +587,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -634,7 +634,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -642,7 +642,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -689,7 +689,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -697,7 +697,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -768,7 +768,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -776,7 +776,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: keys, userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -828,7 +828,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -836,7 +836,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [NIOSSHPrivateKey(p256Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -888,7 +888,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: RejectHostKeyDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -896,7 +896,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [NIOSSHPrivateKey(p256Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 
@@ -952,7 +952,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .client(.init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: hostKeyDelegate)),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
         var server = SSHKeyExchangeStateMachine(
@@ -960,7 +960,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             loop: loop,
             role: .server(.init(hostKeys: [serverHostKey], userAuthDelegate: DenyAllServerAuthDelegate())),
             remoteVersion: Constants.version,
-            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            transportProtectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
             previousSessionIdentifier: nil
         )
 

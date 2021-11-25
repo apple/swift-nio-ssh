@@ -27,8 +27,6 @@ extension SSHConnectionStateMachine {
 
         internal var remoteVersion: String
 
-        internal var protectionSchemes: [NIOSSHTransportProtection.Type]
-
         internal var sessionIdentifier: ByteBuffer
 
         init(_ previous: UserAuthenticationState) {
@@ -36,7 +34,6 @@ extension SSHConnectionStateMachine {
             self.serializer = previous.serializer
             self.parser = previous.parser
             self.remoteVersion = previous.remoteVersion
-            self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
         }
 
@@ -45,7 +42,6 @@ extension SSHConnectionStateMachine {
             self.serializer = previous.serializer
             self.parser = previous.parser
             self.remoteVersion = previous.remoteVersion
-            self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
         }
 
@@ -54,7 +50,6 @@ extension SSHConnectionStateMachine {
             self.serializer = previous.serializer
             self.parser = previous.parser
             self.remoteVersion = previous.remoteVersion
-            self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
         }
     }

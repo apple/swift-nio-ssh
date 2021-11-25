@@ -29,8 +29,6 @@ extension SSHConnectionStateMachine {
 
         var remoteVersion: String
 
-        var protectionSchemes: [NIOSSHTransportProtection.Type]
-
         var sessionIdentifier: ByteBuffer
 
         /// The backing state machine.
@@ -45,7 +43,6 @@ extension SSHConnectionStateMachine {
             self.parser = state.parser
             self.serializer = state.serializer
             self.remoteVersion = state.remoteVersion
-            self.protectionSchemes = state.protectionSchemes
             self.keyExchangeStateMachine = state.keyExchangeStateMachine
 
             // We force unwrap the session ID because it's programmer error to not have it at this time.

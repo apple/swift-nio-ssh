@@ -176,7 +176,7 @@ extension NIOSSHPublicKey {
 
     /// The prefix of a P521 ECDSA public key.
     internal static let ecdsaP521PublicKeyPrefix = "ecdsa-sha2-nistp521".utf8
-    
+
     internal var keyPrefix: String.UTF8View {
         switch self.backingKey {
         case .ed25519:
@@ -194,13 +194,92 @@ extension NIOSSHPublicKey {
         }
     }
 
-    internal static var knownAlgorithms: [String.UTF8View] = [
+    private static let bundledAlgorithms: [String.UTF8View] = [
         Self.ed25519PublicKeyPrefix, Self.ecdsaP384PublicKeyPrefix, Self.ecdsaP256PublicKeyPrefix, Self.ecdsaP521PublicKeyPrefix
     ]
     
-    internal static var customPublicKeyAlgorithms: [NIOSSHPublicKeyProtocol.Type] = []
-    internal static var customSignatures: [NIOSSHSignatureProtocol.Type] = []
+    internal static var knownAlgorithms: [String.UTF8View] {
+        bundledAlgorithms + customPublicKeyAlgorithms.map { $0.publicKeyPrefix.utf8 }
+    }
+    
+    internal static var customPublicKeyAlgorithms: [NIOSSHPublicKeyProtocol.Type] {
+        customAlgorithmsLock.lock()
+        defer { customAlgorithmsLock.unlock() }
+        return _customPublicKeyAlgorithms
+    }
+    
+    internal static var customSignatures: [NIOSSHSignatureProtocol.Type] {
+        customAlgorithmsLock.lock()
+        defer { customAlgorithmsLock.unlock() }
+        return _customSignatures
+    }
 }
+
+public enum NIOSSHAlgorithms {
+    public static func register(keyExchangeAlgorithm type: NIOSSHKeyExchangeAlgorithmProtocol.Type) {
+        customAlgorithmsLock.lock()
+        defer { customAlgorithmsLock.unlock() }
+        
+        if !_customKeyExchangeAlgorithms.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
+            _customKeyExchangeAlgorithms.append(type)
+        }
+    }
+    
+    public static func register(transportProtectionScheme type: NIOSSHTransportProtection.Type) {
+        customAlgorithmsLock.lock()
+        defer { customAlgorithmsLock.unlock() }
+        
+        if !_customTransportProtectionSchemes.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
+            _customTransportProtectionSchemes.append(type)
+        }
+    }
+    
+    /// Registers a custom type tuple for use in Public Key Authentication.
+    public static func register<
+        PublicKey: NIOSSHPublicKeyProtocol,
+        Signature: NIOSSHSignatureProtocol
+    >(
+        publicKey type: PublicKey.Type,
+        signature: Signature.Type
+    ) {
+        customAlgorithmsLock.lock()
+        defer { customAlgorithmsLock.unlock() }
+        
+        if !_customPublicKeyAlgorithms.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
+            _customPublicKeyAlgorithms.append(type)
+            _customSignatures.append(signature)
+        }
+    }
+    
+    /// Used for our unit tests
+    internal static func unregisterAlgorithms() {
+        customAlgorithmsLock.lock()
+        defer { customAlgorithmsLock.unlock() }
+        
+        _customKeyExchangeAlgorithms = []
+        _customSignatures = []
+        _customPublicKeyAlgorithms = []
+        _customTransportProtectionSchemes = []
+    }
+}
+
+internal var customTransportProtectionSchemes: [NIOSSHTransportProtection.Type] {
+    customAlgorithmsLock.lock()
+    defer { customAlgorithmsLock.unlock() }
+    return _customTransportProtectionSchemes
+}
+
+internal var customKeyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type] {
+    customAlgorithmsLock.lock()
+    defer { customAlgorithmsLock.unlock() }
+    return _customKeyExchangeAlgorithms
+}
+
+internal let customAlgorithmsLock = NSLock()
+fileprivate var _customTransportProtectionSchemes = [NIOSSHTransportProtection.Type]()
+fileprivate var _customKeyExchangeAlgorithms = [NIOSSHKeyExchangeAlgorithmProtocol.Type]()
+fileprivate var _customPublicKeyAlgorithms: [NIOSSHPublicKeyProtocol.Type] = []
+fileprivate var _customSignatures: [NIOSSHSignatureProtocol.Type] = []
 
 extension NIOSSHPublicKey.BackingKey: Equatable {
     static func == (lhs: NIOSSHPublicKey.BackingKey, rhs: NIOSSHPublicKey.BackingKey) -> Bool {

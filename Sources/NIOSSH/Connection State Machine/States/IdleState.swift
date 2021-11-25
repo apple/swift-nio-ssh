@@ -22,11 +22,14 @@ extension SSHConnectionStateMachine {
         internal var serializer: SSHPacketSerializer
 
         internal var protectionSchemes: [NIOSSHTransportProtection.Type]
+        
+        internal var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type]
 
-        init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type]) {
+        init(role: SSHConnectionRole) {
             self.role = role
             self.serializer = SSHPacketSerializer()
-            self.protectionSchemes = protectionSchemes
+            self.protectionSchemes = role.transportProtectionSchemes
+            self.keyExchangeAlgorithms = role.keyExchangeAlgorithms
         }
     }
 }
