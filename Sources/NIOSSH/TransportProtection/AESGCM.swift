@@ -43,7 +43,7 @@ internal class AESGCMTransportProtection {
     required init(initialKeys: NIOSSHSessionKeys) throws {
         guard initialKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8,
             initialKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
-            throw NIOSSHError.invalidKeySize
+N            throw NIOSSHError.invalidKeySize
         }
 
         self.outboundEncryptionKey = initialKeys.outboundEncryptionKey

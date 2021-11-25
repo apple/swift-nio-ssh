@@ -138,7 +138,7 @@ extension EllipticCurveKeyExchange {
         expectedKeySizes: ExpectedKeySizes
     ) throws -> KeyExchangeResult {
         precondition(self.ourRole.isClient, "Only clients may receive a server key exchange packet!")
-        
+
         // Ok, we have a few steps here. Firstly, we need to extract the server's public key and generate our shared
         // secret. Then we need to validate that we didn't generate a weak shared secret (possible under some cases),
         // as this must fail the key exchange process.

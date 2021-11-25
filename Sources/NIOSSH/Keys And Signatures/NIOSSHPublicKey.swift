@@ -485,7 +485,7 @@ extension ByteBuffer {
         writtenBytes += self.writeSSHString(baseKey.x963Representation)
         return writtenBytes
     }
-    
+
     /// A helper function that reads an Ed25519 public key.
     ///
     /// Not safe to call from arbitrary code as this does not return the reader index on failure: it relies on the caller performing
