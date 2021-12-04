@@ -377,13 +377,13 @@ struct SSHKeyExchangeStateMachine {
 
         switch self.role {
         case .client:
-            clientAlgorithms = role.keyExchangeAlgorithms.flatMap { $0.keyExchangeAlgorithmNames }
+            clientAlgorithms = role.keyExchangeAlgorithmNames
             serverAlgorithms = peerKeyExchangeAlgorithms
             clientHostKeyAlgorithms = self.supportedHostKeyAlgorithms
             serverHostKeyAlgorithms = peerHostKeyAlgorithms
         case .server:
             clientAlgorithms = peerKeyExchangeAlgorithms
-            serverAlgorithms = role.keyExchangeAlgorithms.flatMap { $0.keyExchangeAlgorithmNames }
+            serverAlgorithms = role.keyExchangeAlgorithmNames
             clientHostKeyAlgorithms = peerHostKeyAlgorithms
             serverHostKeyAlgorithms = self.supportedHostKeyAlgorithms
         }

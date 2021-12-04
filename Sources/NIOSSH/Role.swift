@@ -45,7 +45,7 @@ public enum SSHConnectionRole {
     }
     
     internal var keyExchangeAlgorithmNames: [Substring] {
-        keyExchangeAlgorithms.flatMap { $0.keyExchangeAlgorithmNames }
+        self.keyExchangeAlgorithms.flatMap { $0.keyExchangeAlgorithmNames }
     }
     
     internal var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type] {

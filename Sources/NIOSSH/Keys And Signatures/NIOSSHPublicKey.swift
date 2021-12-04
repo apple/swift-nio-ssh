@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
+import NIOConcurrencyHelpers
 import Foundation
 import NIO
 
@@ -275,7 +276,7 @@ internal var customKeyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Ty
     return _customKeyExchangeAlgorithms
 }
 
-internal let customAlgorithmsLock = NSLock()
+internal let customAlgorithmsLock = Lock()
 fileprivate var _customTransportProtectionSchemes = [NIOSSHTransportProtection.Type]()
 fileprivate var _customKeyExchangeAlgorithms = [NIOSSHKeyExchangeAlgorithmProtocol.Type]()
 fileprivate var _customPublicKeyAlgorithms: [NIOSSHPublicKeyProtocol.Type] = []

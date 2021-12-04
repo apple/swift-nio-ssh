@@ -17,9 +17,15 @@ import NIO
 import NIOFoundationCompat
 
 public struct NIOSSHKeyExchangeServerReply {
-    let hostKey: NIOSSHPublicKey
-    let publicKey: ByteBuffer
-    let signature: NIOSSHSignature
+    public var hostKey: NIOSSHPublicKey
+    public var publicKey: ByteBuffer
+    public var signature: NIOSSHSignature
+    
+    public init(hostKey: NIOSSHPublicKey, publicKey: ByteBuffer, signature: NIOSSHSignature) {
+        self.hostKey = hostKey
+        self.publicKey = publicKey
+        self.signature = signature
+    }
 }
 
 /// This protocol defines a container used by the key exchange state machine to manage key exchange.
@@ -50,7 +56,7 @@ public protocol NIOSSHKeyExchangeAlgorithmProtocol {
     static var keyExchangeAlgorithmNames: [Substring] { get }
 }
 
-struct EllipticCurveKeyExchange<PrivateKey: ECDHCompatiblePrivateKey>:  NIOSSHKeyExchangeAlgorithmProtocol {
+struct EllipticCurveKeyExchange<PrivateKey: ECDHCompatiblePrivateKey>: NIOSSHKeyExchangeAlgorithmProtocol {
     private var previousSessionIdentifier: ByteBuffer?
     private var ourKey: PrivateKey
     private var theirKey: PrivateKey.PublicKey?

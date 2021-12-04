@@ -60,7 +60,7 @@ struct SSHConnectionStateMachine {
     /// The state of this state machine.
     private var state: State
 
-    public static let bundledTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
+    static let bundledTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
         AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
     ]
 
@@ -306,7 +306,7 @@ struct SSHConnectionStateMachine {
                 let result = try state.receiveUserAuthRequest(message)
                 self.state = .userAuthentication(state)
                 return result
-                
+
             case .userAuthSuccess:
                 let result = try state.receiveUserAuthSuccess()
                 // Hey, auth succeeded!
@@ -819,7 +819,7 @@ struct SSHConnectionStateMachine {
             case .userAuthRequest(let message):
                 try state.writeUserAuthRequest(message, into: &buffer)
                 self.state = .userAuthentication(state)
-                
+
             case .userAuthSuccess:
                 try state.writeUserAuthSuccess(into: &buffer)
                 // Ok we're good to go!
