@@ -33,7 +33,7 @@ final class SSHChannelMultiplexer {
 
     /// Whether new channels are allowed. Set to `false` once the parent channel is shut down at the TCP level.
     private var canCreateNewChannels: Bool
-    
+
     private let maximumPacketSize: Int
 
     init(delegate: SSHMultiplexerDelegate, allocator: ByteBufferAllocator, childChannelInitializer: SSHChildChannel.Initializer?, maximumPacketSize: Int = 1 << 17) {
@@ -200,9 +200,9 @@ extension SSHChannelMultiplexer {
                                       multiplexer: self,
                                       initializer: initializer,
                                       localChannelID: channelID,
-                                      targetWindowSize: Int32(maximumPacketSize),
+                                      targetWindowSize: Int32(self.maximumPacketSize),
                                       initialOutboundWindowSize: 0,
-                                      maximumPacketSize: maximumPacketSize) // The initial outbound window size is presumed to be 0 until we're told otherwise.
+                                      maximumPacketSize: self.maximumPacketSize) // The initial outbound window size is presumed to be 0 until we're told otherwise.
 
         self.channels[channelID] = channel
         return channel

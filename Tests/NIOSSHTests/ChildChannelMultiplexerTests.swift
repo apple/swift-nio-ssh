@@ -1761,6 +1761,6 @@ extension ByteBuffer {
     fileprivate static let bigBuffer: ByteBuffer = {
         // Make a buffer the size of the default window size
         // We store it in a static so that we don't have to re-create it for every test.
-        ByteBuffer(repeating: 0, count: (SSHPacketParser.defaultMaximumPacketSize) + 1)
+        ByteBuffer(repeating: 0, count: SSHPacketParser.defaultMaximumPacketSize + 1)
     }()
 }

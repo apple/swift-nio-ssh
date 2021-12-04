@@ -97,7 +97,7 @@ final class SSHChildChannel {
     private var didClose = false
 
     private var type: SSHChannelType?
-    
+
     private let maximumPacketSize: Int
 
     /// A promise from the user that will be fired when the channel goes active.
@@ -476,7 +476,7 @@ extension SSHChildChannel: Channel, ChannelCore {
             let message = SSHMessage.ChannelOpenConfirmationMessage(recipientChannel: self.state.remoteChannelIdentifier!,
                                                                     senderChannel: self.state.localChannelIdentifier,
                                                                     initialWindowSize: self.windowManager.targetWindowSize,
-                                                                    maximumPacketSize: UInt32(maximumPacketSize))
+                                                                    maximumPacketSize: UInt32(self.maximumPacketSize))
             self.processOutboundMessage(.channelOpenConfirmation(message), promise: nil)
             self.writePendingToMultiplexer()
         } else if !self.state.isClosed {
@@ -484,7 +484,7 @@ extension SSHChildChannel: Channel, ChannelCore {
             let message = SSHMessage.ChannelOpenMessage(type: .init(self.type!),
                                                         senderChannel: self.state.localChannelIdentifier,
                                                         initialWindowSize: self.windowManager.targetWindowSize,
-                                                        maximumPacketSize: UInt32(maximumPacketSize))
+                                                        maximumPacketSize: UInt32(self.maximumPacketSize))
             self.processOutboundMessage(.channelOpen(message), promise: nil)
             self.writePendingToMultiplexer()
         } else {

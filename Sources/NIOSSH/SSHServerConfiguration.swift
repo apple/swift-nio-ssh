@@ -22,7 +22,7 @@ public struct SSHServerConfiguration {
 
     /// The host keys for this server.
     public var hostKeys: [NIOSSHPrivateKey]
-    
+
     /// The maximum packet size that this NIOSSH server will accept
     public var maximumPacketSize = SSHPacketParser.defaultMaximumPacketSize
 

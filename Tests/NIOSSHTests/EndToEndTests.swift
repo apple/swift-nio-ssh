@@ -81,14 +81,14 @@ class BackToBackEmbeddedChannel {
 
     func configureWithHarness(_ harness: TestHarness, maximumPacketSize: Int? = nil) throws {
         var clientConfiguration = SSHClientConfiguration(userAuthDelegate: harness.clientAuthDelegate, serverAuthDelegate: harness.clientServerAuthDelegate, globalRequestDelegate: harness.clientGlobalRequestDelegate)
-        
+
         var serverConfiguration = SSHServerConfiguration(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate, banner: harness.serverAuthBanner)
-        
+
         if let maximumPacketSize = maximumPacketSize {
             clientConfiguration.maximumPacketSize = maximumPacketSize
             serverConfiguration.maximumPacketSize = maximumPacketSize
         }
-        
+
         let clientHandler = NIOSSHHandler(role: .client(clientConfiguration),
                                           allocator: self.client.allocator,
                                           inboundChildChannelInitializer: nil)
@@ -138,8 +138,8 @@ struct TestHarness {
     var serverGlobalRequestDelegate: GlobalRequestDelegate?
 
     var serverHostKeys: [NIOSSHPrivateKey] = [.init(ed25519Key: .init())]
-    
-    var maximumPacketSize: Int? = nil
+
+    var maximumPacketSize: Int?
 
     var serverAuthBanner: SSHServerConfiguration.UserAuthBanner?
 }
@@ -253,10 +253,10 @@ class EndToEndTests: XCTestCase {
         helper(ChannelSuccessEvent())
         helper(ChannelFailureEvent())
     }
-    
+
     /// This test validates that all the channel requests roiund-trip appropriately.
     func testChannelRejectsHugePacketsRequests() throws {
-        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness(), maximumPacketSize: 32_768))
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness(), maximumPacketSize: 32768))
         XCTAssertNoThrow(try self.channel.activate())
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
@@ -271,7 +271,7 @@ class EndToEndTests: XCTestCase {
         let userEventRecorder = UserEventExpecter()
         XCTAssertNoThrow(try serverChannel.pipeline.addHandler(userEventRecorder).wait())
 
-        let hugeCommand = String(repeating: "a", count: 32_768)
+        let hugeCommand = String(repeating: "a", count: 32768)
         try clientChannel.triggerUserOutboundEvent(SSHChannelRequestEvent.ExecRequest(command: hugeCommand, wantReply: true)).wait()
         XCTAssertThrowsError(try self.channel.interactInMemory())
     }
