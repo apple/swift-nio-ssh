@@ -19,7 +19,7 @@ import NIOCore
 import Darwin
 #else
 import Glibc
-#endif
+#endif // os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
 
 /// A `NIOSSHCertifiedPublicKey` is an SSH public key combined with an SSH certificate.
 ///

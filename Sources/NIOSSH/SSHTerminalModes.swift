@@ -28,6 +28,8 @@ public struct SSHTerminalModes {
 
 extension SSHTerminalModes: Hashable {}
 
+extension SSHTerminalModes: NIOSSHSendable {}
+
 // MARK: Opcode
 
 extension SSHTerminalModes {
@@ -220,6 +222,8 @@ extension SSHTerminalModes {
 
 extension SSHTerminalModes.Opcode: Hashable {}
 
+extension SSHTerminalModes.Opcode: NIOSSHSendable {}
+
 extension SSHTerminalModes.Opcode: Comparable {
     public static func < (lhs: SSHTerminalModes.Opcode, rhs: SSHTerminalModes.Opcode) -> Bool {
         lhs.rawValue < rhs.rawValue
@@ -368,6 +372,8 @@ extension SSHTerminalModes {
 }
 
 extension SSHTerminalModes.OpcodeValue: Hashable {}
+
+extension SSHTerminalModes.OpcodeValue: NIOSSHSendable {}
 
 extension SSHTerminalModes.OpcodeValue: Comparable {
     public static func < (lhs: SSHTerminalModes.OpcodeValue, rhs: SSHTerminalModes.OpcodeValue) -> Bool {
