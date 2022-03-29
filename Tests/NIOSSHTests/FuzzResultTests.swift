@@ -14,7 +14,8 @@
 
 import Crypto
 import Foundation
-import NIO
+import NIOCore
+import NIOEmbedded
 import NIOFoundationCompat
 import NIOSSH
 import XCTest

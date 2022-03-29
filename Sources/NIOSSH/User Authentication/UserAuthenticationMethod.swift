@@ -11,7 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-import NIO
+import NIOCore
 
 /// The user authentication modes available at this point in time.
 public struct NIOSSHAvailableUserAuthenticationMethods: OptionSet {

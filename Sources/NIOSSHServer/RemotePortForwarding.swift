@@ -14,8 +14,9 @@
 
 import Dispatch
 import Foundation
-import NIO
+import NIOCore
 import NIOFoundationCompat
+import NIOPosix
 import NIOSSH
 
 // Remote port forwarding is a fun feature of SSH where a client can ask an SSH server to listen on a local

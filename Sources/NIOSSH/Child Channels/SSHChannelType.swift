@@ -11,7 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-import NIO
+import NIOCore
 
 /// `SSHChannelType` represents the type of a single SSH channel.
 ///

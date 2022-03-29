@@ -14,8 +14,9 @@
 
 import Dispatch
 import Foundation
-import NIO
+import NIOCore
 import NIOFoundationCompat
+import NIOPosix
 import NIOSSH
 
 final class DataToBufferCodec: ChannelDuplexHandler {

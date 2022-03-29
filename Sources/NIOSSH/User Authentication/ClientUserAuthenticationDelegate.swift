@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// A `NIOSSHClientUserAuthenticationDelegate` is an object that can provide a sequence of
 /// SSH user authentication methods based on the the acceptable list from the server.

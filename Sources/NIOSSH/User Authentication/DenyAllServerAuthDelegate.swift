@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// A server user authentication delegate that denies all authentication attempts.
 ///

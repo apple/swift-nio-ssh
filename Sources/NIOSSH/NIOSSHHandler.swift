@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// A `ChannelDuplexHandler` that implements the SSH protocol.
 ///

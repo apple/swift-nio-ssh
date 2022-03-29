@@ -13,7 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import NIO
+import NIOCore
+import NIOPosix
 import NIOSSH
 
 final class ExampleExecHandler: ChannelDuplexHandler {

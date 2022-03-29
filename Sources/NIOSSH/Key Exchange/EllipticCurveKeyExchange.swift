@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIO
+import NIOCore
 import NIOFoundationCompat
 
 /// This protocol defines a container used by the key exchange state machine to manage key exchange.

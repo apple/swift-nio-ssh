@@ -14,7 +14,7 @@
 
 import Crypto
 import Dispatch
-import NIO
+import NIOCore
 
 /// A `NIOSSHCertifiedPublicKey` is an SSH public key combined with an SSH certificate.
 ///

@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 extension SSHConnectionStateMachine {
     /// The state of a state machine that has sent new keys after a key exchange operation from an active channel,

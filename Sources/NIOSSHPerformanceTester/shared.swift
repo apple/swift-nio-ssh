@@ -12,7 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 import Crypto
-import NIO
+import NIOCore
+import NIOEmbedded
 import NIOSSH
 
 class BackToBackEmbeddedChannel {

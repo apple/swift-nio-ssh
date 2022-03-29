@@ -13,8 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIO
 import NIOConcurrencyHelpers
+import NIOCore
+import NIOEmbedded
 @testable import NIOSSH
 import XCTest
 

@@ -15,7 +15,7 @@
 import Crypto
 import Dispatch
 import Foundation
-import NIO
+import NIOCore
 import NIOSSH
 
 // MARK: Test Harness

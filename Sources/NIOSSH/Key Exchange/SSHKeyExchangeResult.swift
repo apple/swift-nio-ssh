@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIO
+import NIOCore
 
 /// The result of a round of key exchange.
 ///

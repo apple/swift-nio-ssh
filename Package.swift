@@ -34,7 +34,8 @@ let package = Package(
         .target(
             name: "NIOSSH",
             dependencies: [
-                .product(name: "NIO", package: "swift-nio"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
@@ -43,7 +44,8 @@ let package = Package(
             name: "NIOSSHClient",
             dependencies: [
                 "NIOSSH",
-                .product(name: "NIO", package: "swift-nio"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
             ]
         ),
@@ -51,7 +53,8 @@ let package = Package(
             name: "NIOSSHServer",
             dependencies: [
                 "NIOSSH",
-                .product(name: "NIO", package: "swift-nio"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
@@ -60,7 +63,8 @@ let package = Package(
             name: "NIOSSHPerformanceTester",
             dependencies: [
                 "NIOSSH",
-                .product(name: "NIO", package: "swift-nio"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOEmbedded", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),
@@ -68,7 +72,8 @@ let package = Package(
             name: "NIOSSHTests",
             dependencies: [
                 "NIOSSH",
-                .product(name: "NIO", package: "swift-nio"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOEmbedded", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
             ]
         ),

@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// A namespace for SSH channel request events.
 public enum SSHChannelRequestEvent {

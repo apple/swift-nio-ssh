@@ -14,7 +14,7 @@
 
 import Crypto
 import Foundation
-import NIO
+import NIOCore
 import NIOFoundationCompat
 
 /// A base class for the AES GCM transport protection implementations.
