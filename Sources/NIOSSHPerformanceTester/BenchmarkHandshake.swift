@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 import Crypto
-import NIO
+import NIOCore
 import NIOSSH
 
 final class BenchmarkHandshake: Benchmark {

@@ -14,7 +14,7 @@
 
 import Crypto
 import Foundation
-import NIO
+import NIOCore
 
 /// An SSH public key.
 ///

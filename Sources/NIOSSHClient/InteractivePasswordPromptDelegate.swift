@@ -14,7 +14,7 @@
 
 import Dispatch
 import Foundation
-import NIO
+import NIOCore
 import NIOSSH
 
 /// A client user auth delegate that provides an interactive prompt for password-based user auth.

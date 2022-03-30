@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
 import NIOConcurrencyHelpers
+import NIOCore
 
 /// A NIO `Channel` that encapsulates a single SSH `Channel`.
 ///

@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// A straightforward `NIOSSHUserAuthenticationDelegate` that makes one attempt to sign in with a single username and password combination.
 public final class SimplePasswordDelegate {

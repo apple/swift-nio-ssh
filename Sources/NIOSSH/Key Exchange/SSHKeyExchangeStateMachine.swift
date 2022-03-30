@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIO
+import NIOCore
 
 struct SSHKeyExchangeStateMachine {
     enum SSHKeyExchangeError: Error {

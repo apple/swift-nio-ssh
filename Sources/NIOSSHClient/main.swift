@@ -13,7 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import NIO
+import NIOCore
+import NIOPosix
 import NIOSSH
 
 // This file contains an example NIO SSH client. As NIO SSH is currently under active

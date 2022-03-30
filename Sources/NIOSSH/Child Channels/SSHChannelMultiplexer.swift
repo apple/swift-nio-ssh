@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// An object that controls multiplexing messages to multiple child channels.
 final class SSHChannelMultiplexer {

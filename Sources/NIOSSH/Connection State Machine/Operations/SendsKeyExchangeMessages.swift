@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 protocol SendsKeyExchangeMessages {
     var keyExchangeStateMachine: SSHKeyExchangeStateMachine { get set }

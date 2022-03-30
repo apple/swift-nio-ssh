@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// `SSHChannelData` is the data type that is passed around in `SSHChildChannel` objects.
 ///

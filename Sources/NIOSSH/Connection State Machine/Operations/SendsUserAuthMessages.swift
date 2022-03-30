@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 protocol SendsUserAuthMessages {
     var userAuthStateMachine: UserAuthenticationStateMachine { get set }

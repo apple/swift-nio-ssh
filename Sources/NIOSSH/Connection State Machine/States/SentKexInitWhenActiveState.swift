@@ -11,7 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-import NIO
+import NIOCore
 
 extension SSHConnectionStateMachine {
     /// The state of a state machine that has sent a KeyExchangeInit message after

@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 // Right now this doesn't do that much, but we may use it in future for supporting re-keying.
 protocol SendsChannelMessages {
