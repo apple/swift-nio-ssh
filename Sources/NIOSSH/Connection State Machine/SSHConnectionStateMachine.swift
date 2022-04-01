@@ -701,7 +701,7 @@ struct SSHConnectionStateMachine {
             switch message {
             case .version:
                 try state.serializer.serialize(message: message, to: &buffer)
-                self.state = .sentVersion(.init(idleState: state, allocator: allocator))
+                self.state = .sentVersion(.init(idleState: state, allocator: allocator, maximumPacketSize: state.role.maximumPacketSize))
             case .disconnect:
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .sentDisconnect(state.role)

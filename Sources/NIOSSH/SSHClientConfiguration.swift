@@ -23,6 +23,9 @@ public struct SSHClientConfiguration {
     /// The global request delegate to be used with this client.
     public var globalRequestDelegate: GlobalRequestDelegate
 
+    /// The maximum packet size that this NIOSSH client will accept
+    public var maximumPacketSize = SSHPacketParser.defaultMaximumPacketSize
+
     public init(userAuthDelegate: NIOSSHClientUserAuthenticationDelegate,
                 serverAuthDelegate: NIOSSHClientServerAuthenticationDelegate,
                 globalRequestDelegate: GlobalRequestDelegate? = nil) {

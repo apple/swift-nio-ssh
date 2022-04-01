@@ -44,6 +44,8 @@ extension NIOSSHError {
 
     internal static let invalidNonceLength = NIOSSHError(type: .invalidNonceLength, diagnostics: nil)
 
+    internal static let excessiveVersionLength = NIOSSHError(type: .excessiveVersionLength, diagnostics: nil)
+
     internal static let invalidEncryptedPacketLength = NIOSSHError(type: .invalidEncryptedPacketLength, diagnostics: nil)
 
     internal static let invalidDecryptedPlaintextLength = NIOSSHError(type: .invalidDecryptedPlaintextLength, diagnostics: nil)
@@ -179,6 +181,7 @@ extension NIOSSHError {
             case invalidHostKeyForKeyExchange
             case invalidOpenSSHPublicKey
             case invalidCertificate
+            case excessiveVersionLength
         }
 
         private var base: Base
@@ -195,6 +198,9 @@ extension NIOSSHError {
 
         /// The length of the nonce provided to a cipher is invalid for that cipher.
         public static let invalidNonceLength: ErrorType = .init(.invalidNonceLength)
+
+        /// The version length sent by a client was excessively large.
+        public static let excessiveVersionLength: ErrorType = .init(.excessiveVersionLength)
 
         /// The encrypted packet received has an invalid length for the negotiated encyption scheme
         public static let invalidEncryptedPacketLength: ErrorType = .init(.invalidEncryptedPacketLength)

@@ -142,6 +142,15 @@ final class SSHPacketParserTests: XCTestCase {
         // Now we should have cleared up.
         XCTAssertEqual(parser._discardableBytes, 0)
     }
+
+    func testMaximumPacketSizeInVersion() throws {
+        var parser = SSHPacketParser(allocator: ByteBufferAllocator(), maximumPacketSize: 1 << 15)
+        let longVersionString = String(repeating: "z", count: SSHPacketParser.maximumAllowedVersionSize + 256)
+        var version = ByteBuffer.of(string: longVersionString + "\r\n")
+        parser.append(bytes: &version)
+
+        XCTAssertThrowsError(try parser.nextPacket())
+    }
 }
 
 extension ByteBuffer {

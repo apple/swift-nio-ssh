@@ -34,4 +34,13 @@ public enum SSHConnectionRole {
             return true
         }
     }
+
+    internal var maximumPacketSize: Int {
+        switch self {
+        case .client(let client):
+            return client.maximumPacketSize
+        case .server(let server):
+            return server.maximumPacketSize
+        }
+    }
 }

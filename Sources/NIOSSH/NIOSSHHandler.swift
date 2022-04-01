@@ -64,7 +64,7 @@ public final class NIOSSHHandler {
         self.pendingChannelInitializations = CircularBuffer(initialCapacity: 4)
         self.pendingGlobalRequests = CircularBuffer(initialCapacity: 4)
         self.pendingGlobalRequestResponses = CircularBuffer(initialCapacity: 4)
-        self.multiplexer = SSHChannelMultiplexer(delegate: self, allocator: allocator, childChannelInitializer: inboundChildChannelInitializer)
+        self.multiplexer = SSHChannelMultiplexer(delegate: self, allocator: allocator, childChannelInitializer: inboundChildChannelInitializer, maximumPacketSize: role.maximumPacketSize)
     }
 }
 
