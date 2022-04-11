@@ -18,7 +18,7 @@ here="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 function replace_acceptable_years() {
     # this needs to replace all acceptable forms with 'YEARS'
-    sed -e 's/20[12][78901]-20[12][8901]/YEARS/' -e 's/2019-2020/YEARS/' -e 's/2019/YEARS/' -e 's/2020/YEARS/' -e 's/2021/YEARS/'
+    sed -e 's/20[12][78901]-20[12][8901]/YEARS/' -e 's/2019-2020/YEARS/' -e 's/2019/YEARS/' -e 's/2020/YEARS/' -e 's/2021/YEARS/' -e 's/2022/YEARS/'
 }
 
 command -v swiftformat >/dev/null 2>&1 || { echo >&2 "swiftformat needs to be installed but is not available in the path."; exit 1; }
