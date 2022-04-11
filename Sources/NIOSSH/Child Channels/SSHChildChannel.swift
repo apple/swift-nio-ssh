@@ -26,7 +26,7 @@ import NIOConcurrencyHelpers
 /// for SSH purposes. In some cases it is possible to treat SSH channels as naive data pipes, but often the channels
 /// are intended for specific use-cases and need to be treated as special cases.
 final class SSHChildChannel {
-    private var pipelineBox: PipelineSendableBox!
+    private var _pipeline: ChannelPipeline!
 
     private let closePromise: EventLoopPromise<Void>
 
@@ -148,7 +148,7 @@ final class SSHChildChannel {
         self.allowRemoteHalfClosure = false
         self.didWriteAutomaticMessage = false
         self.activationState = .neverActivated
-        self.pipelineBox = PipelineSendableBox(pipeline: ChannelPipeline(channel: self))
+        self._pipeline = ChannelPipeline(channel: self)
     }
 }
 
@@ -160,7 +160,7 @@ extension SSHChildChannel: Channel, ChannelCore {
     }
 
     public var pipeline: ChannelPipeline {
-        self.pipelineBox.pipeline
+        self._pipeline
     }
 
     public var localAddress: SocketAddress? {
@@ -1191,11 +1191,6 @@ private extension IOData {
     }
 }
 
-private extension SSHChildChannel {
-    /// This is a ``Sendable`` box around a ``ChannelPipeline``. This is needed since the
-    /// ``SSHChildChannel`` needs to have an IUO to the pipeline because the pipeline needs a
-    /// reference to the channel.
-    struct PipelineSendableBox: NIOSSHSendable {
-        let pipeline: ChannelPipeline
-    }
-}
+#if swift(>=5.6)
+extension SSHChildChannel: @unchecked Sendable {}
+#endif // swift(>=5.6)
