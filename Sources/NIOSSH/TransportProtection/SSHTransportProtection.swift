@@ -61,6 +61,10 @@ public protocol NIOSSHTransportProtection: AnyObject {
     /// The number of bytes consumed by the MAC
     var macBytes: Int { get }
 
+    /// Whether legnth of the packet will be encrypted. If length is not encrypted, it should be counted
+    /// when padding size is calculated.
+    var lengthEncrypted: Bool { get }
+
     /// Create a new instance of this transport protection scheme with the given keys.
     init(initialKeys: NIOSSHSessionKeys) throws
 
@@ -90,7 +94,7 @@ public protocol NIOSSHTransportProtection: AnyObject {
     func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer, sequenceNumber: UInt32) throws -> ByteBuffer
 
     /// Encrypt an entire outbound packet
-    func encryptPacket(_ packet: NIOSSHEncryptablePayload, sequenceNumber: UInt32, to outboundBuffer: inout ByteBuffer) throws
+    func encryptPacket(_ destination: inout ByteBuffer, sequenceNumber: UInt32) throws
 }
 
 extension NIOSSHTransportProtection {

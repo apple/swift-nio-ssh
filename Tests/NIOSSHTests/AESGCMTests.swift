@@ -42,7 +42,9 @@ final class AESGCMTests: XCTestCase {
         let initialKeys = self.generateKeys(keySize: .bits128)
 
         let aes128Encryptor = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys))
-        XCTAssertNoThrow(try aes128Encryptor.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), sequenceNumber: 0, to: &self.buffer))
+
+        self.buffer.writeSSHPacket(message: .newKeys, lengthEncrypted: aes128Encryptor.lengthEncrypted, blockSize: aes128Encryptor.cipherBlockSize)
+        XCTAssertNoThrow(try aes128Encryptor.encryptPacket(&self.buffer, sequenceNumber: 0))
 
         // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
         // 14 padding bytes: one byte for the padding length, then 14 more to get out to one block size. Thus, the total
@@ -77,7 +79,9 @@ final class AESGCMTests: XCTestCase {
         let initialKeys = self.generateKeys(keySize: .bits256)
 
         let aes256Encryptor = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys))
-        XCTAssertNoThrow(try aes256Encryptor.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), sequenceNumber: 0, to: &self.buffer))
+
+        self.buffer.writeSSHPacket(message: .newKeys, lengthEncrypted: aes256Encryptor.lengthEncrypted, blockSize: aes256Encryptor.cipherBlockSize)
+        XCTAssertNoThrow(try aes256Encryptor.encryptPacket(&self.buffer, sequenceNumber: 0))
 
         // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
         // 14 padding bytes: one byte for the padding length, then 14 more to get out to one block size. Thus, the total
