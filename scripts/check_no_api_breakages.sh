@@ -18,7 +18,7 @@ set -eu
 function usage() {
     echo >&2 "Usage: $0 REPO-GITHUB-URL NEW-VERSION OLD-VERSIONS..."
     echo >&2
-    echo >&2 "This script requires a Swift 5.2+ toolchain."
+    echo >&2 "This script requires a Swift 5.6+ toolchain."
     echo >&2
     echo >&2 "Examples:"
     echo >&2
