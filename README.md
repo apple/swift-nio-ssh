@@ -10,7 +10,7 @@ There are a number of reasons to provide a programmatic SSH implementation. One 
 
 Another good reason to provide programmatic SSH is that it is not uncommon for services to need to interact with other services in a way that involves running commands. While `Process` solves this for the local use-case, sometimes the commands that need to be invoked are remote. While `Process` could launch an `ssh` client as a sub-process in order to run this invocation, it can be substantially more straightforward to simply invoke SSH directly. This is [`libssh2`](https://www.libssh2.org)'s target use-case. SwiftNIO SSH provides the equivalent of the networking and cryptographic layer of libssh2, allowing motivated users to drive SSH sessions directly from within Swift services.
 
-SwiftNIO SSH requires Swift 5.2 and newer. Older versions (0.2.x and above) support Swift 5.1.
+SwiftNIO SSH requires Swift 5.4 and newer. 0.3.x supports Swift 5.2 and 5.3, 0.2.x supports Swift 5.1.
 
 ## What does SwiftNIO SSH support?
 
