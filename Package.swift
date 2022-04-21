@@ -40,7 +40,7 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),
-        .target(
+        .executableTarget(
             name: "NIOSSHClient",
             dependencies: [
                 "NIOSSH",
@@ -49,7 +49,7 @@ let package = Package(
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
             ]
         ),
-        .target(
+        .executableTarget(
             name: "NIOSSHServer",
             dependencies: [
                 "NIOSSH",
@@ -59,7 +59,7 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),
-        .target(
+        .executableTarget(
             name: "NIOSSHPerformanceTester",
             dependencies: [
                 "NIOSSH",
