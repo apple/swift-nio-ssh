@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// A `NIOSSHClientSErverAuthenticationDelegate` is an object that can validate whether
 /// a server host key is trusted.

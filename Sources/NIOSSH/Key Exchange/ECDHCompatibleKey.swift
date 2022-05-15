@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIO
+import NIOCore
 import NIOFoundationCompat
 
 /// This protocol represents a public key that is capable of performing an ECDH key exchange in SSH.

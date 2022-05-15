@@ -12,11 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// A namespace for SSH channel request events.
 public enum SSHChannelRequestEvent {
-    public struct PseudoTerminalRequest: Hashable {
+    public struct PseudoTerminalRequest: Hashable, NIOSSHSendable {
         /// Whether a reply to this PTY request is desired.
         public var wantReply: Bool
 
@@ -92,7 +92,7 @@ public enum SSHChannelRequestEvent {
     }
 
     /// An EnvironmentRequest communicates a single environment variable the peer wants set.
-    public struct EnvironmentRequest: Hashable {
+    public struct EnvironmentRequest: Hashable, NIOSSHSendable {
         /// The name of the environment variable.
         public var name: String
 
@@ -110,7 +110,7 @@ public enum SSHChannelRequestEvent {
     }
 
     /// A request for this session to invoke a shell.
-    public struct ShellRequest: Hashable {
+    public struct ShellRequest: Hashable, NIOSSHSendable {
         /// Whether this request should be replied to.
         public var wantReply: Bool
 
@@ -134,7 +134,7 @@ public enum SSHChannelRequestEvent {
     }
 
     /// The command has exited with the given exit status.
-    public struct ExitStatus: Hashable {
+    public struct ExitStatus: Hashable, NIOSSHSendable {
         /// Whether this request should be replied to.
         public var wantReply: Bool {
             false
@@ -162,7 +162,7 @@ public enum SSHChannelRequestEvent {
     }
 
     /// A command has terminated in response to a signal.
-    public struct ExitSignal: Hashable {
+    public struct ExitSignal: Hashable, NIOSSHSendable {
         /// Whether this request should be replied to.
         public var wantReply: Bool {
             false
@@ -189,7 +189,7 @@ public enum SSHChannelRequestEvent {
     }
 
     /// A request for this session to invoke a specific subsystem.
-    public struct SubsystemRequest: Hashable {
+    public struct SubsystemRequest: Hashable, NIOSSHSendable {
         /// Whether this request wants a reply.
         public var wantReply: Bool
 
@@ -202,7 +202,7 @@ public enum SSHChannelRequestEvent {
         }
     }
 
-    public struct WindowChangeRequest: Hashable {
+    public struct WindowChangeRequest: Hashable, NIOSSHSendable {
         /// Whether a reply to this window change request is desired.
         public var wantReply: Bool {
             false
@@ -265,7 +265,7 @@ public enum SSHChannelRequestEvent {
     ///
     /// This is sent by the server. If "client can do" is true, the client may do flow control with
     /// ctrl+s and ctrl+q.
-    public struct LocalFlowControlRequest: Hashable {
+    public struct LocalFlowControlRequest: Hashable, NIOSSHSendable {
         /// Whether a reply to this request is desired.
         public var wantReply: Bool {
             false
@@ -280,7 +280,7 @@ public enum SSHChannelRequestEvent {
     }
 
     /// Delivers a signal to the remote process.
-    public struct SignalRequest: Hashable {
+    public struct SignalRequest: Hashable, NIOSSHSendable {
         /// Whether a reply to this request is desired.
         public var wantReply: Bool {
             false
@@ -337,12 +337,12 @@ extension SSHChannelRequestEvent {
 }
 
 /// A channel success message was received in reply to a channel request.
-public struct ChannelSuccessEvent: Hashable {
+public struct ChannelSuccessEvent: Hashable, NIOSSHSendable {
     public init() {}
 }
 
 /// A channel failure message was received in reply to a channel request.
-public struct ChannelFailureEvent: Hashable {
+public struct ChannelFailureEvent: Hashable, NIOSSHSendable {
     public init() {}
 }
 

@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIO
+import NIOCore
 import NIOFoundationCompat
 
 public struct NIOSSHKeyExchangeServerReply {

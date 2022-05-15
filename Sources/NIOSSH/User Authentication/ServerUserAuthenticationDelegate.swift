@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// A `NIOSSHServerUserAuthenticationDelegate` is an object that can authorize users.
 ///

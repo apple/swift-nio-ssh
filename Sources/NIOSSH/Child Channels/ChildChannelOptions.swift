@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// The various channel options specific to `SSHChildChannel`s.
 ///
@@ -37,28 +37,28 @@ extension SSHChildChannelOptions {
 
 extension SSHChildChannelOptions.Types {
     /// `LocalChannelIdentifierOption` allows users to query the channel number assigned locally for a given channel.
-    public struct LocalChannelIdentifierOption: ChannelOption {
+    public struct LocalChannelIdentifierOption: ChannelOption, NIOSSHSendable {
         public typealias Value = UInt32
 
         public init() {}
     }
 
     /// `RemoteChannelIdentifierOption` allows users to query the channel number assigned by the remote peer for a given channel.
-    public struct RemoteChannelIdentifierOption: ChannelOption {
+    public struct RemoteChannelIdentifierOption: ChannelOption, NIOSSHSendable {
         public typealias Value = UInt32?
 
         public init() {}
     }
 
     /// `SSHChannelTypeOption` allows users to query the type of the channel they're currently using.
-    public struct SSHChannelTypeOption: ChannelOption {
+    public struct SSHChannelTypeOption: ChannelOption, NIOSSHSendable {
         public typealias Value = SSHChannelType
 
         public init() {}
     }
 
     /// `PeerMaximumMessageLengthOption` allows users to query the maximum packet size value reported by the remote peer for a given channel.
-    public struct PeerMaximumMessageLengthOption: ChannelOption {
+    public struct PeerMaximumMessageLengthOption: ChannelOption, NIOSSHSendable {
         public typealias Value = UInt32
 
         public init() {}

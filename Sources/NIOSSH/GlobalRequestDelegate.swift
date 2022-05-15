@@ -11,7 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-import NIO
+import NIOCore
 
 /// A `GlobalRequestDelegate` is used by an SSH server to handle SSH global requests.
 ///

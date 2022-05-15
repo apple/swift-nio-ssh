@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 struct SSHPacketParser {
     enum State {
@@ -117,13 +117,22 @@ struct SSHPacketParser {
     }
 
     private mutating func readVersion() throws -> String? {
-        // Looking for a string ending with \r\n
-        let slice = self.buffer.readableBytesView
-        if let cr = slice.firstIndex(of: 13), cr.advanced(by: 1) < slice.endIndex, slice[cr.advanced(by: 1)] == 10 {
-            let version = String(decoding: slice[slice.startIndex ..< cr], as: UTF8.self)
-            // read \r\n
-            self.buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: cr).advanced(by: 2))
-            return version
+        let carriageReturn = UInt8(ascii: "\r")
+        let lineFeed = UInt8(ascii: "\n")
+
+        // Search for version line, which starts with "SSH-". Lines without this prefix may come before the version line.
+        var slice = self.buffer.readableBytesView
+        while let lfIndex = slice.firstIndex(of: lineFeed), lfIndex < slice.endIndex {
+            if slice.starts(with: "SSH-".utf8) {
+                // Return all data upto the last LF we found, excluding the last [CR]LF.
+                slice = self.buffer.readableBytesView
+                let versionEndIndex = slice[lfIndex.advanced(by: -1)] == carriageReturn ? lfIndex.advanced(by: -1) : lfIndex
+                let version = String(decoding: slice[slice.startIndex ..< versionEndIndex], as: UTF8.self)
+                self.buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: lfIndex).advanced(by: 1))
+                return version
+            } else {
+                slice = slice[slice.index(after: lfIndex)...]
+            }
         }
         return nil
     }

@@ -11,7 +11,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-import NIO
+#if swift(>=5.6)
+@preconcurrency import NIOCore
+#else
+import NIOCore
+#endif // swift(>=5.6)
 
 /// `SSHChannelType` represents the type of a single SSH channel.
 ///
@@ -25,7 +29,7 @@ import NIO
 ///
 /// Some channel types have associated metadata. That metadata can be retrieved from SSH channels using
 /// channel options.
-public enum SSHChannelType: Equatable {
+public enum SSHChannelType: Equatable, NIOSSHSendable {
     /// A "session" is remote execution of a program.
     case session
 
@@ -37,7 +41,7 @@ public enum SSHChannelType: Equatable {
 }
 
 extension SSHChannelType {
-    public struct DirectTCPIP: Equatable {
+    public struct DirectTCPIP: Equatable, NIOSSHSendable {
         /// The target host for the forwarded TCP connection.
         public var targetHost: String
 
@@ -71,7 +75,7 @@ extension SSHChannelType {
 }
 
 extension SSHChannelType {
-    public struct ForwardedTCPIP: Equatable {
+    public struct ForwardedTCPIP: Equatable, NIOSSHSendable {
         /// The host the remote peer connected to. This should be identical to the one that was requested.
         public var listeningHost: String
 

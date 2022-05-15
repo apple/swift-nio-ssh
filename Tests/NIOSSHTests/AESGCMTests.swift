@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIO
+import NIOCore
 import NIOFoundationCompat
 @testable import NIOSSH
 import XCTest

@@ -12,7 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+#if swift(>=5.6)
+@preconcurrency import NIOCore
+#else
+import NIOCore
+#endif
 import NIOConcurrencyHelpers
 
 /// A NIO `Channel` that encapsulates a single SSH `Channel`.
@@ -147,6 +151,8 @@ final class SSHChildChannel {
         self._pipeline = ChannelPipeline(channel: self)
     }
 }
+
+extension SSHChildChannel: NIOSSHSendable {}
 
 extension SSHChildChannel: Channel, ChannelCore {
     public var closeFuture: EventLoopFuture<Void> {
@@ -1184,3 +1190,7 @@ private extension IOData {
         }
     }
 }
+
+#if swift(>=5.6)
+extension SSHChildChannel: @unchecked Sendable {}
+#endif // swift(>=5.6)

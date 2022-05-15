@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 extension ByteBuffer {
     /// Gets an SSH boolean field from a `ByteBuffer`.

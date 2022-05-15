@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 /// A `UserAuthSignablePayload` represents the data that needs to be signed as part
 /// of key-based user authentication.

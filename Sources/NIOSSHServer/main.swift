@@ -14,7 +14,8 @@
 
 import Crypto
 import Dispatch
-import NIO
+import NIOCore
+import NIOPosix
 import NIOSSH
 
 // This file contains an example NIO SSH server. It's not intended for production use, it's not secure,

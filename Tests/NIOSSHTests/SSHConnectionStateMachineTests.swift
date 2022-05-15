@@ -13,7 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIO
+import NIOConcurrencyHelpers
+import NIOCore
+import NIOEmbedded
 @testable import NIOSSH
 import XCTest
 
@@ -36,8 +38,15 @@ final class AcceptAllHostKeysDelegate: NIOSSHClientServerAuthenticationDelegate 
 
 final class SSHConnectionStateMachineTests: XCTestCase {
     private func assertSuccessfulConnection(client: inout SSHConnectionStateMachine, server: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop) throws {
-        var clientMessage: SSHMultiMessage? = client.start()
-        var serverMessage: SSHMultiMessage? = server.start()
+        let clientMessage: SSHMultiMessage? = client.start()
+        let serverMessage: SSHMultiMessage? = server.start()
+
+        try self.run(clientMessage: clientMessage, client: &client, serverMessage: serverMessage, server: &server, allocator: allocator, loop: loop)
+    }
+
+    private func run(clientMessage: SSHMultiMessage?, client: inout SSHConnectionStateMachine, serverMessage: SSHMultiMessage?, server: inout SSHConnectionStateMachine, allocator: ByteBufferAllocator, loop: EmbeddedEventLoop, dripFeed: Bool = false) throws {
+        var clientMessage = clientMessage
+        var serverMessage = serverMessage
         var clientBuffer = allocator.buffer(capacity: 1024)
         var serverBuffer = allocator.buffer(capacity: 1024)
         var waitingForClientMessage = false
@@ -57,12 +66,80 @@ final class SSHConnectionStateMachineTests: XCTestCase {
             }
 
             if clientBuffer.readableBytes > 0 {
-                server.bufferInboundData(&clientBuffer)
+                if dripFeed {
+                    while var next = clientBuffer.readSlice(length: 1) {
+                        server.bufferInboundData(&next)
+                        if clientBuffer.readableBytes > 0 {
+                            switch try assertNoThrowWithValue(server.processInboundMessage(allocator: allocator, loop: loop)) {
+                            case .some(.emitMessage(let message)):
+                                serverMessage.append(message)
+                            case .none:
+                                ()
+                            case .some(.noMessage):
+                                ()
+                            case .some(.possibleFutureMessage(let futureMessage)):
+                                waitingForServerMessage = true
+
+                                futureMessage.whenComplete { result in
+                                    waitingForServerMessage = false
+
+                                    switch result {
+                                    case .failure(let err):
+                                        XCTFail("Unexpected error in delayed message production: \(err)")
+                                    case .success(let message):
+                                        if let message = message {
+                                            serverMessage.append(message)
+                                        }
+                                    }
+                                }
+                            case .some(.forwardToMultiplexer), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect):
+                                fatalError("Currently unsupported")
+                            case .some(.event):
+                                ()
+                            }
+                        }
+                    }
+                } else {
+                    server.bufferInboundData(&clientBuffer)
+                }
                 clientBuffer.clear()
             }
 
             if serverBuffer.readableBytes > 0 {
-                client.bufferInboundData(&serverBuffer)
+                if dripFeed {
+                    while var next = serverBuffer.readSlice(length: 1) {
+                        client.bufferInboundData(&next)
+                        if serverBuffer.readableBytes > 0 {
+                            switch try assertNoThrowWithValue(client.processInboundMessage(allocator: allocator, loop: loop)) {
+                            case .some(.emitMessage(let message)):
+                                clientMessage.append(message)
+                            case .none:
+                                ()
+                            case .some(.noMessage):
+                                ()
+                            case .some(.possibleFutureMessage(let futureMessage)):
+                                waitingForClientMessage = true
+
+                                futureMessage.whenComplete { result in
+                                    waitingForClientMessage = false
+
+                                    switch result {
+                                    case .failure(let err):
+                                        XCTFail("Unexpected error in delayed message production: \(err)")
+                                    case .success(let message):
+                                        if let message = message {
+                                            clientMessage.append(message)
+                                        }
+                                    }
+                                }
+                            case .some(.forwardToMultiplexer), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect), .some(.event):
+                                fatalError("Currently unsupported")
+                            }
+                        }
+                    }
+                } else {
+                    client.bufferInboundData(&serverBuffer)
+                }
                 serverBuffer.clear()
             }
 
@@ -108,6 +185,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
                 case .some(.noMessage):
                     ()
                 case .some(.possibleFutureMessage(let futureMessage)):
+                    precondition(!waitingForServerMessage, "Unexpected emit message while another message is being processed")
                     waitingForServerMessage = true
 
                     futureMessage.whenComplete { result in
@@ -510,6 +588,54 @@ final class SSHConnectionStateMachineTests: XCTestCase {
 
         XCTAssertThrowsError(try client.processInboundMessage(allocator: allocator, loop: loop)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .unsupportedVersion)
+        }
+    }
+
+    func testFirstBlockDecodedOnce() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        let schemes: [NIOSSHTransportProtection.Type] = [TestTransportProtection.self]
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())), protectionSchemes: schemes)
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 0))), protectionSchemes: schemes)
+        try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
+
+        let message = SSHMessage.channelData(.init(recipientChannel: 1, data: ByteBuffer(repeating: 17, count: 5)))
+
+        var tempBuffer = allocator.buffer(capacity: 1024)
+        XCTAssertNoThrow(try client.processOutboundMessage(message, buffer: &tempBuffer, allocator: allocator, loop: loop))
+        XCTAssert(tempBuffer.readableBytes > 0)
+
+        while var next = tempBuffer.readSlice(length: 1) {
+            server.bufferInboundData(&next)
+            if tempBuffer.readableBytes > 0 {
+                XCTAssertNil(try server.processInboundMessage(allocator: allocator, loop: loop))
+            }
+        }
+
+        var result = try server.processInboundMessage(allocator: allocator, loop: loop)
+        switch result {
+        case .some(.forwardToMultiplexer(let forwardedMessage)):
+            XCTAssertEqual(forwardedMessage, message)
+        case .some(.emitMessage), .some(.possibleFutureMessage), .some(.noMessage), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect), .some(.event), .none:
+            XCTFail("Unexpected result: \(String(describing: result))")
+        }
+
+        tempBuffer.clear()
+        XCTAssertNoThrow(try client.beginRekeying(buffer: &tempBuffer, allocator: allocator, loop: loop))
+
+        while var next = tempBuffer.readSlice(length: 1) {
+            server.bufferInboundData(&next)
+            if tempBuffer.readableBytes > 0 {
+                XCTAssertNil(try server.processInboundMessage(allocator: allocator, loop: loop))
+            }
+        }
+
+        result = try server.processInboundMessage(allocator: allocator, loop: loop)
+        switch result {
+        case .some(.emitMessage(let message)):
+            XCTAssertNoThrow(try self.run(clientMessage: nil, client: &client, serverMessage: message, server: &server, allocator: allocator, loop: loop, dripFeed: true))
+        case .some(.forwardToMultiplexer), .some(.possibleFutureMessage), .some(.noMessage), .some(.globalRequest), .some(.globalRequestResponse), .some(.disconnect), .some(.event), .none:
+            XCTFail("Unexpected result: \(String(describing: result))")
         }
     }
 }
