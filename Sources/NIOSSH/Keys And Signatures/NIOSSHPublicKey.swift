@@ -202,35 +202,34 @@ extension NIOSSHPublicKey {
     internal static var knownAlgorithms: [String.UTF8View] {
         bundledAlgorithms + customPublicKeyAlgorithms.map { $0.publicKeyPrefix.utf8 }
     }
+
     internal static var customPublicKeyAlgorithms: [NIOSSHPublicKeyProtocol.Type] {
-        _CustomAlgorithms.lock.lock()
-        defer { _CustomAlgorithms.lock.unlock() }
-        return _CustomAlgorithms.publicKeyAlgorithms
+        return _CustomAlgorithms.publicKeyAlgorithmsLock.withLock {
+            return _CustomAlgorithms.publicKeyAlgorithms
+        }
     }
 
     internal static var customSignatures: [NIOSSHSignatureProtocol.Type] {
-        _CustomAlgorithms.lock.lock()
-        defer { _CustomAlgorithms.lock.unlock() }
-        return _CustomAlgorithms.signatures
+        return _CustomAlgorithms.signaturesLock.withLock {
+            return _CustomAlgorithms.signatures
+        }
     }
 }
 
 public enum NIOSSHAlgorithms {
     public static func register(keyExchangeAlgorithm type: NIOSSHKeyExchangeAlgorithmProtocol.Type) {
-        _CustomAlgorithms.lock.lock()
-        defer { _CustomAlgorithms.lock.unlock() }
-
-        if !_CustomAlgorithms.keyExchangeAlgorithms.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
-            _CustomAlgorithms.keyExchangeAlgorithms.append(type)
+        _CustomAlgorithms.keyExchangeAlgorithmsLock.withLockVoid {
+            if !_CustomAlgorithms.keyExchangeAlgorithms.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
+                _CustomAlgorithms.keyExchangeAlgorithms.append(type)
+            }
         }
     }
     
     public static func register(transportProtectionScheme type: NIOSSHTransportProtection.Type) {
-        _CustomAlgorithms.lock.lock()
-        defer { _CustomAlgorithms.lock.unlock() }
-
-        if !_CustomAlgorithms.transportProtectionSchemes.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
-            _CustomAlgorithms.transportProtectionSchemes.append(type)
+        _CustomAlgorithms.transportProtectionSchemesLock.withLockVoid {
+            if !_CustomAlgorithms.transportProtectionSchemes.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
+                _CustomAlgorithms.transportProtectionSchemes.append(type)
+            }
         }
     }
     
@@ -242,44 +241,51 @@ public enum NIOSSHAlgorithms {
         publicKey type: PublicKey.Type,
         signature: Signature.Type
     ) {
-        _CustomAlgorithms.lock.lock()
-        defer { _CustomAlgorithms.lock.unlock() }
-
-        if !_CustomAlgorithms.publicKeyAlgorithms.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
-            _CustomAlgorithms.publicKeyAlgorithms.append(type)
-            _CustomAlgorithms.signatures.append(signature)
+        _CustomAlgorithms.publicKeyAlgorithmsLock.withLockVoid {
+            if !_CustomAlgorithms.publicKeyAlgorithms.contains(where: { ObjectIdentifier($0) == ObjectIdentifier(type) }) {
+                _CustomAlgorithms.publicKeyAlgorithms.append(type)
+                _CustomAlgorithms.signatures.append(signature)
+            }
         }
     }
     
     /// Used for our unit tests
     internal static func unregisterAlgorithms() {
-        _CustomAlgorithms.lock.lock()
-        defer { _CustomAlgorithms.lock.unlock() }
-
-        _CustomAlgorithms.keyExchangeAlgorithms = []
-        _CustomAlgorithms.signatures = []
-        _CustomAlgorithms.publicKeyAlgorithms = []
-        _CustomAlgorithms.transportProtectionSchemes = []
+        _CustomAlgorithms.transportProtectionSchemesLock.withLockVoid {
+            _CustomAlgorithms.transportProtectionSchemes = []
+        }
+        _CustomAlgorithms.publicKeyAlgorithmsLock.withLockVoid {
+            _CustomAlgorithms.publicKeyAlgorithms = []
+        }
+        _CustomAlgorithms.signaturesLock.withLockVoid {
+            _CustomAlgorithms.signatures = []
+        }
+        _CustomAlgorithms.keyExchangeAlgorithmsLock.withLockVoid {
+            _CustomAlgorithms.keyExchangeAlgorithms = []
+        }
     }
 }
 
 internal var customTransportProtectionSchemes: [NIOSSHTransportProtection.Type] {
-    _CustomAlgorithms.lock.lock()
-    defer { _CustomAlgorithms.lock.unlock() }
-    return _CustomAlgorithms.transportProtectionSchemes
+    return _CustomAlgorithms.transportProtectionSchemesLock.withLock {
+        return _CustomAlgorithms.transportProtectionSchemes
+    }
 }
 
 internal var customKeyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type] {
-    _CustomAlgorithms.lock.lock()
-    defer { _CustomAlgorithms.lock.unlock() }
-    return _CustomAlgorithms.keyExchangeAlgorithms
+    return _CustomAlgorithms.keyExchangeAlgorithmsLock.withLock {
+        return _CustomAlgorithms.keyExchangeAlgorithms
+    }
 }
 
 fileprivate enum _CustomAlgorithms {
-    static var lock = Lock()
+    static var transportProtectionSchemesLock = Lock()
     static var transportProtectionSchemes = [NIOSSHTransportProtection.Type]()
+    static var keyExchangeAlgorithmsLock = Lock()
     static var keyExchangeAlgorithms = [NIOSSHKeyExchangeAlgorithmProtocol.Type]()
+    static var publicKeyAlgorithmsLock = Lock()
     static var publicKeyAlgorithms: [NIOSSHPublicKeyProtocol.Type] = []
+    static var signaturesLock = Lock()
     static var signatures: [NIOSSHSignatureProtocol.Type] = []
 }
 
