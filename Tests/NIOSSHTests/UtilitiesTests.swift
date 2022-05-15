@@ -52,9 +52,9 @@ final class UtilitiesTests: XCTestCase {
         let message = SSHMessage.channelRequest(.init(recipientChannel: 1, type: .exec("uname"), wantReply: false))
         let allocator = ByteBufferAllocator()
         var buffer = allocator.buffer(capacity: 1024)
-        XCTAssertNoThrow(try client.encryptPacket(.init(message: message), to: &buffer))
+        XCTAssertNoThrow(try client.encryptPacket(.init(message: message), to: &buffer, sequenceNumber: 1))
         XCTAssertNoThrow(try server.decryptFirstBlock(&buffer))
-        var decoded = try server.decryptAndVerifyRemainingPacket(&buffer)
+        var decoded = try server.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 1)
         XCTAssertEqual(message, try decoded.readSSHMessage())
     }
 }

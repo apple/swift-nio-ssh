@@ -594,9 +594,8 @@ final class SSHConnectionStateMachineTests: XCTestCase {
     func testFirstBlockDecodedOnce() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
-        let schemes: [NIOSSHTransportProtection.Type] = [TestTransportProtection.self]
-        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())), protectionSchemes: schemes)
-        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 0))), protectionSchemes: schemes)
+        var client = SSHConnectionStateMachine(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())))
+        var server = SSHConnectionStateMachine(role: .server(.init(hostKeys: [NIOSSHPrivateKey(ed25519Key: .init())], userAuthDelegate: DenyThenAcceptDelegate(messagesToDeny: 0))))
         try assertSuccessfulConnection(client: &client, server: &server, allocator: allocator, loop: loop)
 
         let message = SSHMessage.channelData(.init(recipientChannel: 1, data: ByteBuffer(repeating: 17, count: 5)))

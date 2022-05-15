@@ -183,7 +183,7 @@ class TestTransportProtection: NIOSSHTransportProtection {
         source.setBytes(plaintext.readableBytesView, at: index)
     }
 
-    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws -> ByteBuffer {
+    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer, sequenceNumber: UInt32) throws -> ByteBuffer {
         defer {
             self.lastFirstBlock = nil
         }
@@ -218,7 +218,7 @@ class TestTransportProtection: NIOSSHTransportProtection {
         return plaintext.readSlice(length: plaintext.readableBytes - Int(paddingLength))!
     }
 
-    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws {
+    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer, sequenceNumber: UInt32) throws {
         let packetLengthIndex = outboundBuffer.writerIndex
         let packetLengthLength = MemoryLayout<UInt32>.size
         let packetPaddingIndex = outboundBuffer.writerIndex + packetLengthLength

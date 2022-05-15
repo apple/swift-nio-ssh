@@ -75,7 +75,7 @@ struct SSHKeyExchangeStateMachine {
     private var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type]
     private var previousSessionIdentifier: ByteBuffer?
 
-    init(allocator: ByteBufferAllocator, loop: EventLoop, role: SSHConnectionRole, remoteVersion: String, keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type] = SSHKeyExchangeStateMachine.bundledKeyExchangeImplementations, transportProtectionSchemes: [NIOSSHTransportProtection.Type] = SSHConnectionStateMachine.bundledTransportProtectionSchemes, previousSessionIdentifier: ByteBuffer?) {
+    init(allocator: ByteBufferAllocator, loop: EventLoop, role: SSHConnectionRole, remoteVersion: String, keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type], transportProtectionSchemes: [NIOSSHTransportProtection.Type], previousSessionIdentifier: ByteBuffer?) {
         self.allocator = allocator
         self.loop = loop
         self.role = role
