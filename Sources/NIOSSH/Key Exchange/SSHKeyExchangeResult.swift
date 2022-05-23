@@ -24,7 +24,7 @@ public struct KeyExchangeResult {
     public var sessionID: ByteBuffer
 
     public var keys: NIOSSHSessionKeys
-    
+
     public init(sessionID: ByteBuffer, keys: NIOSSHSessionKeys) {
         self.sessionID = sessionID
         self.keys = keys
@@ -63,7 +63,7 @@ public struct NIOSSHSessionKeys {
     public var inboundMACKey: SymmetricKey
 
     public var outboundMACKey: SymmetricKey
-    
+
     public init(initialInboundIV: [UInt8], initialOutboundIV: [UInt8], inboundEncryptionKey: SymmetricKey, outboundEncryptionKey: SymmetricKey, inboundMACKey: SymmetricKey, outboundMACKey: SymmetricKey) {
         self.initialInboundIV = initialInboundIV
         self.initialOutboundIV = initialOutboundIV
@@ -88,7 +88,7 @@ public struct ExpectedKeySizes {
     public var encryptionKeySize: Int
 
     public var macKeySize: Int
-    
+
     public init(ivSize: Int, encryptionKeySize: Int, macKeySize: Int) {
         self.ivSize = ivSize
         self.encryptionKeySize = encryptionKeySize

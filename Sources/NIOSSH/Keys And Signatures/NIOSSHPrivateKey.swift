@@ -45,7 +45,7 @@ public struct NIOSSHPrivateKey {
     public init(p521Key key: P521.Signing.PrivateKey) {
         self.backingKey = .ecdsaP521(key)
     }
-    
+
     public init<PrivateKey: NIOSSHPrivateKeyProtocol>(custom key: PrivateKey) {
         self.backingKey = .custom(key)
     }

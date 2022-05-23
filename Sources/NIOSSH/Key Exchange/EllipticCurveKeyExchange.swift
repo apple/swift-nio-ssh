@@ -20,7 +20,7 @@ public struct NIOSSHKeyExchangeServerReply {
     public var hostKey: NIOSSHPublicKey
     public var publicKey: ByteBuffer
     public var signature: NIOSSHSignature
-    
+
     public init(hostKey: NIOSSHPublicKey, publicKey: ByteBuffer, signature: NIOSSHSignature) {
         self.hostKey = hostKey
         self.publicKey = publicKey
@@ -33,7 +33,7 @@ public struct NIOSSHKeyExchangeServerReply {
 public protocol NIOSSHKeyExchangeAlgorithmProtocol {
     static var keyExchangeInitMessageId: UInt8 { get }
     static var keyExchangeReplyMessageId: UInt8 { get }
-    
+
     init(ourRole: SSHConnectionRole, previousSessionIdentifier: ByteBuffer?)
 
     func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> ByteBuffer
@@ -62,7 +62,7 @@ struct EllipticCurveKeyExchange<PrivateKey: ECDHCompatiblePrivateKey>: NIOSSHKey
     private var theirKey: PrivateKey.PublicKey?
     private var ourRole: SSHConnectionRole
     private var sharedSecret: SharedSecret?
-    
+
     static var keyExchangeInitMessageId: UInt8 { 30 }
     static var keyExchangeReplyMessageId: UInt8 { 31 }
 

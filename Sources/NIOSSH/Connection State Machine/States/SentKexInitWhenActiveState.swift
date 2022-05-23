@@ -38,7 +38,7 @@ extension SSHConnectionStateMachine {
             self.parser = previous.parser
             self.remoteVersion = previous.remoteVersion
             self.sessionIdentitifier = previous.sessionIdentifier
-            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, loop: loop, role: self.role, remoteVersion: self.remoteVersion, keyExchangeAlgorithms: role.keyExchangeAlgorithms, transportProtectionSchemes: role.transportProtectionSchemes, previousSessionIdentifier: previous.sessionIdentifier)
+            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, loop: loop, role: self.role, remoteVersion: self.remoteVersion, keyExchangeAlgorithms: self.role.keyExchangeAlgorithms, transportProtectionSchemes: self.role.transportProtectionSchemes, previousSessionIdentifier: previous.sessionIdentifier)
         }
     }
 }

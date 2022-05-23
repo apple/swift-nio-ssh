@@ -22,10 +22,10 @@ public struct SSHClientConfiguration {
 
     /// The global request delegate to be used with this client.
     public var globalRequestDelegate: GlobalRequestDelegate
-    
+
     /// The enabled TransportProtectionSchemes
     public var transportProtectionSchemes: [NIOSSHTransportProtection.Type] = SSHConnectionStateMachine.bundledTransportProtectionSchemes
-    
+
     /// The enabled KeyExchangeAlgorithms
     public var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type] = SSHKeyExchangeStateMachine.bundledKeyExchangeImplementations
 

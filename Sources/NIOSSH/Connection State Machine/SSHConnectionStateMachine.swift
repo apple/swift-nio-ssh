@@ -182,7 +182,7 @@ struct SSHConnectionStateMachine {
                 return .noMessage
             case .unimplemented(let unimplemented):
                 throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-                
+
             default:
                 // TODO: enforce RFC 4253:
                 //

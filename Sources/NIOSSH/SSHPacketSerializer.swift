@@ -79,11 +79,11 @@ struct SSHPacketSerializer {
             buffer.setInteger(UInt8(paddingLength), at: index + 4)
             /// random padding
             buffer.writeSSHPaddingBytes(count: paddingLength)
-            sequenceNumber = sequenceNumber &+ 1
+            self.sequenceNumber = self.sequenceNumber &+ 1
         case .encrypted(let protection):
             let payload = NIOSSHEncryptablePayload(message: message)
-            try protection.encryptPacket(payload, to: &buffer, sequenceNumber: sequenceNumber)
-            sequenceNumber = sequenceNumber &+ 1
+            try protection.encryptPacket(payload, to: &buffer, sequenceNumber: self.sequenceNumber)
+            self.sequenceNumber = self.sequenceNumber &+ 1
         }
     }
 }

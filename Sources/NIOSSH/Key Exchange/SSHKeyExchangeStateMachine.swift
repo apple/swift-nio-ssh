@@ -105,7 +105,7 @@ struct SSHKeyExchangeStateMachine {
 
         return .init(
             cookie: rng.randomCookie(allocator: self.allocator),
-            keyExchangeAlgorithms: role.keyExchangeAlgorithmNames,
+            keyExchangeAlgorithms: self.role.keyExchangeAlgorithmNames,
             serverHostKeyAlgorithms: self.supportedHostKeyAlgorithms,
             encryptionAlgorithmsClientToServer: encryptionAlgorithms,
             encryptionAlgorithmsServerToClient: encryptionAlgorithms,
@@ -377,13 +377,13 @@ struct SSHKeyExchangeStateMachine {
 
         switch self.role {
         case .client:
-            clientAlgorithms = role.keyExchangeAlgorithmNames
+            clientAlgorithms = self.role.keyExchangeAlgorithmNames
             serverAlgorithms = peerKeyExchangeAlgorithms
             clientHostKeyAlgorithms = self.supportedHostKeyAlgorithms
             serverHostKeyAlgorithms = peerHostKeyAlgorithms
         case .server:
             clientAlgorithms = peerKeyExchangeAlgorithms
-            serverAlgorithms = role.keyExchangeAlgorithmNames
+            serverAlgorithms = self.role.keyExchangeAlgorithmNames
             clientHostKeyAlgorithms = peerHostKeyAlgorithms
             serverHostKeyAlgorithms = self.supportedHostKeyAlgorithms
         }
@@ -456,7 +456,7 @@ struct SSHKeyExchangeStateMachine {
     }
 
     private func exchangerForAlgorithm(_ algorithm: Substring) throws -> NIOSSHKeyExchangeAlgorithmProtocol {
-        for implementation in keyExchangeAlgorithms {
+        for implementation in self.keyExchangeAlgorithms {
             if implementation.keyExchangeAlgorithmNames.contains(algorithm) {
                 return implementation.init(ourRole: self.role, previousSessionIdentifier: self.previousSessionIdentifier)
             }
@@ -469,7 +469,7 @@ struct SSHKeyExchangeStateMachine {
     private func expectingIncorrectGuess(_ kexMessage: SSHMessage.KeyExchangeMessage) -> Bool {
         // A guess is wrong if the key exchange algorithm and/or the host key algorithm differ from our preference.
         kexMessage.firstKexPacketFollows && (
-            kexMessage.keyExchangeAlgorithms.first != role.keyExchangeAlgorithmNames.first ||
+            kexMessage.keyExchangeAlgorithms.first != self.role.keyExchangeAlgorithmNames.first ||
                 kexMessage.serverHostKeyAlgorithms.first != self.supportedHostKeyAlgorithms.first
         )
     }
@@ -515,11 +515,11 @@ extension SSHKeyExchangeStateMachine {
 
     /// All known host key algorithms.
     static let bundledServerHostKeyAlgorithms: [Substring] = ["ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521"]
-    
+
     static var supportedServerHostKeyAlgorithms: [Substring] {
         let bundledAlgorithms = bundledServerHostKeyAlgorithms
         let customAlgorithms = NIOSSHPublicKey.customPublicKeyAlgorithms.map { Substring($0.publicKeyPrefix) }
-        
+
         return bundledAlgorithms + customAlgorithms
     }
 }

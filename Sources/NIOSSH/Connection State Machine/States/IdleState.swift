@@ -22,7 +22,7 @@ extension SSHConnectionStateMachine {
         internal var serializer: SSHPacketSerializer
 
         internal var protectionSchemes: [NIOSSHTransportProtection.Type]
-        
+
         internal var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type]
 
         init(role: SSHConnectionRole) {

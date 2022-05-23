@@ -240,7 +240,7 @@ extension ByteBuffer {
                         return NIOSSHSignature(backingSignature: .custom(signature))
                     }
                 }
-                
+
                 // We don't know this signature type.
                 let signature = signatureIdentifierBytes.readString(length: signatureIdentifierBytes.readableBytes) ?? "<unknown signature>"
                 throw NIOSSHError.unknownSignature(algorithm: signature)

@@ -34,7 +34,7 @@ public enum SSHConnectionRole {
             return true
         }
     }
-    
+
     internal var transportProtectionSchemes: [NIOSSHTransportProtection.Type] {
         switch self {
         case .client(let client):
@@ -43,11 +43,11 @@ public enum SSHConnectionRole {
             return server.transportProtectionSchemes
         }
     }
-    
+
     internal var keyExchangeAlgorithmNames: [Substring] {
         self.keyExchangeAlgorithms.flatMap { $0.keyExchangeAlgorithmNames }
     }
-    
+
     internal var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type] {
         switch self {
         case .client(let client):
