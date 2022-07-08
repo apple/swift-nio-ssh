@@ -11,11 +11,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-#if swift(>=5.6)
-@preconcurrency import NIOCore
-#else
+
 import NIOCore
-#endif // swift(>=5.6)
 
 /// `SSHChannelType` represents the type of a single SSH channel.
 ///
