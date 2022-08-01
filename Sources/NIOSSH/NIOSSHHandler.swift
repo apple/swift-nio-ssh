@@ -57,6 +57,12 @@ public final class NIOSSHHandler {
 
     private var pendingGlobalRequestResponses: CircularBuffer<PendingGlobalRequestResponse?>
 
+    /// Construct a new ``NIOSSHHandler``.
+    ///
+    /// - parameters:
+    ///     - role: The role of this channel in the connection, client or server.
+    ///     - allocator: An allocator for `ByteBuffer`s
+    ///     - inboundChildChannelInitializer: A callback that will be invoked whenever the remote peer attempts to construct a new SSH channel in a connection.
     public init(role: SSHConnectionRole, allocator: ByteBufferAllocator, inboundChildChannelInitializer: ((Channel, SSHChannelType) -> EventLoopFuture<Void>)?) {
         self.stateMachine = SSHConnectionStateMachine(role: role)
         self.pendingWrite = false
@@ -231,7 +237,7 @@ extension NIOSSHHandler {
     ///
     /// - parameters:
     ///     - promise: An `EventLoopPromise` that will be fulfilled with the channel when it becomes active.
-    ///     - channelType: The type of the channel to create. Defaults to `.session` for running remote processes.
+    ///     - channelType: The type of the channel to create. Defaults to ``SSHChannelType/session`` for running remote processes.
     ///     - channelInitializer: A callback that will be invoked to initialize the channel.
     public func createChannel(_ promise: EventLoopPromise<Channel>? = nil, channelType: SSHChannelType = .session, _ channelInitializer: ((Channel, SSHChannelType) -> EventLoopFuture<Void>)?) {
         self.pendingChannelInitializations.append((promise: promise, channelType: channelType, initializer: channelInitializer))

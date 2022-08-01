@@ -21,7 +21,7 @@ import Darwin
 import Glibc
 #endif // os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
 
-/// A `NIOSSHCertifiedPublicKey` is an SSH public key combined with an SSH certificate.
+/// A ``NIOSSHCertifiedPublicKey`` is an SSH public key combined with an SSH certificate.
 ///
 /// SSH has a non-standard interface for using a very basic form of certificate-based authentication.
 /// This is largely defined by OpenSSH, with the specification written down in [`PROTOCOL.certkeys`](https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD) in the
@@ -38,11 +38,11 @@ import Glibc
 /// enterprises.
 ///
 /// In the SSH protocol itself, certificates fit into a slightly strange space. They are essentially a (weird)
-/// key type on the wire, with more information available to them. To mirror this use-case, a `NIOSSHCertifiedPublicKey`
+/// key type on the wire, with more information available to them. To mirror this use-case, a ``NIOSSHCertifiedPublicKey``
 /// is never directly passed to or from any of the interfaces in SwiftNIO SSH. Instead, it has an optional constructor
-/// from `NIOSSHPublicKey` and `NIOSSHPublicKey` has a non-failing constructor from this key type. This allows users
-/// to check at runtime whether a given `NIOSSHPublicKey` is _actually_ a `NIOSSHCertifiedPublicKey`, and allows
-/// users that have a `NIOSSHCertifiedPublicKey` to use it as though it were a `NIOSSHPublicKey`.
+/// from ``NIOSSHPublicKey`` and ``NIOSSHPublicKey`` has a non-failing constructor from this key type. This allows users
+/// to check at runtime whether a given ``NIOSSHPublicKey`` is _actually_ a ``NIOSSHCertifiedPublicKey``, and allows
+/// users that have a ``NIOSSHCertifiedPublicKey`` to use it as though it were a ``NIOSSHPublicKey``.
 public struct NIOSSHCertifiedPublicKey {
     /// A CA-provided random bitstring of arbitrary length (typically 16 or 32 bytes). This defends against
     /// hash-collision attacks.
@@ -102,8 +102,10 @@ public struct NIOSSHCertifiedPublicKey {
         }
     }
 
-    /// The principals for which this certified key is valid. For keys with `.type == .host`, these will be hostnames.
-    /// For keys with `.type == .user`, these will be usernames.
+    /// The principals for which this certified key is valid. For keys where ``NIOSSHCertifiedPublicKey/type``
+    /// is ``NIOSSHCertifiedPublicKey/CertificateType/host``, these will be hostnames. For keys where
+    /// ``NIOSSHCertifiedPublicKey/type`` is ``NIOSSHCertifiedPublicKey/CertificateType/user``, these will be
+    /// usernames.
     ///
     /// If this is empty, the certificate is valid for _any_ principal of the given type.
     public var validPrincipals: [String] {
@@ -141,14 +143,15 @@ public struct NIOSSHCertifiedPublicKey {
     }
 
     /// Critical options are extensions that indicate restrictions on the default permissions of a certificate. These
-    /// are most commonly used for certificates of `.user` type.
+    /// are most commonly used for certificates of ``NIOSSHCertifiedPublicKey/CertificateType/user`` type.
     ///
     /// These options are critical in the sense that critical options not recognised by an implementation must lead to the
     /// certificate being not trusted. SwiftNIO does not police these options itself, and relies on users to do so. The
     /// certificate validation APIs provide hooks to allow implementations to identify which options they are willing to
     /// police.
     ///
-    /// The two critical options defined in the specification are only usable for `.user` certificates, and are:
+    /// The two critical options defined in the specification are only usable for
+    /// ``NIOSSHCertifiedPublicKey/CertificateType/user`` certificates, and are:
     ///
     /// - `force-command`: Specifies a command that will be executed whenever this certificate is used for auth, replacing
     ///     anything the user selected.
@@ -176,7 +179,7 @@ public struct NIOSSHCertifiedPublicKey {
         }
     }
 
-    /// The public key corresponding to the private key used to sign this `NIOSSHCertifiedPublicKey`.
+    /// The public key corresponding to the private key used to sign this ``NIOSSHCertifiedPublicKey``.
     public var signatureKey: NIOSSHPublicKey {
         get {
             self.backing.signatureKey
@@ -227,7 +230,7 @@ public struct NIOSSHCertifiedPublicKey {
                                    signature: signature)
     }
 
-    /// Attempt to unwrap a `NIOSSHPublicKey` that may contain a `NIOSSHCertifiedPublicKey`.
+    /// Attempt to unwrap a ``NIOSSHPublicKey`` that may contain a ``NIOSSHCertifiedPublicKey``.
     ///
     /// Not all public keys are certified, so this method will fail if the key is not.
     public init?(_ key: NIOSSHPublicKey) {
@@ -388,10 +391,12 @@ extension NIOSSHCertifiedPublicKey: CustomDebugStringConvertible {
 }
 
 extension NIOSSHCertifiedPublicKey {
-    /// A `NIOSSHCertifiedPublicKey.CertificateType` defines the type of a given certificate.
+    /// A ``NIOSSHCertifiedPublicKey/CertificateType`` defines the type of a given certificate.
     ///
-    /// In SSH there are essentially two types in standard use: `.user` and `.host`. Certificates of type
-    /// `.user` identify a user, while certificates of type `.host` identify a host.
+    /// In SSH there are essentially two types in standard use: ``NIOSSHCertifiedPublicKey/CertificateType/user``
+    /// and ``NIOSSHCertifiedPublicKey/CertificateType/host``. Certificates of type
+    /// ``NIOSSHCertifiedPublicKey/CertificateType/user`` identify a user, while certificates of
+    /// type ``NIOSSHCertifiedPublicKey/CertificateType/host`` identify a host.
     ///
     /// For extensibility purposes this is not defined as an enumeration, but instead as a `RawRepresentable` type
     /// wrapping the base type.

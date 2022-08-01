@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 import NIOCore
 
-/// A `GlobalRequestDelegate` is used by an SSH server to handle SSH global requests.
+/// A ``GlobalRequestDelegate`` is used by an SSH server to handle SSH global requests.
 ///
 /// These are requests for connection-wide SSH resources. Today the only global requests
 /// available are for managing TCP port forwarding: specifically, they allow clients to
@@ -23,6 +23,8 @@ import NIOCore
 /// all requests of a given type.
 public protocol GlobalRequestDelegate {
     /// The client wants to manage TCP port forwarding.
+    ///
+    /// The default implementation rejects all requests to establish TCP port forwarding.
     func tcpForwardingRequest(_: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>)
 }
 
@@ -33,7 +35,7 @@ extension GlobalRequestDelegate {
     }
 }
 
-/// A namespace of `GlobalRequest` objects that delegates may be asked to handle.
+/// A namespace of ``GlobalRequest`` objects that implementations of ``GlobalRequestDelegate`` may be asked to handle.
 public enum GlobalRequest {
     /// A request from a client to a server for the server to listen on a port on the client's behalf. If accepted,
     /// the server will listen on a port, and will forward accepted connections to the client using the "forwarded-tcpip"

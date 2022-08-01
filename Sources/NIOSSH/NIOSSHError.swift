@@ -14,15 +14,16 @@
 
 /// An error thrown by NIOSSH.
 ///
-/// For extensibility purposes, `NIOSSHError`s are composed of two parts. The first part is an
+/// For extensibility purposes, ``NIOSSHError``s are composed of two parts. The first part is an
 /// error type. This is like an enum, but extensible, and identifies the kind of error programmatically.
 /// The second part is some opaque diagnostic data. This is not visible to your code, but is used to
 /// help provide extra information for diagnostic purposes when logging this error.
 ///
-/// Note that due to this construction `NIOSSHError` is not equatable: only the `type` is. This is deliberate,
+/// Note that due to this construction ``NIOSSHError`` is not equatable: only the ``NIOSSHError/type`` is. This is deliberate,
 /// as it is possible two errors have the same type but a different underlying cause or diagnostic data. For
-/// this reason, if you need to compare two `NIOSSHError` values you should explicitly compare their `type`.
+/// this reason, if you need to compare two ``NIOSSHError`` values you should explicitly compare their ``NIOSSHError/type``.
 public struct NIOSSHError: Error {
+    /// The type of this error, used to identify the kind of error that has been thrown.
     public var type: ErrorType
 
     private var diagnostics: String?

@@ -1,9 +1,9 @@
-// swift-tools-version:5.6
+// swift-tools-version:5.4
 //===----------------------------------------------------------------------===//
 //
 // This source file is part of the SwiftNIO open source project
 //
-// Copyright (c) 2017-2022 Apple Inc. and the SwiftNIO project authors
+// Copyright (c) 2017-2018 Apple Inc. and the SwiftNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -30,7 +30,6 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.32.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", "1.0.0" ..< "3.0.0"),
         .package(url: "https://github.com/apple/swift-atomics.git", from: "1.0.2"),
-        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
     ],
     targets: [
         .target(

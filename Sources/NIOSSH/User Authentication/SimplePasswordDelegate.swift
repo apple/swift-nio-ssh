@@ -14,7 +14,7 @@
 
 import NIOCore
 
-/// A straightforward `NIOSSHUserAuthenticationDelegate` that makes one attempt to sign in with a single username and password combination.
+/// A straightforward ``NIOSSHServerUserAuthenticationDelegate`` that makes one attempt to sign in with a single username and password combination.
 public final class SimplePasswordDelegate {
     private var authRequest: NIOSSHUserAuthenticationOffer?
 
