@@ -14,7 +14,7 @@
 
 import NIOCore
 
-/// A `NIOSSHServerUserAuthenticationDelegate` is an object that can authorize users.
+/// A ``NIOSSHServerUserAuthenticationDelegate`` is an object that can authorize users.
 ///
 /// This protocol defines the interface that will be used by the user authentication state
 /// machine to move forward with challenges. Implementers of this protocol are free to take
@@ -25,11 +25,14 @@ import NIOCore
 /// Implementers should be aware that multiple authentication requests may be in flight at once:
 /// they must be responded to in order. It is up to implementers to meet this requirement, it is
 /// not enforced by the implementation.
-///
-/// This is currently an internal protocol, but we may make it available to users in future once
-/// we feel confident that it covers our needs. For now, all implementers are internal.
 public protocol NIOSSHServerUserAuthenticationDelegate {
+    /// The authentication methods this delegate is willing to receive.
     var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods { get }
 
+    /// A user authentication request has been received.
+    ///
+    /// - parameters:
+    ///     - request: The received user authentication request
+    ///     - responsePromise: An `EventLoopPromise` that must be completed with the outcome of the user auth attempt.
     func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>)
 }

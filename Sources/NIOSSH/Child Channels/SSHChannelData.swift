@@ -18,14 +18,16 @@
 import NIOCore
 #endif // swift(>=5.6)
 
-/// `SSHChannelData` is the data type that is passed around in `SSHChildChannel` objects.
+/// ``SSHChannelData`` is the data type that is passed around in `SSHChildChannel` objects.
 ///
 /// This is the baseline kind of data available for `SSHChildChannel` objects. It encapsulates
 /// the difference between `SSH_MSG_CHANNEL_DATA` and `SSH_MSG_CHANNEL_EXTENDED_DATA` by storing
 /// them both in a single data type that marks this difference.
 public struct SSHChannelData {
+    /// The type of this data.
     public var type: DataType
 
+    /// The data in this message.
     public var data: IOData
 
     public init(type: DataType, data: IOData) {
@@ -39,8 +41,8 @@ extension SSHChannelData: Equatable {}
 extension SSHChannelData: NIOSSHSendable {}
 
 extension SSHChannelData {
-    /// The type of this channel data. Regular `.channel` data is the standard type of data on an `SSHChannel`,
-    /// but extended data types (such as `.stderr`) are available as well.
+    /// The type of this channel data. Regular ``SSHChannelData/DataType/channel`` data is the standard type of data on an `SSHChannel`,
+    /// but extended data types (such as ``SSHChannelData/DataType/stdErr``) are available as well.
     public struct DataType {
         internal var _baseType: UInt32
 
@@ -50,7 +52,7 @@ extension SSHChannelData {
         /// Extended data associated with stderr.
         public static let stdErr = DataType(_baseType: 1)
 
-        /// Construct an `SSHChannelData` for an unknown type of extended data.
+        /// Construct an ``SSHChannelData`` for an unknown type of extended data.
         public init(extended: Int) {
             precondition(extended != 0)
             self._baseType = UInt32(extended)

@@ -20,10 +20,10 @@ protocol AcceptsUserAuthMessages {
 
 /// This event indicates that server wants us to display the following message to the end user.
 public struct NIOUserAuthBannerEvent: Hashable {
-    /// message to be displayed to end user
+    /// The message to be displayed to end user
     public var message: String
 
-    /// tag  identifying the language used for `message`, following RFC 3066
+    /// The tag  identifying the language used for `message`, following RFC 3066
     public var languageTag: String
 
     public init(message: String, languageTag: String) {
@@ -32,7 +32,7 @@ public struct NIOUserAuthBannerEvent: Hashable {
     }
 }
 
-/// This event indicates that server accepted our response to authentication challenge. SSH session can be considered active after that.
+/// This event indicates that server accepted our response to authentication challenge. The SSH session can be considered active after this point.
 public struct UserAuthSuccessEvent: Hashable {
     public init() {}
 }

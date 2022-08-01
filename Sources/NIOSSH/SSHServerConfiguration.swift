@@ -41,17 +41,13 @@ public struct SSHServerConfiguration {
 // MARK: - UserAuthBanner
 
 extension SSHServerConfiguration {
-    /**
-     Server sends `UserAuthBanner` to client some time during authentication.
-     Client is obligated to display this banner to the end user, unless explicitely told
-     to ignore banners.
-     */
+    /// A server sends a ``UserAuthBanner`` to the client at some point during authentication.
+    /// A client is obligated to display this banner to the end user, unless explicitely told
+    /// to ignore banners.
     public struct UserAuthBanner {
-        /**
-         The message to be displayed by client to end user during authentication.
-         Note that control characters contained in message might be filtered by
-         client in accordance with RFC 4252.
-         */
+        // The message to be displayed by the client to the end user during authentication.
+        // Note that control characters contained in the message might be filtered by
+        // the client in accordance with RFC 4252.
         public var message: String
 
         /// Tag describing the language used for message. Must obey RFC 3066
