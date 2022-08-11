@@ -14,7 +14,10 @@
 
 /// The role of a given party in an SSH connection.
 public enum SSHConnectionRole {
+    /// This entity is an SSH client.
     case client(SSHClientConfiguration)
+
+    /// This entity is an SSH server.
     case server(SSHServerConfiguration)
 
     internal var isClient: Bool {

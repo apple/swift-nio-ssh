@@ -12,12 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if swift(>=5.6)
-@preconcurrency import NIOCore
-#else
-import NIOCore
-#endif
+import Atomics
 import NIOConcurrencyHelpers
+import NIOCore
 
 /// A NIO `Channel` that encapsulates a single SSH `Channel`.
 ///
@@ -90,9 +87,9 @@ final class SSHChildChannel {
 
     public let eventLoop: EventLoop
 
-    private let _isWritable: NIOAtomic<Bool>
+    private let _isWritable: ManagedAtomic<Bool>
 
-    private let _isActive: NIOAtomic<Bool>
+    private let _isActive: ManagedAtomic<Bool>
 
     typealias Initializer = (Channel, SSHChannelType) -> EventLoopFuture<Void>
 
@@ -135,8 +132,8 @@ final class SSHChildChannel {
         self.multiplexer = multiplexer
         self.initializer = initializer
         self.windowManager = ChildChannelWindowManager(targetWindowSize: UInt32(targetWindowSize))
-        self._isWritable = .makeAtomic(value: true)
-        self._isActive = .makeAtomic(value: false)
+        self._isWritable = .init(true)
+        self._isActive = .init(false)
         self.state = initialState
         self.writabilityManager = ChildChannelWritabilityManager(initialWindowSize: initialOutboundWindowSize,
                                                                  parentIsWritable: parent.isWritable)
@@ -240,11 +237,11 @@ extension SSHChildChannel: Channel, ChannelCore {
     }
 
     public var isWritable: Bool {
-        self._isWritable.load()
+        self._isWritable.load(ordering: .relaxed)
     }
 
     public var isActive: Bool {
-        self._isActive.load()
+        self._isActive.load(ordering: .relaxed)
     }
 
     public var _channelCore: ChannelCore {
@@ -618,7 +615,7 @@ extension SSHChildChannel: Channel, ChannelCore {
     }
 
     private func changeWritability(to newWritability: Bool) {
-        self._isWritable.store(newWritability)
+        self._isWritable.store(newWritability, ordering: .relaxed)
         self.pipeline.fireChannelWritabilityChanged()
     }
 
@@ -1030,14 +1027,14 @@ extension SSHChildChannel {
         switch self.activationState {
         case .neverActivated:
             self.activationState = .activated
-            self._isActive.store(true)
+            self._isActive.store(true, ordering: .relaxed)
             self.pipeline.fireChannelActive()
 
         case .activated:
-            assert(self._isActive.load() == true)
+            assert(self._isActive.load(ordering: .relaxed) == true)
 
         case .deactivated:
-            assert(self._isActive.load() == false)
+            assert(self._isActive.load(ordering: .relaxed) == false)
         }
     }
 
@@ -1046,15 +1043,15 @@ extension SSHChildChannel {
         case .neverActivated:
             // Do nothing, transition to inactive.
             self.activationState = .deactivated
-            assert(self._isActive.load() == false)
+            assert(self._isActive.load(ordering: .relaxed) == false)
 
         case .activated:
             self.activationState = .deactivated
-            self._isActive.store(false)
+            self._isActive.store(false, ordering: .relaxed)
             self.pipeline.fireChannelInactive()
 
         case .deactivated:
-            assert(self._isActive.load() == false)
+            assert(self._isActive.load(ordering: .relaxed) == false)
         }
     }
 }

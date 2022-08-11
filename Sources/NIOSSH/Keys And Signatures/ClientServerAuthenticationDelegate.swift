@@ -14,7 +14,7 @@
 
 import NIOCore
 
-/// A `NIOSSHClientSErverAuthenticationDelegate` is an object that can validate whether
+/// A ``NIOSSHClientServerAuthenticationDelegate`` is an object that can validate whether
 /// a server host key is trusted.
 ///
 /// When an SSH connection is performing key exchange, the SSH server will send over its host
@@ -23,5 +23,9 @@ import NIOCore
 public protocol NIOSSHClientServerAuthenticationDelegate {
     /// Invoked to validate a specific host key. Implementations should succeed the `validationCompletePromise`
     /// if they trust the host key, or fail it if they do not.
+    ///
+    /// - parameters:
+    ///      - hostKey: The host key presented by the server
+    ///      - validationCompletePromise: A promise that must be succeeded or failed based on whether the host key is trusted.
     func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>)
 }

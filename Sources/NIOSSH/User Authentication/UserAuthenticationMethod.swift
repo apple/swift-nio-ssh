@@ -14,6 +14,9 @@
 import NIOCore
 
 /// The user authentication modes available at this point in time.
+///
+/// User authentication in SSH proceeds in a dynamic fashion, and it is possible to require multiple forms
+/// of authentication sequentially, or to be able to accept one of many forms.
 public struct NIOSSHAvailableUserAuthenticationMethods: OptionSet {
     public var rawValue: UInt8
 
@@ -21,10 +24,16 @@ public struct NIOSSHAvailableUserAuthenticationMethods: OptionSet {
         self.rawValue = rawValue
     }
 
+    /// Public key authentication is acceptable.
     public static let publicKey: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 0)
+
+    /// Password-based authentication is acceptable.
     public static let password: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 1)
+
+    /// Host-based authentication is acceptable.
     public static let hostBased: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 2)
 
+    /// A short-hand for all supported authentication types.
     public static let all: NIOSSHAvailableUserAuthenticationMethods = [.publicKey, .password, .hostBased]
 }
 
@@ -73,10 +82,12 @@ extension NIOSSHAvailableUserAuthenticationMethods {
 extension NIOSSHAvailableUserAuthenticationMethods: Hashable {}
 
 /// A specific request for user authentication. This type is the one observed from the server side. The
-/// associated client side type is `NIOSSHUserAuthenticationOffer`.
+/// associated client side type is ``NIOSSHUserAuthenticationOffer``.
 public struct NIOSSHUserAuthenticationRequest {
+    /// The username for which the client would like to authenticate.
     public var username: String
 
+    /// The specific authentication request.
     public var request: Request
 
     public init(username: String, serviceName: String, request: Request) {
@@ -86,16 +97,28 @@ public struct NIOSSHUserAuthenticationRequest {
 }
 
 extension NIOSSHUserAuthenticationRequest {
+    /// ``NIOSSHUserAuthenticationRequest/Request-swift.enum`` describes the kind of authentication attempt the client is making.
     public enum Request {
+        /// The client would like to perform public key authentication.
         case publicKey(PublicKey)
+
+        /// The client would like to perform password authentication.
         case password(Password)
+
+        /// The client would like to perform host-based authentication.
+        ///
+        /// This method is currently unsupported by ``NIOSSH``.
         case hostBased(HostBased)
+
+        /// The client believes it does not need authentication.
         case none
     }
 }
 
 extension NIOSSHUserAuthenticationRequest.Request {
+    /// Information provided by the client when attempting to perform a public-key authentication.
     public struct PublicKey {
+        /// The user's public key.
         public var publicKey: NIOSSHPublicKey
 
         public init(publicKey: NIOSSHPublicKey) {
@@ -103,7 +126,9 @@ extension NIOSSHUserAuthenticationRequest.Request {
         }
     }
 
+    /// Information provided by the client when attempting to perform password-based authentication.
     public struct Password {
+        /// The user's password.
         public var password: String
 
         public init(password: String) {
@@ -111,6 +136,9 @@ extension NIOSSHUserAuthenticationRequest.Request {
         }
     }
 
+    /// Information provided by the client when attempting to perform host-based authentication.
+    ///
+    /// This method is currently unsupported by ``NIOSSH``.
     public struct HostBased {
         init() {
             fatalError("PublicKeyRequest is currently unimplemented")
@@ -129,10 +157,12 @@ extension NIOSSHUserAuthenticationRequest.Request.Password: Hashable {}
 extension NIOSSHUserAuthenticationRequest.Request.HostBased: Hashable {}
 
 /// A specific offer of user authentication. This type is the one used on the client side. The
-/// associated server side type is `NIOSSHUserAuthenticationRequest`.
+/// associated server side type is ``NIOSSHUserAuthenticationRequest``.
 public struct NIOSSHUserAuthenticationOffer {
+    /// The username for which the client would like to authenticate.
     public var username: String
 
+    /// The specific authentication offer.
     public var offer: Offer
 
     public init(username: String, serviceName: String, offer: Offer) {
@@ -142,17 +172,35 @@ public struct NIOSSHUserAuthenticationOffer {
 }
 
 extension NIOSSHUserAuthenticationOffer {
+    /// ``NIOSSHUserAuthenticationOffer/Offer-swift.enum`` describes the kind of authentication offer the client is making.
     public enum Offer {
+        /// The client would like to perform private key authentication.
         case privateKey(PrivateKey)
+
+        /// The client would like to perform password authentication.
         case password(Password)
+
+        /// The client would like to perform host-based authentication.
+        ///
+        /// This method is currently unsupported by ``NIOSSH``.
         case hostBased(HostBased)
+
+        /// The client believes it does not need authentication.
         case none
     }
 }
 
 extension NIOSSHUserAuthenticationOffer.Offer {
+    /// Information provided by the client when attempting to perform private key authentication.
     public struct PrivateKey {
+        /// The client's private key.
+        ///
+        /// This is not sent to the server, but is used by ``NIOSSH`` to respond to auth challenges.
         public var privateKey: NIOSSHPrivateKey
+
+        /// The client's public key.
+        ///
+        /// This is sent to the server.
         public var publicKey: NIOSSHPublicKey
 
         public init(privateKey: NIOSSHPrivateKey) {
@@ -166,7 +214,9 @@ extension NIOSSHUserAuthenticationOffer.Offer {
         }
     }
 
+    /// Information provided by the client when attempting to perform password-based authentication.
     public struct Password {
+        /// The client's password.
         public var password: String
 
         public init(password: String) {
@@ -174,6 +224,9 @@ extension NIOSSHUserAuthenticationOffer.Offer {
         }
     }
 
+    /// Information provided by the client when attempting to perform host-based authentication.
+    ///
+    /// This method is currently unsupported by ``NIOSSH``.
     public struct HostBased {
         init() {
             fatalError("PublicKeyRequest is currently unimplemented")
@@ -209,8 +262,15 @@ extension SSHMessage.UserAuthRequestMessage {
 
 /// The outcome of a user authentication attempt.
 public enum NIOSSHUserAuthenticationOutcome {
+    /// The authentication attempt succeeded and the client is authenticated.
     case success
+
+    /// The authentication attempt partially succeeded, but additional authentication is required.
+    ///
+    /// The additional authentication requirements are described in `remainingMethods`.
     case partialSuccess(remainingMethods: NIOSSHAvailableUserAuthenticationMethods)
+
+    /// The authentication attempt failed.
     case failure
 }
 

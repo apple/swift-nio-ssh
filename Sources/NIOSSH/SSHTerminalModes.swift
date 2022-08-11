@@ -19,6 +19,7 @@ import NIOCore
 /// expected to express all modes it knows about, with the server ignoring anything that it
 /// does not know anything about.
 public struct SSHTerminalModes {
+    /// The set ``Opcode``s and their ``OpcodeValue``s.
     public var modeMapping: [Opcode: OpcodeValue]
 
     public init(_ modeMapping: [Opcode: OpcodeValue]) {

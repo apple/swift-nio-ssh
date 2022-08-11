@@ -16,6 +16,7 @@ import NIOCore
 
 /// A namespace for SSH channel request events.
 public enum SSHChannelRequestEvent {
+    /// A request for the peer to allocate a pseudo-terminal.
     public struct PseudoTerminalRequest: Hashable, NIOSSHSendable {
         /// Whether a reply to this PTY request is desired.
         public var wantReply: Bool
@@ -91,7 +92,7 @@ public enum SSHChannelRequestEvent {
         }
     }
 
-    /// An EnvironmentRequest communicates a single environment variable the peer wants set.
+    /// An ``EnvironmentRequest`` communicates a single environment variable the peer wants set.
     public struct EnvironmentRequest: Hashable, NIOSSHSendable {
         /// The name of the environment variable.
         public var name: String
@@ -202,6 +203,9 @@ public enum SSHChannelRequestEvent {
         }
     }
 
+    /// A notification that the user has changed the size of the window.
+    ///
+    /// Only useful if a pseudo-terminal has been allocated.
     public struct WindowChangeRequest: Hashable, NIOSSHSendable {
         /// Whether a reply to this window change request is desired.
         public var wantReply: Bool {

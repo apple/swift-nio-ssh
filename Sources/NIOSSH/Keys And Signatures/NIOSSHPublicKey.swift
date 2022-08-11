@@ -32,7 +32,7 @@ public struct NIOSSHPublicKey: Hashable {
         self.backingKey = backingKey
     }
 
-    /// Create a `NIOSSHPublicKey` from the OpenSSH public key string.
+    /// Create a ``NIOSSHPublicKey`` from the OpenSSH public key string.
     public init(openSSHPublicKey: String) throws {
         // The OpenSSH public key format is like this: "algorithm-id base64-encoded-key comments"
         //
@@ -57,7 +57,10 @@ public struct NIOSSHPublicKey: Hashable {
         self = key
     }
 
-    /// Encapsulate a `NIOSSHCertifiedPublicKey` in a `NIOSSHPublicKey`.
+    /// Encapsulate a ``NIOSSHCertifiedPublicKey`` in a ``NIOSSHPublicKey``.
+    ///
+    /// This initializer can be used to "wrap" a ``NIOSSHCertifiedPublicKey`` into the interface of ``NIOSSHPublicKey``.
+    /// It is typically used in cases where the fact that the key is certified is not relevant.
     public init(_ certifiedKey: NIOSSHCertifiedPublicKey) {
         self.backingKey = .certified(certifiedKey)
     }
