@@ -38,7 +38,7 @@ struct SSHConnectionStateMachine {
         case active(ActiveState)
 
         /// We have received a KeyExchangeInit message from the active state, and so will be rekeying shortly.
-        case receivedKexInitWhenActive(ReceivedKexInitWhenActiveState)
+        case receivedKexInitWhenActive(ReceivedKeyInitWhenActiveState)
 
         /// We have sent a KeyExchangeInit message from the active state, and so will be rekeying shortly.
         case sentKexInitWhenActive(SentKexInitWhenActiveState)
@@ -385,7 +385,7 @@ struct SSHConnectionStateMachine {
                 return .globalRequestResponse(.failure)
             case .keyExchange(let message):
                 // Attempting to rekey.
-                var newState = ReceivedKexInitWhenActiveState(state, allocator: allocator, loop: loop)
+                var newState = ReceivedKeyInitWhenActiveState(state, allocator: allocator, loop: loop)
                 let result = try newState.receiveKeyExchangeMessage(message)
                 self.state = .receivedKexInitWhenActive(newState)
                 return result

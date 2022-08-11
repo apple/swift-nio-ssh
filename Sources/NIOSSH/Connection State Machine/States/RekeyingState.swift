@@ -35,7 +35,7 @@ extension SSHConnectionStateMachine {
         /// The backing state machine.
         var keyExchangeStateMachine: SSHKeyExchangeStateMachine
 
-        init(_ previousState: ReceivedKexInitWhenActiveState) {
+        init(_ previousState: ReceivedKeyInitWhenActiveState) {
             self.role = previousState.role
             self.parser = previousState.parser
             self.serializer = previousState.serializer

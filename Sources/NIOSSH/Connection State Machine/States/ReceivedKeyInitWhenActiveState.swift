@@ -17,7 +17,7 @@ extension SSHConnectionStateMachine {
     /// The state of a state machine that has received a KeyExchangeInit message after
     /// having been active. In this state, no further channel messages may be sent by the
     /// remote peer until key exchange is done. We can send channel messages _and_ key exchange init.
-    struct ReceivedKexInitWhenActiveState {
+    struct ReceivedKeyInitWhenActiveState {
         /// The role of the connection
         let role: SSHConnectionRole
 
@@ -46,8 +46,8 @@ extension SSHConnectionStateMachine {
     }
 }
 
-extension SSHConnectionStateMachine.ReceivedKexInitWhenActiveState: AcceptsKeyExchangeMessages {}
+extension SSHConnectionStateMachine.ReceivedKeyInitWhenActiveState: AcceptsKeyExchangeMessages {}
 
-extension SSHConnectionStateMachine.ReceivedKexInitWhenActiveState: SendsChannelMessages {}
+extension SSHConnectionStateMachine.ReceivedKeyInitWhenActiveState: SendsChannelMessages {}
 
-extension SSHConnectionStateMachine.ReceivedKexInitWhenActiveState: SendsKeyExchangeMessages {}
+extension SSHConnectionStateMachine.ReceivedKeyInitWhenActiveState: SendsKeyExchangeMessages {}
