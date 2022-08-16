@@ -10,7 +10,8 @@ services:
 
   test:
     image: swift-nio-ssh:20.04-main
-    environment: []
+    environment:
+      - IMPORT_CHECK_ARG=--explicit-target-dependency-import-check error
       #- SANITIZER_ARG=--sanitize=thread
       #- WARN_AS_ERROR_ARG=-Xswiftc -warnings-as-errors
 
