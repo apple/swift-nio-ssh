@@ -29,8 +29,6 @@ public struct NIOSSHError: Error {
     private var diagnostics: String?
 }
 
-extension NIOSSHError: NIOSSHSendable {}
-
 // MARK: - Internal helper functions for error construction.
 
 // These are never inlined as they are inherently cold path functions.
@@ -288,7 +286,7 @@ extension NIOSSHError.ErrorType: Hashable {}
 
 // MARK: - NIOSSHError.ErrorType Sendable conformance
 
-extension NIOSSHError.ErrorType: NIOSSHSendable {}
+extension NIOSSHError.ErrorType: Sendable {}
 
 // MARK: - NIOSSHError.ErrorType CustomStringConvertible conformance
 

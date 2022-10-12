@@ -38,7 +38,7 @@ public struct SSHChannelData {
 
 extension SSHChannelData: Equatable {}
 
-extension SSHChannelData: NIOSSHSendable {}
+extension SSHChannelData: Sendable {}
 
 extension SSHChannelData {
     /// The type of this channel data. Regular ``SSHChannelData/DataType/channel`` data is the standard type of data on an `SSHChannel`,
@@ -66,7 +66,7 @@ extension SSHChannelData {
 
 extension SSHChannelData.DataType: Hashable {}
 
-extension SSHChannelData.DataType: NIOSSHSendable {}
+extension SSHChannelData.DataType: Sendable {}
 
 extension SSHChannelData.DataType: CustomStringConvertible {
     public var description: String {
