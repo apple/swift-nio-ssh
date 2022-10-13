@@ -19,7 +19,343 @@ import NIOEmbedded
 import XCTest
 
 enum EndToEndTestError: Error {
-    case unableToCreateChildChannel
+    case unableToCreateChildChannel, invalidCustomPublicKey, invalidCustomSignature
+}
+
+private let testKey = Data([0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF])
+
+final class CustomTransportProtection: NIOSSHTransportProtection {
+    static let cipherName = "xor-with-42"
+    static let macName: String? = "insecure-sha1"
+    static var wasUsed = false
+
+    static var keySizes: ExpectedKeySizes {
+        .init(ivSize: 19, encryptionKeySize: 17, macKeySize: 15)
+    }
+
+    required init(initialKeys: NIOSSHSessionKeys) throws {}
+
+    static var cipherBlockSize: Int { 18 }
+    var macBytes: Int { 20 }
+
+    func updateKeys(_: NIOSSHSessionKeys) throws {}
+
+    func decryptFirstBlock(_: inout ByteBuffer) throws {
+        // For us, decrypting the first block is very easy: do nothing. The length bytes are already
+        // unencrypted!
+    }
+
+    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer, sequenceNumber: UInt32) throws -> ByteBuffer {
+        Self.wasUsed = true
+        var plaintext: Data
+
+        // The first 4 bytes are the length. The last 16 are the tag. Everything else is ciphertext. We expect
+        // that the ciphertext is a clean multiple of the block size, and to be non-zero.
+        guard
+            let lengthView: UInt32 = source.readInteger(),
+            var ciphertext = source.readData(length: Int(lengthView)),
+            let mac = source.readData(length: Insecure.SHA1.byteCount),
+            ciphertext.count > 0, ciphertext.count % Self.cipherBlockSize == 0 else {
+            // The only way this fails is if the payload doesn't match this encryption scheme.
+            throw NIOSSHError.invalidEncryptedPacketLength
+        }
+
+        for i in 0 ..< ciphertext.count {
+            ciphertext[i] ^= 42
+        }
+
+        plaintext = ciphertext
+
+        struct InvalidSHA1TestSignature: Error {}
+        guard Insecure.SHA1.hash(data: plaintext) == mac else {
+            throw InvalidSHA1TestSignature()
+        }
+
+        let paddingBytes = plaintext[0]
+
+        if paddingBytes < 4 || paddingBytes >= plaintext.count {
+            throw NIOSSHError.invalidDecryptedPlaintextLength
+        }
+
+        // All good! A quick soundness check to verify that the length of the plaintext is ok.
+        guard plaintext.count % Self.cipherBlockSize == 0, plaintext.count == ciphertext.count else {
+            throw NIOSSHError.invalidDecryptedPlaintextLength
+        }
+
+        // Remove padding
+        plaintext.removeFirst()
+        plaintext.removeLast(Int(paddingBytes))
+
+        return ByteBuffer(data: plaintext)
+    }
+
+    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer, sequenceNumber: UInt32) throws {
+        // Keep track of where the length is going to be written.
+        let packetLengthIndex = outboundBuffer.writerIndex
+        let packetLengthLength = MemoryLayout<UInt32>.size
+        let packetPaddingIndex = outboundBuffer.writerIndex + packetLengthLength
+        let packetPaddingLength = MemoryLayout<UInt8>.size
+
+        outboundBuffer.moveWriterIndex(forwardBy: packetLengthLength + packetPaddingLength)
+
+        // First, we write the packet.
+        let payloadBytes = outboundBuffer.writeEncryptablePayload(packet)
+
+        // Ok, now we need to pad. The rules for padding for AES GCM are:
+        //
+        // 1. We must pad out such that the total encrypted content (padding length byte,
+        //     plus content bytes, plus padding bytes) is a multiple of the block size.
+        // 2. At least 4 bytes of padding MUST be added.
+        // 3. This padding SHOULD be random.
+        //
+        // Note that, unlike other protection modes, the length is not encrypted, and so we
+        // must exclude it from the padding calculation.
+        //
+        // So we check how many bytes we've already written, use modular arithmetic to work out
+        // how many more bytes we need, and then if that's fewer than 4 we add a block size to it
+        // to fill it out.
+        var encryptedBufferSize = payloadBytes + packetPaddingLength
+        var necessaryPaddingBytes = Self.cipherBlockSize - (encryptedBufferSize % Self.cipherBlockSize)
+        if necessaryPaddingBytes < 4 {
+            necessaryPaddingBytes += Self.cipherBlockSize
+        }
+
+        // We now want to write that many padding bytes to the end of the buffer. These are supposed to be
+        // random bytes. We're going to get those from the system random number generator.
+        encryptedBufferSize += outboundBuffer.writeSSHPaddingBytes(count: necessaryPaddingBytes)
+        precondition(encryptedBufferSize % Self.cipherBlockSize == 0, "Incorrectly counted buffer size; got \(encryptedBufferSize)")
+
+        // We now know the length: it's going to be "encrypted buffer size". The length does not include the tag, so don't add it.
+        // Let's write that in. We also need to write the number of padding bytes in.
+        outboundBuffer.setInteger(UInt32(encryptedBufferSize), at: packetLengthIndex)
+        outboundBuffer.setInteger(UInt8(necessaryPaddingBytes), at: packetPaddingIndex)
+
+        // Ok, nice! Now we need to encrypt the data. We pass the length field as additional authenticated data, and the encrypted
+        // payload portion as the data to encrypt. We know these views will be valid, so we forcibly unwrap them: if they're invalid,
+        // our math was wrong and we cannot recover.
+        let plaintext = outboundBuffer.getBytes(at: packetPaddingIndex, length: encryptedBufferSize)!
+        let hash = Insecure.SHA1.hash(data: plaintext)
+
+        var ciphertext = plaintext
+        for i in 0 ..< ciphertext.count {
+            ciphertext[i] ^= 42
+        }
+
+        // We now want to overwrite the portion of the bytebuffer that contains the plaintext with the ciphertext, and then append the
+        // tag.
+        outboundBuffer.setContiguousBytes(ciphertext, at: packetPaddingIndex)
+        let macLength = outboundBuffer.writeBytes(hash)
+        precondition(macLength == self.macBytes, "Unexpected short tag")
+    }
+}
+
+struct CustomPrivateKey: NIOSSHPrivateKeyProtocol {
+    static let keyPrefix = "custom-prefix"
+
+    var publicKey: NIOSSHPublicKeyProtocol {
+        CustomPublicKey()
+    }
+
+    func generatedSharedSecret(with theirKey: CustomPublicKey) throws -> [UInt8] {
+        Array(testKey.reversed())
+    }
+
+    func signature<D>(for data: D) throws -> NIOSSHSignatureProtocol where D: DataProtocol {
+        var data = Data(data)
+
+        let testKeySize = testKey.count
+        for i in 0 ..< data.count {
+            data[i] ^= testKey[i % testKeySize]
+        }
+
+        return CustomSignature(rawRepresentation: data)
+    }
+}
+
+struct CustomSignature: NIOSSHSignatureProtocol {
+    static let signaturePrefix = "custom-prefix"
+
+    let rawRepresentation: Data
+
+    func write(to buffer: inout ByteBuffer) -> Int {
+        buffer.writeSSHString(self.rawRepresentation)
+    }
+
+    static func read(from buffer: inout ByteBuffer) throws -> CustomSignature {
+        guard var buffer = buffer.readSSHString() else {
+            throw EndToEndTestError.invalidCustomSignature
+        }
+
+        let data = buffer.readData(length: buffer.readableBytes)!
+        return CustomSignature(rawRepresentation: data)
+    }
+}
+
+struct CustomPublicKey: NIOSSHPublicKeyProtocol {
+    static let publicKeyPrefix = "custom-prefix"
+    static let keyExchangeAlgorithmNames: [Substring] = ["custom-handshake"]
+    static var wasUsed = false
+
+    func isValidSignature<D>(_ signature: NIOSSHSignatureProtocol, for data: D) -> Bool where D: DataProtocol {
+        let testKeySize = testKey.count
+        var data = Data(data)
+        for i in 0 ..< data.count {
+            data[i] ^= testKey[i % testKeySize]
+        }
+
+        return data == signature.rawRepresentation
+    }
+
+    @discardableResult
+    func write(to buffer: inout ByteBuffer) -> Int {
+        0
+    }
+
+    var rawRepresentation: Data {
+        testKey
+    }
+
+    static func read(from buffer: inout ByteBuffer) throws -> CustomPublicKey {
+        guard buffer.readableBytes == 0 else {
+            throw EndToEndTestError.invalidCustomPublicKey
+        }
+
+        self.wasUsed = true
+        return CustomPublicKey()
+    }
+}
+
+struct CustomKeyExchange: NIOSSHKeyExchangeAlgorithmProtocol {
+    static var keyExchangeInitMessageId: UInt8 { 0xFF }
+    static var keyExchangeReplyMessageId: UInt8 { 0xFF }
+    static var wasUsed = false
+
+    private var previousSessionIdentifier: ByteBuffer?
+    private var ourKey: CustomPrivateKey
+    private var theirKey: CustomPublicKey?
+    private var ourRole: SSHConnectionRole
+    private var sharedSecret: [UInt8]?
+
+    init(ourRole: SSHConnectionRole, previousSessionIdentifier: ByteBuffer?) {
+        self.ourRole = ourRole
+        self.ourKey = CustomPrivateKey()
+        self.previousSessionIdentifier = previousSessionIdentifier
+    }
+
+    func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> ByteBuffer {
+        var buffer = ByteBuffer()
+        _ = self.ourKey.publicKey.write(to: &buffer)
+        return buffer
+    }
+
+    mutating func completeKeyExchangeServerSide(
+        clientKeyExchangeMessage message: ByteBuffer,
+        serverHostKey: NIOSSHPrivateKey,
+        initialExchangeBytes: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> (KeyExchangeResult, NIOSSHKeyExchangeServerReply) {
+        var theirKeyBuffer = message
+        let theirKey = try CustomPublicKey.read(from: &theirKeyBuffer)
+        self.theirKey = theirKey
+
+        // Shared secet is "expanded"
+        // That should make it usable by most transport encryption, at least the one used in our test
+        var sharedSecret = try self.ourKey.generatedSharedSecret(with: theirKey)
+        sharedSecret += sharedSecret
+        sharedSecret += sharedSecret
+        sharedSecret += sharedSecret
+        sharedSecret += sharedSecret
+
+        self.sharedSecret = sharedSecret
+
+        var hasher = SHA512()
+        hasher.update(data: initialExchangeBytes.readableBytesView)
+        hasher.update(data: sharedSecret)
+
+        let exchangeHash = hasher.finalize()
+
+        let sessionID: ByteBuffer
+        if let previousSessionIdentifier = self.previousSessionIdentifier {
+            sessionID = previousSessionIdentifier
+        } else {
+            sessionID = ByteBuffer(bytes: SHA512.hash(data: Data(exchangeHash)))
+        }
+
+        let kexResult = KeyExchangeResult(
+            sessionID: sessionID,
+            keys: NIOSSHSessionKeys(
+                initialInboundIV: Array(sharedSecret[0 ..< expectedKeySizes.ivSize]),
+                initialOutboundIV: Array(sharedSecret[0 ..< expectedKeySizes.ivSize]),
+                inboundEncryptionKey: SymmetricKey(data: Data(sharedSecret[0 ..< expectedKeySizes.encryptionKeySize])),
+                outboundEncryptionKey: SymmetricKey(data: Data(sharedSecret[0 ..< expectedKeySizes.encryptionKeySize])),
+                inboundMACKey: SymmetricKey(data: Data(sharedSecret[0 ..< expectedKeySizes.macKeySize])),
+                outboundMACKey: SymmetricKey(data: Data(sharedSecret[0 ..< expectedKeySizes.macKeySize]))
+            )
+        )
+
+        var publicKeyBytes = allocator.buffer(capacity: 256)
+        _ = self.ourKey.publicKey.write(to: &publicKeyBytes)
+
+        let exchangeHashSignature = try serverHostKey.sign(digest: exchangeHash)
+
+        let serverReply = NIOSSHKeyExchangeServerReply(hostKey: serverHostKey.publicKey,
+                                                       publicKey: publicKeyBytes, signature: exchangeHashSignature)
+
+        Self.wasUsed = true
+        return (kexResult, serverReply)
+    }
+
+    mutating func receiveServerKeyExchangePayload(
+        serverKeyExchangeMessage: NIOSSHKeyExchangeServerReply,
+        initialExchangeBytes: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> KeyExchangeResult {
+        var theirKeyBuffer = serverKeyExchangeMessage.publicKey
+        let theirKey = try CustomPublicKey.read(from: &theirKeyBuffer)
+        self.theirKey = theirKey
+
+        // Shared secet is "expanded"
+        // That should make it usable by most transport encryption, at least the one used in our test
+        var sharedSecret = try self.ourKey.generatedSharedSecret(with: theirKey)
+        sharedSecret += sharedSecret
+        sharedSecret += sharedSecret
+        sharedSecret += sharedSecret
+        sharedSecret += sharedSecret
+        self.sharedSecret = sharedSecret
+
+        var hasher = SHA512()
+        hasher.update(data: initialExchangeBytes.readableBytesView)
+        hasher.update(data: sharedSecret)
+        let exchangeHash = hasher.finalize()
+
+        let sessionID: ByteBuffer
+        if let previousSessionIdentifier = self.previousSessionIdentifier {
+            sessionID = previousSessionIdentifier
+        } else {
+            sessionID = ByteBuffer(bytes: SHA512.hash(data: Data(exchangeHash)))
+        }
+
+        guard serverKeyExchangeMessage.hostKey.isValidSignature(serverKeyExchangeMessage.signature, for: exchangeHash) else {
+            throw NIOSSHError.invalidExchangeHashSignature
+        }
+
+        Self.wasUsed = true
+        return KeyExchangeResult(
+            sessionID: sessionID,
+            keys: NIOSSHSessionKeys(
+                initialInboundIV: Array(sharedSecret[0 ..< expectedKeySizes.ivSize]),
+                initialOutboundIV: Array(sharedSecret[0 ..< expectedKeySizes.ivSize]),
+                inboundEncryptionKey: SymmetricKey(data: Data(sharedSecret[0 ..< expectedKeySizes.encryptionKeySize])),
+                outboundEncryptionKey: SymmetricKey(data: Data(sharedSecret[0 ..< expectedKeySizes.encryptionKeySize])),
+                inboundMACKey: SymmetricKey(data: Data(sharedSecret[0 ..< expectedKeySizes.macKeySize])),
+                outboundMACKey: SymmetricKey(data: Data(sharedSecret[0 ..< expectedKeySizes.macKeySize]))
+            )
+        )
+    }
+
+    static var keyExchangeAlgorithmNames: [Substring] { ["xorkex"] }
 }
 
 class BackToBackEmbeddedChannel {
@@ -81,10 +417,23 @@ class BackToBackEmbeddedChannel {
     }
 
     func configureWithHarness(_ harness: TestHarness) throws {
-        let clientHandler = NIOSSHHandler(role: .client(.init(userAuthDelegate: harness.clientAuthDelegate, serverAuthDelegate: harness.clientServerAuthDelegate, globalRequestDelegate: harness.clientGlobalRequestDelegate)),
+        var clientConfiguration = SSHClientConfiguration(userAuthDelegate: harness.clientAuthDelegate, serverAuthDelegate: harness.clientServerAuthDelegate, globalRequestDelegate: harness.clientGlobalRequestDelegate)
+        var serverConfiguration = SSHServerConfiguration(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate, banner: harness.serverAuthBanner)
+
+        if let transportProtectionAlgoritms = harness.transportProtectionAlgoritms {
+            clientConfiguration.transportProtectionSchemes = transportProtectionAlgoritms
+            serverConfiguration.transportProtectionSchemes = transportProtectionAlgoritms
+        }
+
+        if let keyExchangeAlgorithms = harness.keyExchangeAlgorithms {
+            clientConfiguration.keyExchangeAlgorithms = keyExchangeAlgorithms
+            serverConfiguration.keyExchangeAlgorithms = keyExchangeAlgorithms
+        }
+
+        let clientHandler = NIOSSHHandler(role: .client(clientConfiguration),
                                           allocator: self.client.allocator,
                                           inboundChildChannelInitializer: nil)
-        let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate, banner: harness.serverAuthBanner)),
+        let serverHandler = NIOSSHHandler(role: .server(serverConfiguration),
                                           allocator: self.server.allocator) { channel, _ in
             self.activeServerChannels.append(channel)
             channel.closeFuture.whenComplete { _ in self.activeServerChannels.removeAll(where: { $0 === channel }) }
@@ -130,6 +479,10 @@ struct TestHarness {
     var serverGlobalRequestDelegate: GlobalRequestDelegate?
 
     var serverHostKeys: [NIOSSHPrivateKey] = [.init(ed25519Key: .init())]
+
+    var keyExchangeAlgorithms: [NIOSSHKeyExchangeAlgorithmProtocol.Type]?
+
+    var transportProtectionAlgoritms: [NIOSSHTransportProtection.Type]?
 
     var serverAuthBanner: SSHServerConfiguration.UserAuthBanner?
 }
@@ -435,6 +788,113 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.interactInMemory())
         XCTAssertEqual(self.channel.activeServerChannels.count, 1)
         #endif
+    }
+
+    func testCustomPublicKeyAlgorithms() throws {
+        NIOSSHAlgorithms.unregisterAlgorithms()
+        CustomPublicKey.wasUsed = false
+        NIOSSHAlgorithms.register(publicKey: CustomPublicKey.self, signature: CustomSignature.self)
+
+        // If we can't create this key, we skip the test.
+        let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
+        let clientAuthKey = NIOSSHPrivateKey(custom: CustomPrivateKey())
+
+        // We use the Secure Enclave keys for everything, just because we can.
+        var harness = TestHarness()
+        harness.serverHostKeys = [hostKey]
+        harness.clientAuthDelegate = PrivateKeyClientAuth(clientAuthKey)
+        harness.serverAuthDelegate = ExpectPublicKeyAuth(clientAuthKey.publicKey)
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Create a channel, again, just because we can.
+        _ = try self.channel.createNewChannel()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+        XCTAssertTrue(CustomPublicKey.wasUsed)
+    }
+
+    func testCustomHostKeyAlgorithms() throws {
+        NIOSSHAlgorithms.unregisterAlgorithms()
+        CustomPublicKey.wasUsed = false
+        NIOSSHAlgorithms.register(publicKey: CustomPublicKey.self, signature: CustomSignature.self)
+
+        // If we can't create this key, we skip the test.
+        let hostKey = NIOSSHPrivateKey(custom: CustomPrivateKey())
+        let clientAuthKey = NIOSSHPrivateKey(ed25519Key: .init())
+
+        // We use the Secure Enclave keys for everything, just because we can.
+        var harness = TestHarness()
+        harness.serverHostKeys = [hostKey]
+        harness.clientAuthDelegate = PrivateKeyClientAuth(clientAuthKey)
+        harness.serverAuthDelegate = ExpectPublicKeyAuth(clientAuthKey.publicKey)
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Create a channel, again, just because we can.
+        _ = try self.channel.createNewChannel()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+        XCTAssertTrue(CustomPublicKey.wasUsed)
+    }
+
+    func testCustomTransportProtectionAlgorithms() throws {
+        NIOSSHAlgorithms.unregisterAlgorithms()
+        CustomKeyExchange.wasUsed = false
+        NIOSSHAlgorithms.register(transportProtectionScheme: CustomTransportProtection.self)
+
+        // If we can't create this key, we skip the test.
+        let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
+        let clientAuthKey = NIOSSHPrivateKey(ed25519Key: .init())
+
+        // We use the Secure Enclave keys for everything, just because we can.
+        var harness = TestHarness()
+        harness.transportProtectionAlgoritms = [CustomTransportProtection.self]
+        harness.serverHostKeys = [hostKey]
+        harness.clientAuthDelegate = PrivateKeyClientAuth(clientAuthKey)
+        harness.serverAuthDelegate = ExpectPublicKeyAuth(clientAuthKey.publicKey)
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Create a channel, again, just because we can.
+        _ = try self.channel.createNewChannel()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+        XCTAssertTrue(CustomTransportProtection.wasUsed)
+    }
+
+    func testCustomKeyExchangeAlgorithms() throws {
+        NIOSSHAlgorithms.unregisterAlgorithms()
+        CustomKeyExchange.wasUsed = false
+        NIOSSHAlgorithms.register(keyExchangeAlgorithm: CustomKeyExchange.self)
+        NIOSSHAlgorithms.register(publicKey: CustomPublicKey.self, signature: CustomSignature.self)
+
+        // If we can't create this key, we skip the test.
+        let hostKey = NIOSSHPrivateKey(custom: CustomPrivateKey())
+        let clientAuthKey = NIOSSHPrivateKey(ed25519Key: .init())
+
+        // We use the Secure Enclave keys for everything, just because we can.
+        var harness = TestHarness()
+        harness.keyExchangeAlgorithms = [CustomKeyExchange.self]
+        harness.serverHostKeys = [hostKey]
+        harness.clientAuthDelegate = PrivateKeyClientAuth(clientAuthKey)
+        harness.serverAuthDelegate = ExpectPublicKeyAuth(clientAuthKey.publicKey)
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // Create a channel, again, just because we can.
+        _ = try self.channel.createNewChannel()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+        XCTAssertTrue(CustomKeyExchange.wasUsed)
     }
 
     func testSupportClientInitiatedRekeying() throws {

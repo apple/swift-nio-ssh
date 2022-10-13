@@ -60,12 +60,12 @@ struct SSHConnectionStateMachine {
     /// The state of this state machine.
     private var state: State
 
-    private static let defaultTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
+    static let bundledTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
         AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
     ]
 
-    init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type] = Self.defaultTransportProtectionSchemes) {
-        self.state = .idle(IdleState(role: role, protectionSchemes: protectionSchemes))
+    init(role: SSHConnectionRole) {
+        self.state = .idle(IdleState(role: role))
     }
 
     func start() -> SSHMultiMessage? {
@@ -182,6 +182,7 @@ struct SSHConnectionStateMachine {
                 return .noMessage
             case .unimplemented(let unimplemented):
                 throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
             default:
                 // TODO: enforce RFC 4253:
                 //

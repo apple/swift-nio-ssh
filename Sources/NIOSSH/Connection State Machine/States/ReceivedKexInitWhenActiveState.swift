@@ -28,8 +28,6 @@ extension SSHConnectionStateMachine {
 
         internal var remoteVersion: String
 
-        internal var protectionSchemes: [NIOSSHTransportProtection.Type]
-
         internal var keyExchangeStateMachine: SSHKeyExchangeStateMachine
 
         internal var sessionIdentifier: ByteBuffer
@@ -39,9 +37,8 @@ extension SSHConnectionStateMachine {
             self.serializer = previous.serializer
             self.parser = previous.parser
             self.remoteVersion = previous.remoteVersion
-            self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
-            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, loop: loop, role: previous.role, remoteVersion: previous.remoteVersion, protectionSchemes: previous.protectionSchemes, previousSessionIdentifier: self.sessionIdentifier)
+            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, loop: loop, role: previous.role, remoteVersion: previous.remoteVersion, keyExchangeAlgorithms: self.role.keyExchangeAlgorithms, transportProtectionSchemes: self.role.transportProtectionSchemes, previousSessionIdentifier: self.sessionIdentifier)
         }
     }
 }

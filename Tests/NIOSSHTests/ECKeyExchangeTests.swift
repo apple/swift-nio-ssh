@@ -279,7 +279,8 @@ final class KeyExchangeTests: XCTestCase {
     }
 
     func testWeValidateTheExchangeHash() throws {
-        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+        let serverPrivateKey = NIOSSHPrivateKey(ed25519Key: .init())
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([serverPrivateKey]), previousSessionIdentifier: nil)
         var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
@@ -297,7 +298,12 @@ final class KeyExchangeTests: XCTestCase {
         initialExchangeBytes.clear()
 
         // Ok, the server has sent a signature over the exchange hash. Let's change that signature.
-        serverResponse.signature = try assertNoThrowWithValue(serverHostKey.sign(digest: SHA256.hash(data: [1, 2, 3, 4, 5])))
+        let badServerSignature = try serverHostKey.sign(digest: SHA256.hash(data: [1, 2, 3, 4, 5]))
+        serverResponse = NIOSSHKeyExchangeServerReply(
+            hostKey: serverResponse.hostKey,
+            publicKey: serverResponse.publicKey,
+            signature: badServerSignature
+        )
 
         XCTAssertThrowsError(
             try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,

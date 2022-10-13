@@ -1162,7 +1162,7 @@ extension ByteBuffer {
             writtenBytes += self.writeInteger(SSHMessage.UserAuthFailureMessage.id)
             writtenBytes += self.writeUserAuthFailureMessage(message)
         case .userAuthSuccess:
-            writtenBytes += self.writeInteger(52 as UInt8)
+            writtenBytes += self.writeInteger(SSHMessage.UserAuthSuccessMessage.id)
         case .userAuthBanner(let message):
             writtenBytes += self.writeInteger(SSHMessage.UserAuthBannerMessage.id)
             writtenBytes += self.writeUserAuthBannerMessage(message)
