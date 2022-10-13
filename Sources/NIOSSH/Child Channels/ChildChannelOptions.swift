@@ -38,28 +38,28 @@ extension SSHChildChannelOptions {
 
 extension SSHChildChannelOptions.Types {
     /// ``SSHChildChannelOptions/Types/LocalChannelIdentifierOption`` allows users to query the channel number assigned locally for a given channel.
-    public struct LocalChannelIdentifierOption: ChannelOption, NIOSSHSendable {
+    public struct LocalChannelIdentifierOption: ChannelOption, Sendable {
         public typealias Value = UInt32
 
         public init() {}
     }
 
     /// ``SSHChildChannelOptions/Types/RemoteChannelIdentifierOption`` allows users to query the channel number assigned by the remote peer for a given channel.
-    public struct RemoteChannelIdentifierOption: ChannelOption, NIOSSHSendable {
+    public struct RemoteChannelIdentifierOption: ChannelOption, Sendable {
         public typealias Value = UInt32?
 
         public init() {}
     }
 
     /// ``SSHChildChannelOptions/Types/SSHChannelTypeOption`` allows users to query the type of the channel they're currently using.
-    public struct SSHChannelTypeOption: ChannelOption, NIOSSHSendable {
+    public struct SSHChannelTypeOption: ChannelOption, Sendable {
         public typealias Value = SSHChannelType
 
         public init() {}
     }
 
     /// ``SSHChildChannelOptions/Types/PeerMaximumMessageLengthOption`` allows users to query the maximum packet size value reported by the remote peer for a given channel.
-    public struct PeerMaximumMessageLengthOption: ChannelOption, NIOSSHSendable {
+    public struct PeerMaximumMessageLengthOption: ChannelOption, Sendable {
         public typealias Value = UInt32
 
         public init() {}

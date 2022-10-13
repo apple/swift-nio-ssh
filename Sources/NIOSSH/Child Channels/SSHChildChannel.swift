@@ -149,7 +149,8 @@ final class SSHChildChannel {
     }
 }
 
-extension SSHChildChannel: NIOSSHSendable {}
+// `SSHChildChannel` protects its shared state by dispatching to its associated `eventLoop`
+extension SSHChildChannel: @unchecked Sendable {}
 
 extension SSHChildChannel: Channel, ChannelCore {
     public var closeFuture: EventLoopFuture<Void> {
@@ -1187,7 +1188,3 @@ private extension IOData {
         }
     }
 }
-
-#if swift(>=5.6)
-extension SSHChildChannel: @unchecked Sendable {}
-#endif // swift(>=5.6)

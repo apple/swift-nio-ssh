@@ -12,11 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if swift(>=5.6)
-@preconcurrency import NIOCore
-#else
 import NIOCore
-#endif // swift(>=5.6)
 
 /// ``SSHChannelData`` is the data type that is passed around in `SSHChildChannel` objects.
 ///
@@ -38,7 +34,10 @@ public struct SSHChannelData {
 
 extension SSHChannelData: Equatable {}
 
-extension SSHChannelData: NIOSSHSendable {}
+#if swift(>=5.6)
+@available(*, unavailable)
+extension SSHChannelData: Sendable {}
+#endif
 
 extension SSHChannelData {
     /// The type of this channel data. Regular ``SSHChannelData/DataType/channel`` data is the standard type of data on an `SSHChannel`,
@@ -66,7 +65,7 @@ extension SSHChannelData {
 
 extension SSHChannelData.DataType: Hashable {}
 
-extension SSHChannelData.DataType: NIOSSHSendable {}
+extension SSHChannelData.DataType: Sendable {}
 
 extension SSHChannelData.DataType: CustomStringConvertible {
     public var description: String {
