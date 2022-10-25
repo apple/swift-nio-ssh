@@ -42,7 +42,7 @@ final class AESGCMTests: XCTestCase {
         let initialKeys = self.generateKeys(keySize: .bits128)
 
         let aes128Encryptor = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys))
-        XCTAssertNoThrow(try aes128Encryptor.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), to: &self.buffer))
+        XCTAssertNoThrow(try aes128Encryptor.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), sequenceNumber: 0, to: &self.buffer))
 
         // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
         // 14 padding bytes: one byte for the padding length, then 14 more to get out to one block size. Thus, the total
@@ -59,7 +59,7 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(bufferCopy, self.buffer)
 
         /// After decryption the plaintext should be a newKeys message.
-        var plaintext = try assertNoThrowWithValue(aes128Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy))
+        var plaintext = try assertNoThrowWithValue(aes128Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy, sequenceNumber: 0))
         XCTAssertEqual(bufferCopy.readableBytes, 0)
         XCTAssertNotEqual(plaintext, self.buffer)
         XCTAssertEqual(plaintext.readableBytes, 1)
@@ -77,7 +77,7 @@ final class AESGCMTests: XCTestCase {
         let initialKeys = self.generateKeys(keySize: .bits256)
 
         let aes256Encryptor = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys))
-        XCTAssertNoThrow(try aes256Encryptor.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), to: &self.buffer))
+        XCTAssertNoThrow(try aes256Encryptor.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), sequenceNumber: 0, to: &self.buffer))
 
         // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
         // 14 padding bytes: one byte for the padding length, then 14 more to get out to one block size. Thus, the total
@@ -94,7 +94,7 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(bufferCopy, self.buffer)
 
         /// After decryption the plaintext should be a newKeys message.
-        var plaintext = try assertNoThrowWithValue(aes256Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy))
+        var plaintext = try assertNoThrowWithValue(aes256Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy, sequenceNumber: 0))
         XCTAssertEqual(bufferCopy.readableBytes, 0)
         XCTAssertNotEqual(plaintext, self.buffer)
         XCTAssertEqual(plaintext.readableBytes, 1)
@@ -300,7 +300,7 @@ final class AESGCMTests: XCTestCase {
             buffer.clear()
             buffer.writeRepeatingByte(42, count: ciphertextSize)
 
-            XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer)) { error in
+            XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 0)) { error in
                 XCTAssertEqual((error as? NIOSSHError)?.type, .invalidEncryptedPacketLength)
             }
         }
@@ -320,7 +320,7 @@ final class AESGCMTests: XCTestCase {
             buffer.clear()
             buffer.writeRepeatingByte(42, count: ciphertextSize)
 
-            XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer)) { error in
+            XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 0)) { error in
                 XCTAssertEqual((error as? NIOSSHError)?.type, .invalidEncryptedPacketLength)
             }
         }
@@ -350,7 +350,7 @@ final class AESGCMTests: XCTestCase {
 
         // We can now attempt to decrypt this packet.
         let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: keys))
-        XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer)) { error in
+        XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 0)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .excessPadding)
         }
     }
@@ -379,7 +379,7 @@ final class AESGCMTests: XCTestCase {
 
         // We can now attempt to decrypt this packet.
         let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys))
-        XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer)) { error in
+        XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 0)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .excessPadding)
         }
     }
@@ -408,7 +408,7 @@ final class AESGCMTests: XCTestCase {
 
         // We can now attempt to decrypt this packet.
         let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: keys))
-        XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer)) { error in
+        XCTAssertThrowsError(try aes128.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 0)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .insufficientPadding)
         }
     }
@@ -437,7 +437,7 @@ final class AESGCMTests: XCTestCase {
 
         // We can now attempt to decrypt this packet.
         let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys))
-        XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer)) { error in
+        XCTAssertThrowsError(try aes256.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 0)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .insufficientPadding)
         }
     }

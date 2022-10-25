@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Crypto
 import NIOCore
 @testable import NIOSSH
 import XCTest
@@ -29,6 +30,7 @@ final class SSHPacketParserTests: XCTestCase {
 
         switch packet {
         case .some(.version(let string)):
+            XCTAssertEqual(0, parser.sequenceNumber)
             XCTAssertEqual(string, "SSH-2.0-OpenSSH_7.9", file: file, line: line)
         default:
             XCTFail("Expecting .version", file: file, line: line)
@@ -48,6 +50,7 @@ final class SSHPacketParserTests: XCTestCase {
 
         switch try parser.nextPacket() {
         case .version(let string):
+            XCTAssertEqual(0, parser.sequenceNumber)
             XCTAssertEqual(string, "SSH-2.0-OpenSSH_7.9")
         default:
             XCTFail("Expecting .version")
@@ -119,20 +122,25 @@ final class SSHPacketParserTests: XCTestCase {
         parser.append(bytes: &part1)
 
         XCTAssertNil(try parser.nextPacket())
+        XCTAssertEqual(0, parser.sequenceNumber)
 
         var part2 = ByteBuffer.of(bytes: [28])
         parser.append(bytes: &part2)
 
         XCTAssertNil(try parser.nextPacket())
+        XCTAssertEqual(0, parser.sequenceNumber)
+
         var part3 = ByteBuffer.of(bytes: [10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97])
         parser.append(bytes: &part3)
         XCTAssertNil(try parser.nextPacket())
+        XCTAssertEqual(0, parser.sequenceNumber)
 
         var part4 = ByteBuffer.of(bytes: [117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207])
         parser.append(bytes: &part4)
 
         switch try parser.nextPacket() {
         case .serviceRequest(let message):
+            XCTAssertEqual(1, parser.sequenceNumber)
             XCTAssertEqual(message.service, "ssh-userauth")
         default:
             XCTFail("Expecting .serviceRequest")
@@ -148,6 +156,7 @@ final class SSHPacketParserTests: XCTestCase {
 
         switch try parser.nextPacket() {
         case .serviceRequest(let message):
+            XCTAssertEqual(1, parser.sequenceNumber)
             XCTAssertEqual(message.service, "ssh-userauth")
         default:
             XCTFail("Expecting .serviceRequest")
@@ -163,12 +172,14 @@ final class SSHPacketParserTests: XCTestCase {
 
         switch try parser.nextPacket() {
         case .serviceRequest(let message):
+            XCTAssertEqual(1, parser.sequenceNumber)
             XCTAssertEqual(message.service, "ssh-userauth")
         default:
             XCTFail("Expecting .serviceRequest")
         }
         switch try parser.nextPacket() {
         case .serviceRequest(let message):
+            XCTAssertEqual(2, parser.sequenceNumber)
             XCTAssertEqual(message.service, "ssh-userauth")
         default:
             XCTFail("Expecting .serviceRequest")
@@ -198,6 +209,74 @@ final class SSHPacketParserTests: XCTestCase {
 
         // Now we should have cleared up.
         XCTAssertEqual(parser._discardableBytes, 0)
+    }
+
+    func testSequencePreservedBetweenPlainAndCypher() throws {
+        let allocator = ByteBufferAllocator()
+        var parser = SSHPacketParser(allocator: allocator)
+        self.feedVersion(to: &parser)
+
+        var part = ByteBuffer(bytes: [0, 0, 0, 12, 10, 21, 41, 114, 125, 250, 3, 79, 3, 217, 166, 136])
+        parser.append(bytes: &part)
+
+        switch try parser.nextPacket() {
+        case .newKeys:
+            XCTAssertEqual(1, parser.sequenceNumber)
+        default:
+            XCTFail("Expecting .newKeys")
+        }
+
+        part = ByteBuffer(bytes: [0, 0, 0, 12, 10, 21, 41, 114, 125, 250, 3, 79, 3, 217, 166, 136])
+        parser.append(bytes: &part)
+
+        switch try parser.nextPacket() {
+        case .newKeys:
+            XCTAssertEqual(2, parser.sequenceNumber)
+        default:
+            XCTFail("Expecting .newKeys")
+        }
+
+        let inboundEncryptionKey = SymmetricKey(size: .bits128)
+        let outboundEncryptionKey = inboundEncryptionKey
+        let inboundMACKey = SymmetricKey(size: .bits128)
+        let outboundMACKey = inboundMACKey
+        let protection = TestTransportProtection(initialKeys: .init(
+            initialInboundIV: [],
+            initialOutboundIV: [],
+            inboundEncryptionKey: inboundEncryptionKey,
+            outboundEncryptionKey: outboundEncryptionKey,
+            inboundMACKey: inboundMACKey,
+            outboundMACKey: outboundMACKey
+        ))
+        parser.addEncryption(protection)
+
+        part = allocator.buffer(capacity: 1024)
+        XCTAssertNoThrow(try protection.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), sequenceNumber: 2, to: &part))
+        var subpart = part.readSlice(length: 2)!
+        parser.append(bytes: &subpart)
+
+        XCTAssertNil(try parser.nextPacket())
+        XCTAssertEqual(2, parser.sequenceNumber)
+
+        parser.append(bytes: &part)
+
+        switch try parser.nextPacket() {
+        case .newKeys:
+            XCTAssertEqual(3, parser.sequenceNumber)
+        default:
+            XCTFail("Expecting .newKeys")
+        }
+
+        part = allocator.buffer(capacity: 1024)
+        XCTAssertNoThrow(try protection.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), sequenceNumber: 2, to: &part))
+        parser.append(bytes: &part)
+
+        switch try parser.nextPacket() {
+        case .newKeys:
+            XCTAssertEqual(4, parser.sequenceNumber)
+        default:
+            XCTFail("Expecting .newKeys")
+        }
     }
 }
 

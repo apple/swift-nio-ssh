@@ -79,7 +79,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         // unencrypted!
     }
 
-    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws -> ByteBuffer {
+    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer, sequenceNumber _: UInt32) throws -> ByteBuffer {
         var plaintext: Data
 
         // Establish a nested scope here to avoid the byte buffer views causing an accidental CoW.
@@ -117,7 +117,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         return source.readSlice(length: plaintext.count)!
     }
 
-    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws {
+    func encryptPacket(_ packet: NIOSSHEncryptablePayload, sequenceNumber _: UInt32, to outboundBuffer: inout ByteBuffer) throws {
         // Keep track of where the length is going to be written.
         let packetLengthIndex = outboundBuffer.writerIndex
         let packetLengthLength = MemoryLayout<UInt32>.size

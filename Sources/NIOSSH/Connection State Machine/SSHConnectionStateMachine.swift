@@ -60,11 +60,7 @@ struct SSHConnectionStateMachine {
     /// The state of this state machine.
     private var state: State
 
-    private static let defaultTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
-        AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
-    ]
-
-    init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type] = Self.defaultTransportProtectionSchemes) {
+    init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type] = Constants.bundledTransportProtectionSchemes) {
         self.state = .idle(IdleState(role: role, protectionSchemes: protectionSchemes))
     }
 

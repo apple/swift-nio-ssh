@@ -44,7 +44,7 @@ import NIOCore
 /// Implementers of this protocol **must not** expose unauthenticated plaintext, except for the length field. This
 /// is required by the SSH protocol, and swift-nio-ssh does its best to treat the length field as fundamentally
 /// untrusted information.
-protocol NIOSSHTransportProtection: AnyObject {
+public protocol NIOSSHTransportProtection: AnyObject {
     /// The name of the cipher portion of this transport protection scheme as negotiated on the wire.
     static var cipherName: String { get }
 
@@ -87,10 +87,10 @@ protocol NIOSSHTransportProtection: AnyObject {
     /// length, the padding, or the MAC), and update source to indicate the consumed bytes.
     /// It must also perform any integrity checking that
     /// is required and throw if the integrity check fails.
-    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer) throws -> ByteBuffer
+    func decryptAndVerifyRemainingPacket(_ source: inout ByteBuffer, sequenceNumber: UInt32) throws -> ByteBuffer
 
     /// Encrypt an entire outbound packet
-    func encryptPacket(_ packet: NIOSSHEncryptablePayload, to outboundBuffer: inout ByteBuffer) throws
+    func encryptPacket(_ packet: NIOSSHEncryptablePayload, sequenceNumber: UInt32, to outboundBuffer: inout ByteBuffer) throws
 }
 
 extension NIOSSHTransportProtection {

@@ -46,18 +46,27 @@ extension KeyExchangeResult: Equatable {}
 /// Of these types, the encryption keys and the MAC keys are intended to be secret, and so
 /// we store them in the `SymmetricKey` types. The IVs do not need to be secret, and so are
 /// stored in regular heap buffers.
-struct NIOSSHSessionKeys {
-    var initialInboundIV: [UInt8]
+public struct NIOSSHSessionKeys {
+    public var initialInboundIV: [UInt8]
 
-    var initialOutboundIV: [UInt8]
+    public var initialOutboundIV: [UInt8]
 
-    var inboundEncryptionKey: SymmetricKey
+    public var inboundEncryptionKey: SymmetricKey
 
-    var outboundEncryptionKey: SymmetricKey
+    public var outboundEncryptionKey: SymmetricKey
 
-    var inboundMACKey: SymmetricKey
+    public var inboundMACKey: SymmetricKey
 
-    var outboundMACKey: SymmetricKey
+    public var outboundMACKey: SymmetricKey
+
+    public init(initialInboundIV: [UInt8], initialOutboundIV: [UInt8], inboundEncryptionKey: SymmetricKey, outboundEncryptionKey: SymmetricKey, inboundMACKey: SymmetricKey, outboundMACKey: SymmetricKey) {
+        self.initialInboundIV = initialInboundIV
+        self.initialOutboundIV = initialOutboundIV
+        self.inboundEncryptionKey = inboundEncryptionKey
+        self.outboundEncryptionKey = outboundEncryptionKey
+        self.inboundMACKey = inboundMACKey
+        self.outboundMACKey = outboundMACKey
+    }
 }
 
 extension NIOSSHSessionKeys: Equatable {}
@@ -68,10 +77,18 @@ extension NIOSSHSessionKeys: Equatable {}
 /// hash function invocations. The output of these hash functions is truncated to an appropriate
 /// length as needed, which means we need to ensure the code doing the calculation knows how
 /// to truncate appropriately.
-struct ExpectedKeySizes {
-    var ivSize: Int
+public struct ExpectedKeySizes {
+    public var ivSize: Int
 
-    var encryptionKeySize: Int
+    public var encryptionKeySize: Int
 
-    var macKeySize: Int
+    public var macKeySize: Int
+
+    public init(ivSize: Int, encryptionKeySize: Int, macKeySize: Int) {
+        self.ivSize = ivSize
+        self.encryptionKeySize = encryptionKeySize
+        self.macKeySize = macKeySize
+    }
 }
+
+extension ExpectedKeySizes: Hashable {}

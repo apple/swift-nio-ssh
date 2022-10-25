@@ -22,6 +22,7 @@ struct SSHPacketSerializer {
     }
 
     private var state: State = .initialized
+    private(set) var sequenceNumber: UInt32 = 0
 
     /// Encryption schemes can be added to a packet serializer whenever encryption is negotiated.
     mutating func addEncryption(_ protection: NIOSSHTransportProtection) {
@@ -75,9 +76,11 @@ struct SSHPacketSerializer {
             buffer.setInteger(UInt8(paddingLength), at: index + 4)
             /// random padding
             buffer.writeSSHPaddingBytes(count: paddingLength)
+            self.sequenceNumber &+= 1
         case .encrypted(let protection):
             let payload = NIOSSHEncryptablePayload(message: message)
-            try protection.encryptPacket(payload, to: &buffer)
+            try protection.encryptPacket(payload, sequenceNumber: self.sequenceNumber, to: &buffer)
+            self.sequenceNumber &+= 1
         }
     }
 }

@@ -44,6 +44,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         XCTAssertEqual("SSH-2.0-SwiftSSH_1.0\r\n", buffer.readString(length: buffer.readableBytes))
+        XCTAssertEqual(0, serializer.sequenceNumber)
     }
 
     func testDisconnectMessage() throws {
@@ -56,6 +57,7 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         var buffer = allocator.buffer(capacity: 20)
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
+        XCTAssertEqual(1, serializer.sequenceNumber)
         parser.append(bytes: &buffer)
 
         switch try parser.nextPacket() {
@@ -80,6 +82,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         XCTAssertEqual([0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
+        XCTAssertEqual(1, serializer.sequenceNumber)
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -102,6 +105,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
         XCTAssertEqual([0, 0, 0, 28, 10, 6, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
+        XCTAssertEqual(1, serializer.sequenceNumber)
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -135,6 +139,7 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         var buffer = allocator.buffer(capacity: 20)
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
+        XCTAssertEqual(1, serializer.sequenceNumber)
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -166,6 +171,7 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         var buffer = allocator.buffer(capacity: 20)
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
+        XCTAssertEqual(1, serializer.sequenceNumber)
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -193,6 +199,7 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         var buffer = allocator.buffer(capacity: 20)
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
+        XCTAssertEqual(1, serializer.sequenceNumber)
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -225,6 +232,7 @@ final class SSHPacketSerializerTests: XCTestCase {
 
         var buffer = allocator.buffer(capacity: 5)
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
+        XCTAssertEqual(1, serializer.sequenceNumber)
 
         parser.append(bytes: &buffer)
         switch try parser.nextPacket() {
@@ -233,5 +241,44 @@ final class SSHPacketSerializerTests: XCTestCase {
         default:
             XCTFail("Expecting .newKeys")
         }
+    }
+
+    func testSequencePreservedBetweenPlainAndCypher() {
+        let message = SSHMessage.newKeys
+        let allocator = ByteBufferAllocator()
+        var serializer = SSHPacketSerializer()
+        var parser = SSHPacketParser(allocator: allocator)
+
+        self.runVersionHandshake(serializer: &serializer, parser: &parser)
+
+        var buffer = allocator.buffer(capacity: 5)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
+        XCTAssertEqual(1, serializer.sequenceNumber)
+
+        buffer = allocator.buffer(capacity: 5)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
+        XCTAssertEqual(2, serializer.sequenceNumber)
+
+        let inboundEncryptionKey = SymmetricKey(size: .bits128)
+        let outboundEncryptionKey = SymmetricKey(size: .bits128)
+        let inboundMACKey = SymmetricKey(size: .bits128)
+        let outboundMACKey = SymmetricKey(size: .bits128)
+        let protection = TestTransportProtection(initialKeys: .init(
+            initialInboundIV: [],
+            initialOutboundIV: [],
+            inboundEncryptionKey: inboundEncryptionKey,
+            outboundEncryptionKey: outboundEncryptionKey,
+            inboundMACKey: inboundMACKey,
+            outboundMACKey: outboundMACKey
+        ))
+
+        serializer.addEncryption(protection)
+        buffer = allocator.buffer(capacity: 5)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
+        XCTAssertEqual(3, serializer.sequenceNumber)
+
+        buffer = allocator.buffer(capacity: 5)
+        XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
+        XCTAssertEqual(4, serializer.sequenceNumber)
     }
 }
