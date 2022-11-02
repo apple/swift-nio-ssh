@@ -21,7 +21,7 @@ final class SSHPacketParserTests: XCTestCase {
     /// Feed the SSH version to a packet parser and verify the output.
     ///
     /// Usually used to set up an appropriate state.
-    private func feedVersion(to parser: inout SSHPacketParser, file: StaticString = #file, line: UInt = #line) {
+    private func feedVersion(to parser: inout SSHPacketParser, file: StaticString = #filePath, line: UInt = #line) {
         var version = ByteBuffer.of(string: "SSH-2.0-OpenSSH_7.9\r\n")
         parser.append(bytes: &version)
 

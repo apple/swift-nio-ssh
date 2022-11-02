@@ -17,7 +17,7 @@ import NIOCore
 @testable import NIOSSH
 import XCTest
 
-func assertNoThrowWithValue<T>(_ body: @autoclosure () throws -> T, defaultValue: T? = nil, message: String? = nil, file: StaticString = #file, line: UInt = #line) throws -> T {
+func assertNoThrowWithValue<T>(_ body: @autoclosure () throws -> T, defaultValue: T? = nil, message: String? = nil, file: StaticString = #filePath, line: UInt = #line) throws -> T {
     do {
         return try body()
     } catch {
