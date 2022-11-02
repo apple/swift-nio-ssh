@@ -35,7 +35,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         self.parser = nil
     }
 
-    private func assertPacketRoundTrips(_ message: SSHMessage, file: StaticString = #file, line: UInt = #line) {
+    private func assertPacketRoundTrips(_ message: SSHMessage, file: StaticString = #filePath, line: UInt = #line) {
         self.buffer.clear()
         XCTAssertNoThrow(try self.serializer.serialize(message: message, to: &self.buffer), file: file, line: line)
         self.parser.append(bytes: &self.buffer)
@@ -46,7 +46,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         XCTAssertNoThrow(XCTAssertNil(try self.parser.nextPacket(), file: file, line: line), file: file, line: line)
     }
 
-    private func assertPacketRoundTripsDripFed(_ message: SSHMessage, file: StaticString = #file, line: UInt = #line) {
+    private func assertPacketRoundTripsDripFed(_ message: SSHMessage, file: StaticString = #filePath, line: UInt = #line) {
         self.buffer.clear()
         XCTAssertNoThrow(try self.serializer.serialize(message: message, to: &self.buffer), file: file, line: line)
 
@@ -67,7 +67,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         XCTAssertNoThrow(XCTAssertNil(try self.parser.nextPacket(), file: file, line: line), file: file, line: line)
     }
 
-    private func assertPacketErrors(_ message: SSHMessage, file: StaticString = #file, line: UInt = #line) {
+    private func assertPacketErrors(_ message: SSHMessage, file: StaticString = #filePath, line: UInt = #line) {
         self.buffer.clear()
         XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer))
         self.parser.append(bytes: &self.buffer)
