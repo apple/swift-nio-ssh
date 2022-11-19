@@ -23,10 +23,13 @@ extension SSHConnectionStateMachine {
 
         internal var protectionSchemes: [NIOSSHTransportProtection.Type]
 
-        init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type]) {
+        internal let connectionAttributes: SSHConnectionStateMachine.Attributes
+        
+        init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type], attributes: SSHConnectionStateMachine.Attributes) {
             self.role = role
             self.serializer = SSHPacketSerializer()
             self.protectionSchemes = protectionSchemes
+            self.connectionAttributes = attributes
         }
     }
 }

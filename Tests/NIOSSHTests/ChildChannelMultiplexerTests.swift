@@ -22,6 +22,8 @@ import XCTest
 /// This reduces the testing surface area somewhat, which greatly helps us to test the
 /// implementation of the multiplexer and child channels.
 final class DummyDelegate: SSHMultiplexerDelegate {
+    var username : String? = "dummy"
+    
     var _channel: EmbeddedChannel = EmbeddedChannel()
 
     var writes: MarkedCircularBuffer<(SSHMessage, EventLoopPromise<Void>?)> = MarkedCircularBuffer(initialCapacity: 8)

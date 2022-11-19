@@ -29,6 +29,9 @@ public struct SSHChildChannelOptions {
 
     /// See: ``SSHChildChannelOptions/Types/PeerMaximumMessageLengthOption``.
     public static let peerMaximumMessageLength: SSHChildChannelOptions.Types.PeerMaximumMessageLengthOption = .init()
+    
+    /// - seealso: `UsernameOption`.
+    public static let username: SSHChildChannelOptions.Types.UsernameOption = .init()
 }
 
 extension SSHChildChannelOptions {
@@ -61,7 +64,14 @@ extension SSHChildChannelOptions.Types {
     /// ``SSHChildChannelOptions/Types/PeerMaximumMessageLengthOption`` allows users to query the maximum packet size value reported by the remote peer for a given channel.
     public struct PeerMaximumMessageLengthOption: ChannelOption, Sendable {
         public typealias Value = UInt32
-
+        
+        public init() {}
+    }
+    
+    /// `UsernameOption` allows users to query the authenticated username of the channel.
+    public struct UsernameOption: ChannelOption {
+        public typealias Value = String?
+        
         public init() {}
     }
 }

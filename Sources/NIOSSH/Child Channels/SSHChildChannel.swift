@@ -228,6 +228,8 @@ extension SSHChildChannel: Channel, ChannelCore {
             return self.type! as! Option.Value
         case _ as SSHChildChannelOptions.Types.PeerMaximumMessageLengthOption:
             return self.peerMaxMessageSize as! Option.Value
+        case _ as SSHChildChannelOptions.Types.UsernameOption:
+            return multiplexer.username as! Option.Value
         case _ as ChannelOptions.Types.AutoReadOption:
             return self.autoRead as! Option.Value
         case _ as ChannelOptions.Types.AllowRemoteHalfClosureOption:
