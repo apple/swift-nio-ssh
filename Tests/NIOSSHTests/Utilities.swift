@@ -111,6 +111,10 @@ class TestTransportProtection: NIOSSHTransportProtection {
         32
     }
 
+    var lengthEncrypted: Bool {
+        true
+    }
+
     static var cipherName: String {
         "insecure-tiny-encription-cipher"
     }
@@ -211,32 +215,11 @@ class TestTransportProtection: NIOSSHTransportProtection {
         return plaintext.readSlice(length: plaintext.readableBytes - Int(paddingLength))!
     }
 
-    func encryptPacket(_ packet: NIOSSHEncryptablePayload, sequenceNumber: UInt32, to outboundBuffer: inout ByteBuffer) throws {
-        let packetLengthIndex = outboundBuffer.writerIndex
-        let packetLengthLength = MemoryLayout<UInt32>.size
-        let packetPaddingIndex = outboundBuffer.writerIndex + packetLengthLength
-        let packetPaddingLength = MemoryLayout<UInt8>.size
+    func encryptPacket(_ destination: inout ByteBuffer, sequenceNumber: UInt32) throws {
+        let packetLengthIndex = destination.readerIndex
+        let encryptedBufferSize = destination.readableBytes
 
-        outboundBuffer.moveWriterIndex(forwardBy: packetLengthLength + packetPaddingLength)
-
-        let payloadBytes = outboundBuffer.writeEncryptablePayload(packet)
-
-        var encryptedBufferSize = payloadBytes + packetPaddingLength + packetLengthLength
-        var necessaryPaddingBytes = Self.cipherBlockSize - (encryptedBufferSize % Self.cipherBlockSize)
-        if necessaryPaddingBytes < 4 {
-            necessaryPaddingBytes += Self.cipherBlockSize
-        }
-
-        // We now want to write that many padding bytes to the end of the buffer. These are supposed to be
-        // random bytes. We're going to get those from the system random number generator.
-        encryptedBufferSize += outboundBuffer.writeSSHPaddingBytes(count: necessaryPaddingBytes)
-        precondition(encryptedBufferSize % Self.cipherBlockSize == 0, "Incorrectly counted buffer size; got \(encryptedBufferSize)")
-
-        // We now know the length: it's going to be "encrypted buffer size". The length does not include the tag, so don't add it.
-        // Let's write that in. We also need to write the number of padding bytes in.
-        outboundBuffer.setInteger(UInt32(encryptedBufferSize - packetLengthLength), at: packetLengthIndex)
-        outboundBuffer.setInteger(UInt8(necessaryPaddingBytes), at: packetPaddingIndex)
-        let plaintextView = outboundBuffer.viewBytes(at: packetLengthIndex, length: encryptedBufferSize)!
+        let plaintextView = destination.viewBytes(at: packetLengthIndex, length: encryptedBufferSize)!
         let ciphertext = InsecureEncryptionAlgorithm.encrypt(key: self.outboundEncryptionKey, plaintext: ByteBuffer(bytes: plaintextView))
         assert(ciphertext.readableBytes == encryptedBufferSize)
 
@@ -244,8 +227,8 @@ class TestTransportProtection: NIOSSHTransportProtection {
         hmac.update(data: plaintextView)
 
         // We now want to overwrite the portion of the bytebuffer that contains the plaintext with the ciphertext, and then append the tag.
-        outboundBuffer.setBytes(ciphertext.readableBytesView, at: packetLengthIndex)
-        let tagLength = outboundBuffer.writeBytes(hmac.finalize())
+        destination.setBytes(ciphertext.readableBytesView, at: packetLengthIndex)
+        let tagLength = destination.writeBytes(hmac.finalize())
         precondition(tagLength == self.macBytes, "Unexpected short tag")
     }
 }

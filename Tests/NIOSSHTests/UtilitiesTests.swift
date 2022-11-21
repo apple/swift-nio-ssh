@@ -52,7 +52,10 @@ final class UtilitiesTests: XCTestCase {
         let message = SSHMessage.channelRequest(.init(recipientChannel: 1, type: .exec("uname"), wantReply: false))
         let allocator = ByteBufferAllocator()
         var buffer = allocator.buffer(capacity: 1024)
-        XCTAssertNoThrow(try client.encryptPacket(.init(message: message), sequenceNumber: 0, to: &buffer))
+
+        buffer.writeSSHPacket(message: message, lengthEncrypted: client.lengthEncrypted, blockSize: client.cipherBlockSize)
+
+        XCTAssertNoThrow(try client.encryptPacket(&buffer, sequenceNumber: 0))
         XCTAssertNoThrow(try server.decryptFirstBlock(&buffer))
         var decoded = try server.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 0)
         XCTAssertEqual(message, try decoded.readSSHMessage())

@@ -144,7 +144,8 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
 
         do {
-            try client.encryptPacket(.init(message: message), sequenceNumber: 0, to: &buffer)
+            buffer.writeSSHPacket(message: message, lengthEncrypted: client.lengthEncrypted, blockSize: client.cipherBlockSize)
+            try client.encryptPacket(&buffer, sequenceNumber: 0)
             try server.decryptFirstBlock(&buffer)
             var messageBuffer = try server.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 0)
             let decrypted = try messageBuffer.readSSHMessage()
@@ -158,7 +159,8 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         buffer.clear()
 
         do {
-            try server.encryptPacket(.init(message: message), sequenceNumber: 0, to: &buffer)
+            buffer.writeSSHPacket(message: message, lengthEncrypted: server.lengthEncrypted, blockSize: server.cipherBlockSize)
+            try server.encryptPacket(&buffer, sequenceNumber: 0)
             try client.decryptFirstBlock(&buffer)
             var messageBuffer = try client.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: 0)
             let decrypted = try messageBuffer.readSSHMessage()
