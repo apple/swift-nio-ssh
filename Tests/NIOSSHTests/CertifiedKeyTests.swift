@@ -304,43 +304,43 @@ final class CertifiedKeyTests: XCTestCase {
     //tests to check that keyIntoComponents returns the correct string without comments
     func testCaKeyToComponents() throws {
         let caKey = try NIOSSHPublicKey(openSSHPublicKey: Fixtures.caPublicKey)
-        let reExported = caKey.keyIntoComponents()
+        let reExported = String(openSSHPublicKey: caKey)
         XCTAssertEqual(reExported, Fixtures.caPublicKeyExport)
     }
 
     func testBaseKeyToComponents() throws {
         let baseKey = try NIOSSHPublicKey(openSSHPublicKey: Fixtures.ed25519UserBase)
-        let reExported = baseKey.keyIntoComponents()
+        let reExported = String(openSSHPublicKey: baseKey)
         XCTAssertEqual(reExported, Fixtures.ed25519UserBaseExport)
     }
 
     func testUserKeyToComponents() throws {
         let userK = try (NIOSSHPublicKey(openSSHPublicKey: Fixtures.ed25519User))
-        let reExported = userK.keyIntoComponents()
+        let reExported = String(openSSHPublicKey: userK)
         XCTAssertEqual(reExported, Fixtures.ed25519UserExport)
     }
 
     func test384HostToComponents() throws {
         let host384 = try (NIOSSHPublicKey(openSSHPublicKey: Fixtures.p384Host))
-        let reExported = host384.keyIntoComponents()
+        let reExported = String(openSSHPublicKey: host384)
         XCTAssertEqual(reExported, Fixtures.p384HostExport)
     }
 
     func testUser256ToComponents() throws {
         let user256 = try (NIOSSHPublicKey(openSSHPublicKey: Fixtures.p256User))
-        let reExported = user256.keyIntoComponents()
+        let reExported = String(openSSHPublicKey: user256)
         XCTAssertEqual(reExported, Fixtures.p256UserExport)
     }
 
     func test384HostBaseToComponents() throws {
         let baseKey = try NIOSSHPublicKey(openSSHPublicKey: Fixtures.p384HostBase)
-        let reExported = baseKey.keyIntoComponents()
+        let reExported = String(openSSHPublicKey: baseKey)
         XCTAssertEqual(reExported, Fixtures.p384HostBaseExport)
     }
 
     func test256UserBasedToComponents() throws {
-        let userK = try (NIOSSHPublicKey(openSSHPublicKey: Fixtures.p256UserBase))
-        let reExported = userK.keyIntoComponents()
+        let userB = try (NIOSSHPublicKey(openSSHPublicKey: Fixtures.p256UserBase))
+        let reExported = String(openSSHPublicKey: userB)
         XCTAssertEqual(reExported, Fixtures.p256UserBaseExport)
     }
 

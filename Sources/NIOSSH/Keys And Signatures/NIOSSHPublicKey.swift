@@ -56,17 +56,6 @@ public struct NIOSSHPublicKey: Hashable {
         self = key
     }
 
-
-    /// Takes a NIOSSHPublicKey and turns it into OpenSSH public key string
-    /// - Returns: OpenSSH public key string in the format of "algorithm-id base64-encoded-key"
-    public func keyIntoComponents() -> String {
-        var buffer = ByteBuffer()
-        buffer.writeSSHHostKey(self)
-        let next = Data(buffer.readableBytesView).base64EncodedString()
-        let publicKeyString = String(self.keyPrefix) + " " + next
-        return publicKeyString
-    }
-
     /// Encapsulate a ``NIOSSHCertifiedPublicKey`` in a ``NIOSSHPublicKey``.
     ///
     /// This initializer can be used to "wrap" a ``NIOSSHCertifiedPublicKey`` into the interface of ``NIOSSHPublicKey``.
@@ -452,5 +441,15 @@ extension ByteBuffer {
         }
 
         return returnValue
+    }
+}
+extension String {
+    /// Takes a NIOSSHPublicKey and turns it into OpenSSH public key string in the format of "algorithm-id base64-encoded-key"
+    public init(openSSHPublicKey: NIOSSHPublicKey){
+        var buffer = ByteBuffer()
+        buffer.writeSSHHostKey(openSSHPublicKey)
+        let next = Data(buffer.readableBytesView).base64EncodedString()
+        let publicKeyString = String(openSSHPublicKey.keyPrefix) + " " + next
+        self = publicKeyString
     }
 }
