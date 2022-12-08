@@ -445,7 +445,7 @@ extension ByteBuffer {
 }
 extension String {
     /// Takes a NIOSSHPublicKey and turns it into OpenSSH public key string in the format of "algorithm-id base64-encoded-key"
-    public init(openSSHPublicKey: NIOSSHPublicKey){
+    public init(openSSHPublicKey: NIOSSHPublicKey) {
         var buffer = ByteBuffer()
         buffer.writeSSHHostKey(openSSHPublicKey)
         let next = Data(buffer.readableBytesView).base64EncodedString()
