@@ -443,6 +443,7 @@ extension ByteBuffer {
         return returnValue
     }
 }
+
 extension String {
     /// Takes a NIOSSHPublicKey and turns it into OpenSSH public key string in the format of "algorithm-id base64-encoded-key"
     public init(openSSHPublicKey: NIOSSHPublicKey) {

@@ -301,7 +301,7 @@ final class CertifiedKeyTests: XCTestCase {
         XCTAssertEqual(userKey.signatureKey, caKey)
     }
 
-    //tests to check that keyIntoComponents returns the correct string without comments
+    // tests to check that keyIntoComponents returns the correct string without comments
     func testCaKeyToComponents() throws {
         let caKey = try NIOSSHPublicKey(openSSHPublicKey: Fixtures.caPublicKey)
         let reExported = String(openSSHPublicKey: caKey)
@@ -343,7 +343,6 @@ final class CertifiedKeyTests: XCTestCase {
         let reExported = String(openSSHPublicKey: userB)
         XCTAssertEqual(reExported, Fixtures.p256UserBaseExport)
     }
-
 
     private func testVerificationFailsOnMutation(_ mutator: (inout NIOSSHCertifiedPublicKey) throws -> Void) throws {
         let caKey = try NIOSSHPublicKey(openSSHPublicKey: Fixtures.caPublicKey)
