@@ -443,3 +443,14 @@ extension ByteBuffer {
         return returnValue
     }
 }
+
+extension String {
+    /// Takes a NIOSSHPublicKey and turns it into OpenSSH public key string in the format of "algorithm-id base64-encoded-key"
+    public init(openSSHPublicKey: NIOSSHPublicKey) {
+        var buffer = ByteBuffer()
+        buffer.writeSSHHostKey(openSSHPublicKey)
+        let next = Data(buffer.readableBytesView).base64EncodedString()
+        let publicKeyString = String(openSSHPublicKey.keyPrefix) + " " + next
+        self = publicKeyString
+    }
+}
