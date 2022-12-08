@@ -21,7 +21,7 @@ final class SSHPacketParserTests: XCTestCase {
     /// Feed the SSH version to a packet parser and verify the output.
     ///
     /// Usually used to set up an appropriate state.
-    private func feedVersion(to parser: inout SSHPacketParser, file: StaticString = #file, line: UInt = #line) {
+    private func feedVersion(to parser: inout SSHPacketParser, file: StaticString = #filePath, line: UInt = #line) {
         var version = ByteBuffer.of(string: "SSH-2.0-OpenSSH_7.9\r\n")
         parser.append(bytes: &version)
 
@@ -251,7 +251,8 @@ final class SSHPacketParserTests: XCTestCase {
         parser.addEncryption(protection)
 
         part = allocator.buffer(capacity: 1024)
-        XCTAssertNoThrow(try protection.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), sequenceNumber: 2, to: &part))
+        part.writeSSHPacket(message: .newKeys, lengthEncrypted: protection.lengthEncrypted, blockSize: protection.cipherBlockSize)
+        XCTAssertNoThrow(try protection.encryptPacket(&part, sequenceNumber: 2))
         var subpart = part.readSlice(length: 2)!
         parser.append(bytes: &subpart)
 
@@ -268,7 +269,8 @@ final class SSHPacketParserTests: XCTestCase {
         }
 
         part = allocator.buffer(capacity: 1024)
-        XCTAssertNoThrow(try protection.encryptPacket(NIOSSHEncryptablePayload(message: .newKeys), sequenceNumber: 2, to: &part))
+        part.writeSSHPacket(message: .newKeys, lengthEncrypted: protection.lengthEncrypted, blockSize: protection.cipherBlockSize)
+        XCTAssertNoThrow(try protection.encryptPacket(&part, sequenceNumber: 2))
         parser.append(bytes: &part)
 
         switch try parser.nextPacket() {
