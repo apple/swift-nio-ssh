@@ -18,13 +18,17 @@ set -o pipefail
 
 here="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-url_prefix=${1-"https://ci.swiftserver.group/job/swift-nio-ssh-swift"}
+url_prefix=${1-"https://ci.swiftserver.group/job/swift-nio-ssh-"}
 target_repo=${2-"$here/.."}
 tmpdir=$(mktemp -d /tmp/.last-build_XXXXXX)
 
-for f in 55 56 57 -nightly; do
+for f in 55 56 57 58 nightly; do
     echo "swift$f"
-    url="$url_prefix$f-prb/lastCompletedBuild/consoleFull"
+    if [[ "$f" == "nightly" ]]; then
+        url="$url_prefix$f-prb/lastCompletedBuild/consoleFull"
+    else
+        url="${url_prefix}swift${f}-prb/lastCompletedBuild/consoleFull"
+    fi
     echo "$url"
     curl -s "$url" | "$here/alloc-limits-from-test-output" > "$tmpdir/limits$f"
 
@@ -33,7 +37,7 @@ for f in 55 56 57 -nightly; do
         exit 1
     fi
 
-    docker_file=$(if [[ "$f" == "-nightly" ]]; then f=main; fi && ls "$target_repo/docker/docker-compose."*"$f"*".yaml")
+    docker_file=$(if [[ "$f" == "nightly" ]]; then f=main; fi && ls "$target_repo/docker/docker-compose."*"$f"*".yaml")
 
     echo "$docker_file"
     cat "$tmpdir/limits$f"
