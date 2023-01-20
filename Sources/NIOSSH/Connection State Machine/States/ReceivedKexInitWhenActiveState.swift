@@ -43,6 +43,10 @@ extension SSHConnectionStateMachine {
             self.sessionIdentifier = previous.sessionIdentifier
             self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, loop: loop, role: previous.role, remoteVersion: previous.remoteVersion, protectionSchemes: previous.protectionSchemes, previousSessionIdentifier: self.sessionIdentifier)
         }
+
+        mutating func bufferInboundData(_ data: inout ByteBuffer) {
+            self.parser.append(bytes: &data)
+        }
     }
 }
 

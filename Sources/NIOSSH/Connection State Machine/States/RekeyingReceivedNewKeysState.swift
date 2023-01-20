@@ -45,6 +45,10 @@ extension SSHConnectionStateMachine {
             self.sessionIdentifier = previousState.sessionIdentifier
             self.keyExchangeStateMachine = previousState.keyExchangeStateMachine
         }
+
+        mutating func bufferInboundData(_ data: inout ByteBuffer) {
+            self.parser.append(bytes: &data)
+        }
     }
 }
 

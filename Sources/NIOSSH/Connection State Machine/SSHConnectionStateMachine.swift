@@ -15,7 +15,7 @@
 import NIOCore
 
 struct SSHConnectionStateMachine {
-    enum State {
+    private enum State {
         /// The connection has not begun.
         case idle(IdleState)
 
@@ -55,6 +55,675 @@ struct SSHConnectionStateMachine {
         case receivedDisconnect(SSHConnectionRole)
 
         case sentDisconnect(SSHConnectionRole)
+
+        fileprivate mutating func bufferInboundData(_ data: inout ByteBuffer) {
+            switch self {
+            case .idle:
+                preconditionFailure("Cannot receive inbound data in idle state")
+            case .sentVersion(var state):
+                state.bufferInboundData(&data)
+                self = .sentVersion(state)
+            case .keyExchange(var state):
+                state.bufferInboundData(&data)
+                self = .keyExchange(state)
+            case .receivedNewKeys(var state):
+                state.bufferInboundData(&data)
+                self = .receivedNewKeys(state)
+            case .sentNewKeys(var state):
+                state.bufferInboundData(&data)
+                self = .sentNewKeys(state)
+            case .userAuthentication(var state):
+                state.bufferInboundData(&data)
+                self = .userAuthentication(state)
+            case .active(var state):
+                state.bufferInboundData(&data)
+                self = .active(state)
+            case .receivedKexInitWhenActive(var state):
+                state.bufferInboundData(&data)
+                self = .receivedKexInitWhenActive(state)
+            case .sentKexInitWhenActive(var state):
+                state.bufferInboundData(&data)
+                self = .sentKexInitWhenActive(state)
+            case .rekeying(var state):
+                state.bufferInboundData(&data)
+                self = .rekeying(state)
+            case .rekeyingReceivedNewKeysState(var state):
+                state.bufferInboundData(&data)
+                self = .rekeyingReceivedNewKeysState(state)
+            case .rekeyingSentNewKeysState(var state):
+                state.bufferInboundData(&data)
+                self = .rekeyingSentNewKeysState(state)
+            case .receivedDisconnect, .sentDisconnect:
+                // No more I/O, we're done.
+                break
+            }
+        }
+
+        mutating func processInboundMessage(allocator: ByteBufferAllocator,
+                                            loop: EventLoop) throws -> StateMachineInboundProcessResult? {
+            switch self {
+            case .idle:
+                preconditionFailure("Received messages before sending our first message.")
+            case .sentVersion(var state):
+                do {
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .sentVersion(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .version(let version):
+                        try state.receiveVersionMessage(version, role: state.role)
+                        let newState = KeyExchangeState(sentVersionState: state, allocator: allocator, loop: loop, remoteVersion: version)
+                        let message = newState.keyExchangeStateMachine.createKeyExchangeMessage()
+                        self = .keyExchange(newState)
+                        return .emitMessage(SSHMultiMessage(.keyExchange(message)))
+
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+                    default:
+                        throw NIOSSHError.protocolViolation(protocolName: "transport", violation: "Did not receive version message")
+                    }
+                } catch {
+                    self = .sentVersion(state)
+                    throw error
+                }
+            case .keyExchange(var state):
+                do {
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .keyExchange(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .keyExchange(let message):
+                        let result = try state.receiveKeyExchangeMessage(message)
+                        self = .keyExchange(state)
+                        return result
+                    case .keyExchangeInit(let message):
+                        let result = try state.receiveKeyExchangeInitMessage(message)
+                        self = .keyExchange(state)
+                        return result
+                    case .keyExchangeReply(let message):
+                        let result = try state.receiveKeyExchangeReplyMessage(message)
+                        self = .keyExchange(state)
+                        return result
+                    case .newKeys:
+                        try state.receiveNewKeysMessage()
+                        self = .receivedNewKeys(.init(keyExchangeState: state, loop: loop))
+                        return .noMessage
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .keyExchange(state)
+                        return .noMessage
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+                    default:
+                        // TODO: enforce RFC 4253:
+                        //
+                        // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
+                        // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
+                        // > 7.3), it MUST NOT send any messages other than:
+                        // >
+                        // > o  Transport layer generic messages (1 to 19) (but
+                        // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
+                        // >    sent);
+                        // >
+                        // > o  Algorithm negotiation messages (20 to 29) (but further
+                        // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
+                        // >
+                        // > o  Specific key exchange method messages (30 to 49).
+                        //
+                        // We should enforce that, but right now we don't have a good mechanism by which to do so.
+                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
+                    }
+                } catch {
+                    self = .keyExchange(state)
+                    throw error
+                }
+            case .sentNewKeys(var state):
+                do {
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .sentNewKeys(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .keyExchange(let message):
+                        let result = try state.receiveKeyExchangeMessage(message)
+                        self = .sentNewKeys(state)
+                        return result
+                    case .keyExchangeInit(let message):
+                        let result = try state.receiveKeyExchangeInitMessage(message)
+                        self = .sentNewKeys(state)
+                        return result
+                    case .keyExchangeReply(let message):
+                        let result = try state.receiveKeyExchangeReplyMessage(message)
+                        self = .sentNewKeys(state)
+                        return result
+                    case .newKeys:
+                        try state.receiveNewKeysMessage()
+                        self = .userAuthentication(.init(sentNewKeysState: state))
+                        return .noMessage
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .sentNewKeys(state)
+                        return .noMessage
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+                    default:
+                        // TODO: enforce RFC 4253:
+                        //
+                        // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
+                        // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
+                        // > 7.3), it MUST NOT send any messages other than:
+                        // >
+                        // > o  Transport layer generic messages (1 to 19) (but
+                        // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
+                        // >    sent);
+                        // >
+                        // > o  Algorithm negotiation messages (20 to 29) (but further
+                        // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
+                        // >
+                        // > o  Specific key exchange method messages (30 to 49).
+                        //
+                        // We should enforce that, but right now we don't have a good mechanism by which to do so.
+                        throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
+                    }
+                } catch {
+                    self = .sentNewKeys(state)
+                    throw error
+                }
+
+            case .receivedNewKeys(var state):
+                do {
+                    // In this state we tolerate receiving service request messages. As we haven't sent newKeys, we cannot
+                    // send any user auth messages yet, so by definition we can't receive any other user auth message.
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .receivedNewKeys(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .serviceRequest(let message):
+                        let result = try state.receiveServiceRequest(message)
+                        self = .receivedNewKeys(state)
+                        return result
+
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .receivedNewKeys(state)
+                        return .noMessage
+
+                    case .serviceAccept, .userAuthRequest, .userAuthSuccess, .userAuthFailure:
+                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
+
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+                    default:
+                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
+                    }
+                } catch {
+                    self = .receivedNewKeys(state)
+                    throw error
+                }
+
+            case .userAuthentication(var state):
+                do {
+                    // In this state we tolerate receiving user auth messages.
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .userAuthentication(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .serviceRequest(let message):
+                        let result = try state.receiveServiceRequest(message)
+                        self = .userAuthentication(state)
+                        return result
+
+                    case .serviceAccept(let message):
+                        let result = try state.receiveServiceAccept(message)
+                        self = .userAuthentication(state)
+                        return result
+
+                    case .userAuthRequest(let message):
+                        let result = try state.receiveUserAuthRequest(message)
+                        self = .userAuthentication(state)
+                        return result
+
+                    case .userAuthSuccess:
+                        let result = try state.receiveUserAuthSuccess()
+                        // Hey, auth succeeded!
+                        self = .active(ActiveState(state))
+                        return result
+
+                    case .userAuthFailure(let message):
+                        let result = try state.receiveUserAuthFailure(message)
+                        self = .userAuthentication(state)
+                        return result
+
+                    case .userAuthBanner(let message):
+                        let result = try state.receiveUserAuthBanner(message)
+                        self = .userAuthentication(state)
+                        return result
+
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .userAuthentication(state)
+                        return .noMessage
+
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+                    default:
+                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
+                    }
+                } catch {
+                    self = .userAuthentication(state)
+                    throw error
+                }
+
+            case .active(var state):
+                do {
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .active(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .channelOpen(let message):
+                        try state.receiveChannelOpen(message)
+                    case .channelOpenConfirmation(let message):
+                        try state.receiveChannelOpenConfirmation(message)
+                    case .channelOpenFailure(let message):
+                        try state.receiveChannelOpenFailure(message)
+                    case .channelEOF(let message):
+                        try state.receiveChannelEOF(message)
+                    case .channelClose(let message):
+                        try state.receiveChannelClose(message)
+                    case .channelWindowAdjust(let message):
+                        try state.receiveChannelWindowAdjust(message)
+                    case .channelData(let message):
+                        try state.receiveChannelData(message)
+                    case .channelExtendedData(let message):
+                        try state.receiveChannelExtendedData(message)
+                    case .channelRequest(let message):
+                        try state.receiveChannelRequest(message)
+                    case .channelSuccess(let message):
+                        try state.receiveChannelSuccess(message)
+                    case .channelFailure(let message):
+                        try state.receiveChannelFailure(message)
+                    case .globalRequest(let message):
+                        try state.receiveGlobalRequest(message)
+                        self = .active(state)
+                        return .globalRequest(message)
+                    case .requestSuccess(let message):
+                        try state.receiveRequestSuccess(message)
+                        self = .active(state)
+                        return .globalRequestResponse(.success(message))
+                    case .requestFailure:
+                        try state.receiveRequestFailure()
+                        self = .active(state)
+                        return .globalRequestResponse(.failure)
+                    case .keyExchange(let message):
+                        // Attempting to rekey.
+                        var newState = ReceivedKexInitWhenActiveState(state, allocator: allocator, loop: loop)
+                        let result = try newState.receiveKeyExchangeMessage(message)
+                        self = .receivedKexInitWhenActive(newState)
+                        return result
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .active(state)
+                        return .noMessage
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+                    default:
+                        throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
+                    }
+
+                    self = .active(state)
+                    return .forwardToMultiplexer(message)
+                } catch {
+                    self = .active(state)
+                    throw error
+                }
+
+            case .receivedKexInitWhenActive(var state):
+                // We've received a key exchange packet. We only expect the first two messages (key exchange and key exchange init) before
+                // we have sent a reply.
+                do {
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .receivedKexInitWhenActive(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .keyExchange(let message):
+                        let result = try state.receiveKeyExchangeMessage(message)
+                        self = .receivedKexInitWhenActive(state)
+                        return result
+                    case .keyExchangeInit(let message):
+                        let result = try state.receiveKeyExchangeInitMessage(message)
+                        self = .receivedKexInitWhenActive(state)
+                        return result
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .receivedKexInitWhenActive(state)
+                        return .noMessage
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+                    default:
+                        // TODO: enforce RFC 4253:
+                        //
+                        // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
+                        // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
+                        // > 7.3), it MUST NOT send any messages other than:
+                        // >
+                        // > o  Transport layer generic messages (1 to 19) (but
+                        // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
+                        // >    sent);
+                        // >
+                        // > o  Algorithm negotiation messages (20 to 29) (but further
+                        // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
+                        // >
+                        // > o  Specific key exchange method messages (30 to 49).
+                        //
+                        // We should enforce that, but right now we don't have a good mechanism by which to do so.
+                        throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
+                    }
+                } catch {
+                    self = .receivedKexInitWhenActive(state)
+                    throw error
+                }
+
+            case .sentKexInitWhenActive(var state):
+                do {
+                    // We've sent a key exchange packet. We expect channel messages _or_ a kexinit packet.
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .sentKexInitWhenActive(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .keyExchange(let message):
+                        let result = try state.receiveKeyExchangeMessage(message)
+                        self = .rekeying(.init(state))
+                        return result
+
+                    case .channelOpen(let message):
+                        try state.receiveChannelOpen(message)
+                    case .channelOpenConfirmation(let message):
+                        try state.receiveChannelOpenConfirmation(message)
+                    case .channelOpenFailure(let message):
+                        try state.receiveChannelOpenFailure(message)
+                    case .channelEOF(let message):
+                        try state.receiveChannelEOF(message)
+                    case .channelClose(let message):
+                        try state.receiveChannelClose(message)
+                    case .channelWindowAdjust(let message):
+                        try state.receiveChannelWindowAdjust(message)
+                    case .channelData(let message):
+                        try state.receiveChannelData(message)
+                    case .channelExtendedData(let message):
+                        try state.receiveChannelExtendedData(message)
+                    case .channelRequest(let message):
+                        try state.receiveChannelRequest(message)
+                    case .channelSuccess(let message):
+                        try state.receiveChannelSuccess(message)
+                    case .channelFailure(let message):
+                        try state.receiveChannelFailure(message)
+                    case .globalRequest(let message):
+                        try state.receiveGlobalRequest(message)
+                        self = .sentKexInitWhenActive(state)
+                        return .globalRequest(message)
+                    case .requestSuccess(let message):
+                        try state.receiveRequestSuccess(message)
+                        self = .sentKexInitWhenActive(state)
+                        return .globalRequestResponse(.success(message))
+                    case .requestFailure:
+                        try state.receiveRequestFailure()
+                        self = .sentKexInitWhenActive(state)
+                        return .globalRequestResponse(.failure)
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .sentKexInitWhenActive(state)
+                        return .noMessage
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+                    default:
+                        throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
+                    }
+
+                    self = .sentKexInitWhenActive(state)
+                    return .forwardToMultiplexer(message)
+                } catch {
+                    self = .sentKexInitWhenActive(state)
+                    throw error
+                }
+
+            case .rekeying(var state):
+                do {
+                    // This is basically the regular key exchange state.
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .rekeying(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .keyExchange(let message):
+                        let result = try state.receiveKeyExchangeMessage(message)
+                        self = .rekeying(state)
+                        return result
+                    case .keyExchangeInit(let message):
+                        let result = try state.receiveKeyExchangeInitMessage(message)
+                        self = .rekeying(state)
+                        return result
+                    case .keyExchangeReply(let message):
+                        let result = try state.receiveKeyExchangeReplyMessage(message)
+                        self = .rekeying(state)
+                        return result
+                    case .newKeys:
+                        try state.receiveNewKeysMessage()
+                        let newState = RekeyingReceivedNewKeysState(state)
+                        self = .rekeyingReceivedNewKeysState(newState)
+                        return .noMessage
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .rekeying(state)
+                        return .noMessage
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+                    default:
+                        // TODO: enforce RFC 4253:
+                        //
+                        // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
+                        // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
+                        // > 7.3), it MUST NOT send any messages other than:
+                        // >
+                        // > o  Transport layer generic messages (1 to 19) (but
+                        // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
+                        // >    sent);
+                        // >
+                        // > o  Algorithm negotiation messages (20 to 29) (but further
+                        // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
+                        // >
+                        // > o  Specific key exchange method messages (30 to 49).
+                        //
+                        // We should enforce that, but right now we don't have a good mechanism by which to do so.
+                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
+                    }
+                } catch {
+                    self = .rekeying(state)
+                    throw error
+                }
+
+            case .rekeyingReceivedNewKeysState(var state):
+                do {
+                    // This is basically a regular active state.
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .rekeyingReceivedNewKeysState(state)
+                        return nil
+                    }
+
+                    switch message {
+                    // TODO(cory): One day soon we'll need to support re-keying in this state.
+                    // For now we only support channel messages.
+                    case .channelOpen(let message):
+                        try state.receiveChannelOpen(message)
+                    case .channelOpenConfirmation(let message):
+                        try state.receiveChannelOpenConfirmation(message)
+                    case .channelOpenFailure(let message):
+                        try state.receiveChannelOpenFailure(message)
+                    case .channelEOF(let message):
+                        try state.receiveChannelEOF(message)
+                    case .channelClose(let message):
+                        try state.receiveChannelClose(message)
+                    case .channelWindowAdjust(let message):
+                        try state.receiveChannelWindowAdjust(message)
+                    case .channelData(let message):
+                        try state.receiveChannelData(message)
+                    case .channelExtendedData(let message):
+                        try state.receiveChannelExtendedData(message)
+                    case .channelRequest(let message):
+                        try state.receiveChannelRequest(message)
+                    case .channelSuccess(let message):
+                        try state.receiveChannelSuccess(message)
+                    case .channelFailure(let message):
+                        try state.receiveChannelFailure(message)
+                    case .globalRequest(let message):
+                        try state.receiveGlobalRequest(message)
+                        self = .rekeyingReceivedNewKeysState(state)
+                        return .globalRequest(message)
+                    case .requestSuccess(let message):
+                        try state.receiveRequestSuccess(message)
+                        self = .rekeyingReceivedNewKeysState(state)
+                        return .globalRequestResponse(.success(message))
+                    case .requestFailure:
+                        try state.receiveRequestFailure()
+                        self = .rekeyingReceivedNewKeysState(state)
+                        return .globalRequestResponse(.failure)
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .rekeyingReceivedNewKeysState(state)
+                        return .noMessage
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+                    default:
+                        throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
+                    }
+
+                    self = .rekeyingReceivedNewKeysState(state)
+                    return .forwardToMultiplexer(message)
+                } catch {
+                    self = .rekeyingReceivedNewKeysState(state)
+                    throw error
+                }
+
+            case .rekeyingSentNewKeysState(var state):
+                do {
+                    // This is key exchange state.
+                    guard let message = try state.parser.nextPacket() else {
+                        self = .rekeyingSentNewKeysState(state)
+                        return nil
+                    }
+
+                    switch message {
+                    case .keyExchange(let message):
+                        let result = try state.receiveKeyExchangeMessage(message)
+                        self = .rekeyingSentNewKeysState(state)
+                        return result
+                    case .keyExchangeInit(let message):
+                        let result = try state.receiveKeyExchangeInitMessage(message)
+                        self = .rekeyingSentNewKeysState(state)
+                        return result
+                    case .keyExchangeReply(let message):
+                        let result = try state.receiveKeyExchangeReplyMessage(message)
+                        self = .rekeyingSentNewKeysState(state)
+                        return result
+                    case .newKeys:
+                        try state.receiveNewKeysMessage()
+                        let newState = ActiveState(state)
+                        self = .active(newState)
+                        return .noMessage
+                    case .disconnect:
+                        self = .receivedDisconnect(state.role)
+                        return .disconnect
+                    case .ignore, .debug:
+                        // Ignore these
+                        self = .rekeyingSentNewKeysState(state)
+                        return .noMessage
+                    case .unimplemented(let unimplemented):
+                        throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
+
+                    default:
+                        // TODO: enforce RFC 4253:
+                        //
+                        // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
+                        // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
+                        // > 7.3), it MUST NOT send any messages other than:
+                        // >
+                        // > o  Transport layer generic messages (1 to 19) (but
+                        // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
+                        // >    sent);
+                        // >
+                        // > o  Algorithm negotiation messages (20 to 29) (but further
+                        // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
+                        // >
+                        // > o  Specific key exchange method messages (30 to 49).
+                        //
+                        // We should enforce that, but right now we don't have a good mechanism by which to do so.
+                        throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
+                    }
+                } catch {
+                    self = .rekeyingSentNewKeysState(state)
+                    throw error
+                }
+
+            case .receivedDisconnect, .sentDisconnect:
+                // We do no further I/O in these states.
+                return nil
+            }
+        }
     }
 
     /// The state of this state machine.
@@ -76,616 +745,12 @@ struct SSHConnectionStateMachine {
     }
 
     mutating func bufferInboundData(_ data: inout ByteBuffer) {
-        switch self.state {
-        case .idle:
-            preconditionFailure("Cannot receive inbound data in idle state")
-        case .sentVersion(var state):
-            state.parser.append(bytes: &data)
-            self.state = .sentVersion(state)
-        case .keyExchange(var state):
-            state.parser.append(bytes: &data)
-            self.state = .keyExchange(state)
-        case .receivedNewKeys(var state):
-            state.parser.append(bytes: &data)
-            self.state = .receivedNewKeys(state)
-        case .sentNewKeys(var state):
-            state.parser.append(bytes: &data)
-            self.state = .sentNewKeys(state)
-        case .userAuthentication(var state):
-            state.parser.append(bytes: &data)
-            self.state = .userAuthentication(state)
-        case .active(var state):
-            state.parser.append(bytes: &data)
-            self.state = .active(state)
-        case .receivedKexInitWhenActive(var state):
-            state.parser.append(bytes: &data)
-            self.state = .receivedKexInitWhenActive(state)
-        case .sentKexInitWhenActive(var state):
-            state.parser.append(bytes: &data)
-            self.state = .sentKexInitWhenActive(state)
-        case .rekeying(var state):
-            state.parser.append(bytes: &data)
-            self.state = .rekeying(state)
-        case .rekeyingReceivedNewKeysState(var state):
-            state.parser.append(bytes: &data)
-            self.state = .rekeyingReceivedNewKeysState(state)
-        case .rekeyingSentNewKeysState(var state):
-            state.parser.append(bytes: &data)
-            self.state = .rekeyingSentNewKeysState(state)
-        case .receivedDisconnect, .sentDisconnect:
-            // No more I/O, we're done.
-            break
-        }
+        self.state.bufferInboundData(&data)
     }
 
     mutating func processInboundMessage(allocator: ByteBufferAllocator,
                                         loop: EventLoop) throws -> StateMachineInboundProcessResult? {
-        switch self.state {
-        case .idle:
-            preconditionFailure("Received messages before sending our first message.")
-        case .sentVersion(var state):
-            guard let message = try state.parser.nextPacket() else {
-                return nil
-            }
-
-            switch message {
-            case .version(let version):
-                try state.receiveVersionMessage(version, role: self.role)
-                let newState = KeyExchangeState(sentVersionState: state, allocator: allocator, loop: loop, remoteVersion: version)
-                let message = newState.keyExchangeStateMachine.createKeyExchangeMessage()
-                self.state = .keyExchange(newState)
-                return .emitMessage(SSHMultiMessage(.keyExchange(message)))
-
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-
-            default:
-                throw NIOSSHError.protocolViolation(protocolName: "transport", violation: "Did not receive version message")
-            }
-        case .keyExchange(var state):
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .keyExchange(state)
-                return nil
-            }
-
-            switch message {
-            case .keyExchange(let message):
-                let result = try state.receiveKeyExchangeMessage(message)
-                self.state = .keyExchange(state)
-                return result
-            case .keyExchangeInit(let message):
-                let result = try state.receiveKeyExchangeInitMessage(message)
-                self.state = .keyExchange(state)
-                return result
-            case .keyExchangeReply(let message):
-                let result = try state.receiveKeyExchangeReplyMessage(message)
-                self.state = .keyExchange(state)
-                return result
-            case .newKeys:
-                try state.receiveNewKeysMessage()
-                self.state = .receivedNewKeys(.init(keyExchangeState: state, loop: loop))
-                return .noMessage
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .keyExchange(state)
-                return .noMessage
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-            default:
-                // TODO: enforce RFC 4253:
-                //
-                // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
-                // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
-                // > 7.3), it MUST NOT send any messages other than:
-                // >
-                // > o  Transport layer generic messages (1 to 19) (but
-                // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
-                // >    sent);
-                // >
-                // > o  Algorithm negotiation messages (20 to 29) (but further
-                // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
-                // >
-                // > o  Specific key exchange method messages (30 to 49).
-                //
-                // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
-            }
-        case .sentNewKeys(var state):
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .sentNewKeys(state)
-                return nil
-            }
-
-            switch message {
-            case .keyExchange(let message):
-                let result = try state.receiveKeyExchangeMessage(message)
-                self.state = .sentNewKeys(state)
-                return result
-            case .keyExchangeInit(let message):
-                let result = try state.receiveKeyExchangeInitMessage(message)
-                self.state = .sentNewKeys(state)
-                return result
-            case .keyExchangeReply(let message):
-                let result = try state.receiveKeyExchangeReplyMessage(message)
-                self.state = .sentNewKeys(state)
-                return result
-            case .newKeys:
-                try state.receiveNewKeysMessage()
-                self.state = .userAuthentication(.init(sentNewKeysState: state))
-                return .noMessage
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .sentNewKeys(state)
-                return .noMessage
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-
-            default:
-                // TODO: enforce RFC 4253:
-                //
-                // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
-                // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
-                // > 7.3), it MUST NOT send any messages other than:
-                // >
-                // > o  Transport layer generic messages (1 to 19) (but
-                // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
-                // >    sent);
-                // >
-                // > o  Algorithm negotiation messages (20 to 29) (but further
-                // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
-                // >
-                // > o  Specific key exchange method messages (30 to 49).
-                //
-                // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
-            }
-
-        case .receivedNewKeys(var state):
-            // In this state we tolerate receiving service request messages. As we haven't sent newKeys, we cannot
-            // send any user auth messages yet, so by definition we can't receive any other user auth message.
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .receivedNewKeys(state)
-                return nil
-            }
-
-            switch message {
-            case .serviceRequest(let message):
-                let result = try state.receiveServiceRequest(message)
-                self.state = .receivedNewKeys(state)
-                return result
-
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .receivedNewKeys(state)
-                return .noMessage
-
-            case .serviceAccept, .userAuthRequest, .userAuthSuccess, .userAuthFailure:
-                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
-
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-
-            default:
-                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
-            }
-
-        case .userAuthentication(var state):
-            // In this state we tolerate receiving user auth messages.
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .userAuthentication(state)
-                return nil
-            }
-
-            switch message {
-            case .serviceRequest(let message):
-                let result = try state.receiveServiceRequest(message)
-                self.state = .userAuthentication(state)
-                return result
-
-            case .serviceAccept(let message):
-                let result = try state.receiveServiceAccept(message)
-                self.state = .userAuthentication(state)
-                return result
-
-            case .userAuthRequest(let message):
-                let result = try state.receiveUserAuthRequest(message)
-                self.state = .userAuthentication(state)
-                return result
-
-            case .userAuthSuccess:
-                let result = try state.receiveUserAuthSuccess()
-                // Hey, auth succeeded!
-                self.state = .active(ActiveState(state))
-                return result
-
-            case .userAuthFailure(let message):
-                let result = try state.receiveUserAuthFailure(message)
-                self.state = .userAuthentication(state)
-                return result
-
-            case .userAuthBanner(let message):
-                let result = try state.receiveUserAuthBanner(message)
-                self.state = .userAuthentication(state)
-                return result
-
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .userAuthentication(state)
-                return .noMessage
-
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-
-            default:
-                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
-            }
-
-        case .active(var state):
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .active(state)
-                return nil
-            }
-
-            switch message {
-            case .channelOpen(let message):
-                try state.receiveChannelOpen(message)
-            case .channelOpenConfirmation(let message):
-                try state.receiveChannelOpenConfirmation(message)
-            case .channelOpenFailure(let message):
-                try state.receiveChannelOpenFailure(message)
-            case .channelEOF(let message):
-                try state.receiveChannelEOF(message)
-            case .channelClose(let message):
-                try state.receiveChannelClose(message)
-            case .channelWindowAdjust(let message):
-                try state.receiveChannelWindowAdjust(message)
-            case .channelData(let message):
-                try state.receiveChannelData(message)
-            case .channelExtendedData(let message):
-                try state.receiveChannelExtendedData(message)
-            case .channelRequest(let message):
-                try state.receiveChannelRequest(message)
-            case .channelSuccess(let message):
-                try state.receiveChannelSuccess(message)
-            case .channelFailure(let message):
-                try state.receiveChannelFailure(message)
-            case .globalRequest(let message):
-                try state.receiveGlobalRequest(message)
-                self.state = .active(state)
-                return .globalRequest(message)
-            case .requestSuccess(let message):
-                try state.receiveRequestSuccess(message)
-                self.state = .active(state)
-                return .globalRequestResponse(.success(message))
-            case .requestFailure:
-                try state.receiveRequestFailure()
-                self.state = .active(state)
-                return .globalRequestResponse(.failure)
-            case .keyExchange(let message):
-                // Attempting to rekey.
-                var newState = ReceivedKexInitWhenActiveState(state, allocator: allocator, loop: loop)
-                let result = try newState.receiveKeyExchangeMessage(message)
-                self.state = .receivedKexInitWhenActive(newState)
-                return result
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .active(state)
-                return .noMessage
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-
-            default:
-                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
-            }
-
-            self.state = .active(state)
-            return .forwardToMultiplexer(message)
-
-        case .receivedKexInitWhenActive(var state):
-            // We've received a key exchange packet. We only expect the first two messages (key exchange and key exchange init) before
-            // we have sent a reply.
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .receivedKexInitWhenActive(state)
-                return nil
-            }
-
-            switch message {
-            case .keyExchange(let message):
-                let result = try state.receiveKeyExchangeMessage(message)
-                self.state = .receivedKexInitWhenActive(state)
-                return result
-            case .keyExchangeInit(let message):
-                let result = try state.receiveKeyExchangeInitMessage(message)
-                self.state = .receivedKexInitWhenActive(state)
-                return result
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .receivedKexInitWhenActive(state)
-                return .noMessage
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-            default:
-                // TODO: enforce RFC 4253:
-                //
-                // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
-                // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
-                // > 7.3), it MUST NOT send any messages other than:
-                // >
-                // > o  Transport layer generic messages (1 to 19) (but
-                // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
-                // >    sent);
-                // >
-                // > o  Algorithm negotiation messages (20 to 29) (but further
-                // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
-                // >
-                // > o  Specific key exchange method messages (30 to 49).
-                //
-                // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
-            }
-
-        case .sentKexInitWhenActive(var state):
-            // We've sent a key exchange packet. We expect channel messages _or_ a kexinit packet.
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .sentKexInitWhenActive(state)
-                return nil
-            }
-
-            switch message {
-            case .keyExchange(let message):
-                let result = try state.receiveKeyExchangeMessage(message)
-                self.state = .rekeying(.init(state))
-                return result
-
-            case .channelOpen(let message):
-                try state.receiveChannelOpen(message)
-            case .channelOpenConfirmation(let message):
-                try state.receiveChannelOpenConfirmation(message)
-            case .channelOpenFailure(let message):
-                try state.receiveChannelOpenFailure(message)
-            case .channelEOF(let message):
-                try state.receiveChannelEOF(message)
-            case .channelClose(let message):
-                try state.receiveChannelClose(message)
-            case .channelWindowAdjust(let message):
-                try state.receiveChannelWindowAdjust(message)
-            case .channelData(let message):
-                try state.receiveChannelData(message)
-            case .channelExtendedData(let message):
-                try state.receiveChannelExtendedData(message)
-            case .channelRequest(let message):
-                try state.receiveChannelRequest(message)
-            case .channelSuccess(let message):
-                try state.receiveChannelSuccess(message)
-            case .channelFailure(let message):
-                try state.receiveChannelFailure(message)
-            case .globalRequest(let message):
-                try state.receiveGlobalRequest(message)
-                self.state = .sentKexInitWhenActive(state)
-                return .globalRequest(message)
-            case .requestSuccess(let message):
-                try state.receiveRequestSuccess(message)
-                self.state = .sentKexInitWhenActive(state)
-                return .globalRequestResponse(.success(message))
-            case .requestFailure:
-                try state.receiveRequestFailure()
-                self.state = .sentKexInitWhenActive(state)
-                return .globalRequestResponse(.failure)
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .sentKexInitWhenActive(state)
-                return .noMessage
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-
-            default:
-                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
-            }
-
-            self.state = .sentKexInitWhenActive(state)
-            return .forwardToMultiplexer(message)
-
-        case .rekeying(var state):
-            // This is basically the regular key exchange state.
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .rekeying(state)
-                return nil
-            }
-
-            switch message {
-            case .keyExchange(let message):
-                let result = try state.receiveKeyExchangeMessage(message)
-                self.state = .rekeying(state)
-                return result
-            case .keyExchangeInit(let message):
-                let result = try state.receiveKeyExchangeInitMessage(message)
-                self.state = .rekeying(state)
-                return result
-            case .keyExchangeReply(let message):
-                let result = try state.receiveKeyExchangeReplyMessage(message)
-                self.state = .rekeying(state)
-                return result
-            case .newKeys:
-                try state.receiveNewKeysMessage()
-                let newState = RekeyingReceivedNewKeysState(state)
-                self.state = .rekeyingReceivedNewKeysState(newState)
-                return .noMessage
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .rekeying(state)
-                return .noMessage
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-            default:
-                // TODO: enforce RFC 4253:
-                //
-                // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
-                // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
-                // > 7.3), it MUST NOT send any messages other than:
-                // >
-                // > o  Transport layer generic messages (1 to 19) (but
-                // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
-                // >    sent);
-                // >
-                // > o  Algorithm negotiation messages (20 to 29) (but further
-                // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
-                // >
-                // > o  Specific key exchange method messages (30 to 49).
-                //
-                // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
-            }
-
-        case .rekeyingReceivedNewKeysState(var state):
-            // This is basically a regular active state.
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .rekeyingReceivedNewKeysState(state)
-                return nil
-            }
-
-            switch message {
-            // TODO(cory): One day soon we'll need to support re-keying in this state.
-            // For now we only support channel messages.
-            case .channelOpen(let message):
-                try state.receiveChannelOpen(message)
-            case .channelOpenConfirmation(let message):
-                try state.receiveChannelOpenConfirmation(message)
-            case .channelOpenFailure(let message):
-                try state.receiveChannelOpenFailure(message)
-            case .channelEOF(let message):
-                try state.receiveChannelEOF(message)
-            case .channelClose(let message):
-                try state.receiveChannelClose(message)
-            case .channelWindowAdjust(let message):
-                try state.receiveChannelWindowAdjust(message)
-            case .channelData(let message):
-                try state.receiveChannelData(message)
-            case .channelExtendedData(let message):
-                try state.receiveChannelExtendedData(message)
-            case .channelRequest(let message):
-                try state.receiveChannelRequest(message)
-            case .channelSuccess(let message):
-                try state.receiveChannelSuccess(message)
-            case .channelFailure(let message):
-                try state.receiveChannelFailure(message)
-            case .globalRequest(let message):
-                try state.receiveGlobalRequest(message)
-                self.state = .rekeyingReceivedNewKeysState(state)
-                return .globalRequest(message)
-            case .requestSuccess(let message):
-                try state.receiveRequestSuccess(message)
-                self.state = .rekeyingReceivedNewKeysState(state)
-                return .globalRequestResponse(.success(message))
-            case .requestFailure:
-                try state.receiveRequestFailure()
-                self.state = .rekeyingReceivedNewKeysState(state)
-                return .globalRequestResponse(.failure)
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .rekeyingReceivedNewKeysState(state)
-                return .noMessage
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-
-            default:
-                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
-            }
-
-            self.state = .rekeyingReceivedNewKeysState(state)
-            return .forwardToMultiplexer(message)
-
-        case .rekeyingSentNewKeysState(var state):
-            // This is key exchange state.
-            guard let message = try state.parser.nextPacket() else {
-                self.state = .rekeyingSentNewKeysState(state)
-                return nil
-            }
-
-            switch message {
-            case .keyExchange(let message):
-                let result = try state.receiveKeyExchangeMessage(message)
-                self.state = .rekeyingSentNewKeysState(state)
-                return result
-            case .keyExchangeInit(let message):
-                let result = try state.receiveKeyExchangeInitMessage(message)
-                self.state = .rekeyingSentNewKeysState(state)
-                return result
-            case .keyExchangeReply(let message):
-                let result = try state.receiveKeyExchangeReplyMessage(message)
-                self.state = .rekeyingSentNewKeysState(state)
-                return result
-            case .newKeys:
-                try state.receiveNewKeysMessage()
-                let newState = ActiveState(state)
-                self.state = .active(newState)
-                return .noMessage
-            case .disconnect:
-                self.state = .receivedDisconnect(state.role)
-                return .disconnect
-            case .ignore, .debug:
-                // Ignore these
-                self.state = .rekeyingSentNewKeysState(state)
-                return .noMessage
-            case .unimplemented(let unimplemented):
-                throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
-
-            default:
-                // TODO: enforce RFC 4253:
-                //
-                // > Once a party has sent a SSH_MSG_KEXINIT message for key exchange or
-                // > re-exchange, until it has sent a SSH_MSG_NEWKEYS message (Section
-                // > 7.3), it MUST NOT send any messages other than:
-                // >
-                // > o  Transport layer generic messages (1 to 19) (but
-                // >    SSH_MSG_SERVICE_REQUEST and SSH_MSG_SERVICE_ACCEPT MUST NOT be
-                // >    sent);
-                // >
-                // > o  Algorithm negotiation messages (20 to 29) (but further
-                // >    SSH_MSG_KEXINIT messages MUST NOT be sent);
-                // >
-                // > o  Specific key exchange method messages (30 to 49).
-                //
-                // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
-            }
-
-        case .receivedDisconnect, .sentDisconnect:
-            // We do no further I/O in these states.
-            return nil
-        }
+        try self.state.processInboundMessage(allocator: allocator, loop: loop)
     }
 
     mutating func processOutboundMessage(_ message: SSHMessage,

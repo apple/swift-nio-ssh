@@ -38,6 +38,10 @@ extension SSHConnectionStateMachine {
             self.parser = SSHPacketParser(allocator: allocator)
             self.allocator = allocator
         }
+
+        mutating func bufferInboundData(_ data: inout ByteBuffer) {
+            self.parser.append(bytes: &data)
+        }
     }
 }
 
