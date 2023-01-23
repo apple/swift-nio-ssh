@@ -348,7 +348,7 @@ extension AES.GCM.SealedBox {
         // As a workaround for a Swift Crypto inefficiency, we create the combined representation
         // directly.
         var combined: [UInt8] = []
-        combined.reserveCapacity(12 + ciphertext.count + tag.count)
+        combined.reserveCapacity(nonce.count + ciphertext.count + tag.count)
 
         combined.append(contentsOf: nonce)
         combined.append(contentsOf: ciphertext)
