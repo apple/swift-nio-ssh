@@ -99,7 +99,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
             }
 
             // Ok, let's try to decrypt this data.
-            let sealedBox = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: self.inboundNonce), ciphertext: ciphertextView, tag: tagView)
+            let sealedBox = try AES.GCM.SealedBox(nonce: self.inboundNonce, ciphertext: ciphertextView, tag: tagView)
             plaintext = try AES.GCM.open(sealedBox, using: self.inboundEncryptionKey, authenticating: lengthView)
 
             // All good! A quick soundness check to verify that the length of the plaintext is ok.
@@ -340,5 +340,20 @@ extension Data {
         }
 
         self = self[contentStartIndex ..< contentEndIndex]
+    }
+}
+
+extension AES.GCM.SealedBox {
+    fileprivate init(nonce: SSHAESGCMNonce, ciphertext: ByteBufferView, tag: ByteBufferView) throws {
+        // As a workaround for a Swift Crypto inefficiency, we create the combined representation
+        // directly.
+        var combined: [UInt8] = []
+        combined.reserveCapacity(nonce.count + ciphertext.count + tag.count)
+
+        combined.append(contentsOf: nonce)
+        combined.append(contentsOf: ciphertext)
+        combined.append(contentsOf: tag)
+
+        try self.init(combined: combined)
     }
 }
