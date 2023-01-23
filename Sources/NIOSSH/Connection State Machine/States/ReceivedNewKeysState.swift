@@ -54,6 +54,10 @@ extension SSHConnectionStateMachine {
                                                                        loop: loop,
                                                                        sessionID: self.sessionIdentifier)
         }
+
+        mutating func bufferInboundData(_ data: inout ByteBuffer) {
+            self.parser.append(bytes: &data)
+        }
     }
 }
 

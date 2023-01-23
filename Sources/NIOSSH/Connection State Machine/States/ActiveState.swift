@@ -57,6 +57,10 @@ extension SSHConnectionStateMachine {
             self.protectionSchemes = previous.protectionSchemes
             self.sessionIdentifier = previous.sessionIdentifier
         }
+
+        mutating func bufferInboundData(_ data: inout ByteBuffer) {
+            self.parser.append(bytes: &data)
+        }
     }
 }
 
