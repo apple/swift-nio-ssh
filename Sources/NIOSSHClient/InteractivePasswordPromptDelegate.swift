@@ -45,7 +45,7 @@ final class InteractivePasswordPromptDelegate: NIOSSHClientUserAuthenticationDel
             }
 
             if self.password == nil {
-                #if os(Windows)
+                #if os(Windows) || os(Android)
                 print("Password: ", terminator: "")
                 self.password = readLine() ?? ""
                 #else
