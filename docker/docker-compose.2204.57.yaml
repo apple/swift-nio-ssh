@@ -12,8 +12,8 @@ services:
   test:
     image: swift-nio-ssh:22.04-5.7
     environment:
-      - MAX_ALLOCS_ALLOWED_client_server_many_small_commands_per_connection=225800
-      - MAX_ALLOCS_ALLOWED_client_server_one_command_per_connection=1018050
+      - MAX_ALLOCS_ALLOWED_client_server_many_small_commands_per_connection=223800
+      - MAX_ALLOCS_ALLOWED_client_server_one_command_per_connection=1008050
       - MAX_ALLOCS_ALLOWED_client_server_streaming_large_message_in_small_chunks=51000
       #- SANITIZER_ARG=--sanitize=thread
       #- WARN_AS_ERROR_ARG=-Xswiftc -warnings-as-errors
