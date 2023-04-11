@@ -2,7 +2,9 @@
 
 This project contains SSH support using SwiftNIO.
 
-## What is SwiftNIO SSH?
+## Overview
+
+### What is SwiftNIO SSH?
 
 SwiftNIO SSH is a programmatic implementation of SSH: that is, it is a collection of APIs that allow programmers to implement SSH-speaking endpoints. Critically, this means it is more like libssh2 than openssh. SwiftNIO SSH does not ship production-ready SSH clients and servers, but instead provides the building blocks for building this kind of client and server.
 
@@ -19,7 +21,7 @@ SwiftNIO SSH      | Minimum Swift Version
 `0.4.0 ..< 0.5.0` | 5.4
 `0.5.0 ...`       | 5.5.2
 
-## What does SwiftNIO SSH support?
+### What does SwiftNIO SSH support?
 
 SwiftNIO SSH supports SSHv2 with the following feature set:
 
@@ -29,7 +31,7 @@ SwiftNIO SSH supports SSHv2 with the following feature set:
 - Password and public key user authentication
 - Supports all platforms supported by SwiftNIO and Swift Crypto
 
-## How do I use SwiftNIO SSH?
+### How do I use SwiftNIO SSH?
 
 SwiftNIO SSH provides a SwiftNIO `ChannelHandler`, `NIOSSHHandler`. This handler implements the bulk of the SSH protocol directly. Users are not expected to generate SSH messages directly: instead, they interact with the ``NIOSSHHandler`` through child channels and delegates.
 
@@ -83,7 +85,7 @@ An SSH channel is invoked with a channel type. NIOSSH supports three: `session`,
 
 An SSH channel operates on a single data type: ``SSHChannelData``. This structure encapsulates the fact that SSH supports both regular and "extended" channel data. The regular channel data (``SSHChannelData/DataType/channel``) is used for the vast majority of core data. In ``SSHChannelType/session`` channels the ``SSHChannelData/DataType/channel`` data type is used for standard input and standard output: the ``SSHChannelData/DataType/stdErr`` data type is used for standard error (naturally). In TCP forwarding channels, the ``SSHChannelData/DataType/channel`` data type is the only kind used, and represents the forwarded data.
 
-### Channel Events
+#### Channel Events
 
 A ``SSHChannelType/session`` channel represents an invocation of a command. Exactly how the channel operates is communicated in a number of inbound user events. The following events are important:
 
@@ -105,7 +107,7 @@ Each of these events also has a `wantReply` field. This indicates whether the re
 - ``ChannelSuccessEvent``, to communicate success.
 - ``ChannelFailureEvent``, to communicate failure.
 
-### Half Closure
+#### Half Closure
 
 The SSH network protocol pervasively uses half-closure in the child channels. NIO `Channel`s typically have half-closure support disabled by default, and SwiftNIO SSH respects this default in its child channels as well. However, if you leave this setting at its default value the SSH child channels will behave extremely unexpectedly. For this reason, it is strongly recommended that all child channels have half closure support enabled:
 
@@ -115,7 +117,7 @@ channel.setOption(ChannelOptions.allowRemoteHalfClosure, true)
 
 This then uses standard NIO half-closure support. The remote peer sending EOF will be communicated with an inbound user event, `ChannelEvent.inputClosed`. To send EOF yourself, call `close(mode: .output)`.
 
-### User Authentication
+#### User Authentication
 
 User authentication is a vital part of SSH. To manage it, SwiftNIO SSH uses a pair of delegate protocols: ``NIOSSHClientUserAuthenticationDelegate`` and ``NIOSSHServerUserAuthenticationDelegate``. Clients and servers should provide implementations of these delegate protocols to manage user authentication.
 
@@ -123,13 +125,13 @@ The client protocol is straightforward: SwiftNIO SSH will invoke the method ``NI
 
 The server protocol is more complex. The delegate must provide a ``NIOSSHServerUserAuthenticationDelegate/supportedAuthenticationMethods`` property that communicates which authentication methods are supported by the delegate. Then, each time the client sends a user auth request, the ``NIOSSHServerUserAuthenticationDelegate/requestReceived(request:responsePromise:)`` method will be invoked. This may be invoked multiple times in parallel, as clients are allowed to issue auth requests in parallel. The `responsePromise` should be succeeded with the result of the authentication. There are three results: ``NIOSSHUserAuthenticationOutcome/success`` and ``NIOSSHUserAuthenticationOutcome/failure`` are straightforward, but in principle the server can require multiple challenges using ``NIOSSHUserAuthenticationOutcome/partialSuccess(remainingMethods:)``.
 
-### Direct Port Forwarding
+#### Direct Port Forwarding
 
 Direct port forwarding is port forwarding from client to server. In this mode traditionally the client will listen on a local port, and will forward inbound connections to the server. It will ask that the server forward these connections as outbound connections to a specific host and port.
 
 These channels can be directly opened by clients by using the ``SSHChannelType/directTCPIP(_:)`` channel type.
 
-### Remote Port Forwarding and Global Requests
+#### Remote Port Forwarding and Global Requests
 
 Remote port forwarding is a less-common situation where the client asks the server to listen on a specific address and port, and to forward all inbound connections to the client. As the client needs to request this behaviour, it does so using global requests.
 
