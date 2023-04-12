@@ -26,6 +26,10 @@ services:
     <<: *common
     command: /bin/bash -xcl "./scripts/soundness.sh"
 
+  documentation-check:
+    <<: *common
+    command: /bin/bash -xcl "./scripts/check-docs.sh"
+
   test:
     <<: *common
     command: /bin/bash -xcl "swift test --enable-test-discovery $${WARN_AS_ERROR_ARG-} $${SANITIZER_ARG-} $${IMPORT_CHECK_ARG-} && ./scripts/integration_tests.sh $${INTEGRATION_TESTS_ARG-}"

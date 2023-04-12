@@ -9,6 +9,9 @@ services:
         ubuntu_version: "focal"
         swift_version: "5.5"
 
+  documentation-check:
+    image: swift-nio-ssh:20.04-5.5
+
   test:
     image: swift-nio-ssh:20.04-5.5
     environment:
