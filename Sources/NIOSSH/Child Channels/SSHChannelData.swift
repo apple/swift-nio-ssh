@@ -34,10 +34,8 @@ public struct SSHChannelData {
 
 extension SSHChannelData: Equatable {}
 
-#if swift(>=5.6)
 @available(*, unavailable)
 extension SSHChannelData: Sendable {}
-#endif
 
 extension SSHChannelData {
     /// The type of this channel data. Regular ``SSHChannelData/DataType/channel`` data is the standard type of data on an `SSHChannel`,
