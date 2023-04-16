@@ -40,27 +40,10 @@ final class ExampleExecHandler: ChannelDuplexHandler {
 
     func channelActive(context: ChannelHandlerContext) {
         // We need to set up a pipe channel and glue it to this. This will control our I/O.
-        let (ours, theirs) = GlueHandler.matchedPair()
-
-        // Sadly we have to kick off to a background thread to bootstrap the pipe channel.
-        let bootstrap = NIOPipeBootstrap(group: context.eventLoop)
-        context.channel.pipeline.addHandler(ours, position: .last).whenSuccess { _ in
-            DispatchQueue(label: "pipe bootstrap").async {
-                bootstrap.channelOption(ChannelOptions.allowRemoteHalfClosure, value: true).channelInitializer { channel in
-                    channel.pipeline.addHandler(theirs)
-                }.withPipes(inputDescriptor: 0, outputDescriptor: 1).whenComplete { result in
-                    switch result {
-                    case .success:
-                        // We need to exec a thing.
-                        let execRequest = SSHChannelRequestEvent.ExecRequest(command: self.command, wantReply: false)
-                        context.triggerUserOutboundEvent(execRequest).whenFailure { _ in
-                            context.close(promise: nil)
-                        }
-                    case .failure(let error):
-                        context.fireErrorCaught(error)
-                    }
-                }
-            }
+        // We need to exec a thing.
+        let execRequest = SSHChannelRequestEvent.ExecRequest(command: self.command, wantReply: true)
+        context.triggerUserOutboundEvent(execRequest).whenFailure { _ in
+            context.close(promise: nil)
         }
     }
 
@@ -87,12 +70,13 @@ final class ExampleExecHandler: ChannelDuplexHandler {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let data = self.unwrapInboundIn(data)
 
-        guard case .byteBuffer(let bytes) = data.data else {
+        guard case .byteBuffer(var bytes) = data.data else {
             fatalError("Unexpected read type")
         }
 
         switch data.type {
         case .channel:
+            print(bytes.readString(length: bytes.readableBytes)!)
             // Channel data is forwarded on, the pipe channel will handle it.
             context.fireChannelRead(self.wrapInboundOut(bytes))
             return

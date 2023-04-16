@@ -101,6 +101,11 @@ if let listen = parseResult.listen {
             guard channelType == .session else {
                 return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
             }
+            // $$$ Force closing
+            DispatchQueue.global(qos: .default).asyncAfter(deadline: .now() + 1) {
+                print("❌")
+                _ = childChannel.close(promise: nil)
+            }
             return childChannel.pipeline.addHandlers([ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise), ErrorHandler()])
         }
         return promise.futureResult

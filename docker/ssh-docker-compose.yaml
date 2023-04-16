@@ -1,0 +1,18 @@
+version: "3.7"
+
+services:
+  ssh:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: openssh-server
+    hostname: openssh-server
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+      - SUDO_ACCESS=false
+      - PASSWORD_ACCESS=true
+      - USER_PASSWORD=password
+      - USER_NAME=username
+    ports:
+      - 2223:2222
+    restart: unless-stopped

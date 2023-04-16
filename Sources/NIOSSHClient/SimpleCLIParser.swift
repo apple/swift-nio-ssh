@@ -16,42 +16,7 @@ import Foundation
 /// A very simple CLI parser.
 struct SimpleCLIParser {
     func parse() -> Result {
-        var arguments = CommandLine.arguments.dropFirst()
-
-        // Let's start by searching for flags
-        var listen: Listen?
-        while let first = arguments.first, first.starts(with: "-") {
-            arguments = arguments.dropFirst()
-
-            switch first {
-            case "-L":
-                // The next argument is the listen string.
-                guard let next = arguments.popFirst(), let parsed = Listen(listenString: next) else {
-                    self.usage()
-                }
-                listen = parsed
-            default:
-                self.usage()
-            }
-        }
-
-        // The first argument must be "target"
-        guard var target = arguments.popFirst() else {
-            self.usage()
-        }
-
-        // We trick Foundation into doing something sensible here by prepending the target with ssh:// if it didn't
-        // already have it.
-        if !target.starts(with: "ssh://") {
-            target = "ssh://" + target
-        }
-
-        guard let targetURL = URL(string: target) else {
-            self.usage()
-        }
-        let command = arguments.joined(separator: " ")
-
-        return Result(commandString: command, target: targetURL, listen: listen)
+        Result()
     }
 
     private func usage() -> Never {
@@ -74,13 +39,13 @@ extension SimpleCLIParser {
 
         var listen: Listen?
 
-        fileprivate init(commandString: String?, target: URL, listen: Listen?) {
-            self.commandString = commandString ?? "uname -a"
-            self.host = target.host ?? "::1"
-            self.port = target.port ?? 22
-            self.user = target.user
-            self.password = target.password
-            self.listen = listen
+        fileprivate init() {
+            self.commandString = "yes \"long text\" | head -n 1000000\n"
+            self.host = "localhost"
+            self.port = 2223
+            self.user = "username"
+            self.password = "password"
+            self.listen = nil
         }
     }
 }
