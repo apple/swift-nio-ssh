@@ -647,7 +647,7 @@ private extension SSHChildChannel {
         switch data {
         case .data(let data):
             // We only futz with the window manager if the channel is not already closed.
-            if !self.didClose, let increment = self.windowManager.unbufferBytes(data.data.readableBytes) {
+            if !self.didClose, !self.state.sentClose, let increment = self.windowManager.unbufferBytes(data.data.readableBytes) {
                 let update = SSHMessage.ChannelWindowAdjustMessage(recipientChannel: self.state.remoteChannelIdentifier!, bytesToAdd: UInt32(increment))
                 self.processOutboundMessage(.channelWindowAdjust(update), promise: nil)
             }
