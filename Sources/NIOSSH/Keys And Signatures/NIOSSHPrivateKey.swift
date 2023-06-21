@@ -46,7 +46,7 @@ public struct NIOSSHPrivateKey {
         self.backingKey = .ecdsaP521(key)
     }
 
-    #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+    #if canImport(Darwin)
     public init(secureEnclaveP256Key key: SecureEnclave.P256.Signing.PrivateKey) {
         self.backingKey = .secureEnclaveP256(key)
     }
@@ -63,7 +63,7 @@ public struct NIOSSHPrivateKey {
             return ["ecdsa-sha2-nistp384"]
         case .ecdsaP521:
             return ["ecdsa-sha2-nistp521"]
-        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        #if canImport(Darwin)
         case .secureEnclaveP256:
             return ["ecdsa-sha2-nistp256"]
         #endif
@@ -79,7 +79,7 @@ extension NIOSSHPrivateKey {
         case ecdsaP384(P384.Signing.PrivateKey)
         case ecdsaP521(P521.Signing.PrivateKey)
 
-        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        #if canImport(Darwin)
         case secureEnclaveP256(SecureEnclave.P256.Signing.PrivateKey)
         #endif
     }
@@ -109,7 +109,7 @@ extension NIOSSHPrivateKey {
             }
             return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
 
-        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        #if canImport(Darwin)
         case .secureEnclaveP256(let key):
             let signature = try digest.withUnsafeBytes { ptr in
                 try key.signature(for: ptr)
@@ -133,7 +133,7 @@ extension NIOSSHPrivateKey {
         case .ecdsaP521(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
             return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
-        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        #if canImport(Darwin)
         case .secureEnclaveP256(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
             return NIOSSHSignature(backingSignature: .ecdsaP256(signature))
@@ -154,7 +154,7 @@ extension NIOSSHPrivateKey {
             return NIOSSHPublicKey(backingKey: .ecdsaP384(privateKey.publicKey))
         case .ecdsaP521(let privateKey):
             return NIOSSHPublicKey(backingKey: .ecdsaP521(privateKey.publicKey))
-        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        #if canImport(Darwin)
         case .secureEnclaveP256(let privateKey):
             return NIOSSHPublicKey(backingKey: .ecdsaP256(privateKey.publicKey))
         #endif
