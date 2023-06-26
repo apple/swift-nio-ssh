@@ -411,7 +411,7 @@ class EndToEndTests: XCTestCase {
     func testSecureEnclaveKeys() throws {
         // This is a quick end-to-end test that validates that we support secure enclave private keys
         // on appropriate platforms.
-        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        #if canImport(Darwin)
         // If we can't create this key, we skip the test.
         let key: NIOSSHPrivateKey
         do {

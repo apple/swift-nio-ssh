@@ -15,11 +15,11 @@
 import Crypto
 import Dispatch
 import NIOCore
-#if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+#if canImport(Darwin)
 import Darwin
 #else
 import Glibc
-#endif // os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+#endif // canImport(Darwin)
 
 /// A ``NIOSSHCertifiedPublicKey`` is an SSH public key combined with an SSH certificate.
 ///
