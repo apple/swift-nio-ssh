@@ -205,7 +205,7 @@ extension ByteBuffer {
     mutating func writeCompositeSSHString(_ compositeFunction: (inout ByteBuffer) throws -> Int) rethrows -> Int {
         // Reserve 4 bytes for the length.
         let originalWriterIndex = self.writerIndex
-        self.moveWriterIndex(forwardBy: 4)
+        self.writeInteger(UInt32(0))
 
         var writtenLength: Int
         do {

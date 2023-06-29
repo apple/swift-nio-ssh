@@ -73,7 +73,7 @@ extension ByteBuffer {
         ///   byte[m]   mac (Message Authentication Code - MAC); m = mac_length
 
         /// payload
-        self.moveWriterIndex(forwardBy: 5)
+        self.writeMultipleIntegers(UInt32(0), UInt8(0))
         let messageLength = self.writeSSHMessage(message)
 
         // Depending on on whether packet length is encrypted, padding should reflect that

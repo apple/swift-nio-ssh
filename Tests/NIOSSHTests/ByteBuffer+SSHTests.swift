@@ -361,6 +361,33 @@ final class ByteBufferSSHTests: XCTestCase {
 
         XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHHostKey()))
     }
+
+    func testCompositeStringDoesTheRightThingWithBB() throws {
+        var buffer = ByteBuffer()
+        XCTAssertEqual(buffer.capacity, 0)
+
+        buffer.writeCompositeSSHString {
+            $0.writeInteger(UInt64(9))
+        }
+        let writtenBytes = buffer.readBytes(length: buffer.readableBytes)
+        XCTAssertEqual(
+            writtenBytes,
+            [0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 9]
+        )
+    }
+
+    func testWriteSSHPacketDoesTheRightThingWithBB() throws {
+        var buffer = ByteBuffer()
+        XCTAssertEqual(buffer.capacity, 0)
+
+        buffer.writeSSHPacket(message: .version("Tests_v1.0"), lengthEncrypted: false, blockSize: 8)
+
+        let writtenBytes = buffer.readBytes(length: 5)
+        XCTAssertEqual(
+            writtenBytes,
+            [0, 0, 0, 24, 11]
+        )
+    }
 }
 
 extension ByteBuffer {
