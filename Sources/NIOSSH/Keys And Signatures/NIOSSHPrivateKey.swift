@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Crypto
+@preconcurrency import Crypto
 import NIOCore
 
 /// An SSH private key.
@@ -22,7 +22,7 @@ import NIOCore
 /// this key to sign data in order to validate their identity as part of user auth.
 ///
 /// Users cannot do much with this key other than construct it, but NIO uses it internally.
-public struct NIOSSHPrivateKey {
+public struct NIOSSHPrivateKey: Sendable {
     /// The actual key structure used to perform the key operations.
     internal var backingKey: BackingKey
 

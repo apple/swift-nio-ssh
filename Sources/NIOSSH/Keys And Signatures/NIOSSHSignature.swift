@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Crypto
+@preconcurrency import Crypto
 import Foundation
 import NIOCore
 import NIOFoundationCompat
@@ -21,7 +21,7 @@ import NIOFoundationCompat
 ///
 /// This type is intentionally highly opaque: we don't expect users to do anything with this directly.
 /// Instead, we expect them to work with other APIs available on our opaque types.
-public struct NIOSSHSignature: Hashable {
+public struct NIOSSHSignature: Hashable, Sendable {
     internal var backingSignature: BackingSignature
 
     internal init(backingSignature: BackingSignature) {
@@ -31,7 +31,7 @@ public struct NIOSSHSignature: Hashable {
 
 extension NIOSSHSignature {
     /// The various signature types that can be used with NIOSSH.
-    internal enum BackingSignature {
+    internal enum BackingSignature: Sendable {
         case ed25519(RawBytes) // There is no structured Signature type for Curve25519, and we may want Data or ByteBuffer.
         case ecdsaP256(P256.Signing.ECDSASignature)
         case ecdsaP384(P384.Signing.ECDSASignature)

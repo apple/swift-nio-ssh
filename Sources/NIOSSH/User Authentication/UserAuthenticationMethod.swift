@@ -17,7 +17,7 @@ import NIOCore
 ///
 /// User authentication in SSH proceeds in a dynamic fashion, and it is possible to require multiple forms
 /// of authentication sequentially, or to be able to accept one of many forms.
-public struct NIOSSHAvailableUserAuthenticationMethods: OptionSet {
+public struct NIOSSHAvailableUserAuthenticationMethods: OptionSet, Sendable {
     public var rawValue: UInt8
 
     public init(rawValue: UInt8) {
@@ -83,7 +83,7 @@ extension NIOSSHAvailableUserAuthenticationMethods: Hashable {}
 
 /// A specific request for user authentication. This type is the one observed from the server side. The
 /// associated client side type is ``NIOSSHUserAuthenticationOffer``.
-public struct NIOSSHUserAuthenticationRequest {
+public struct NIOSSHUserAuthenticationRequest: Sendable {
     /// The username for which the client would like to authenticate.
     public var username: String
 
@@ -98,7 +98,7 @@ public struct NIOSSHUserAuthenticationRequest {
 
 extension NIOSSHUserAuthenticationRequest {
     /// ``NIOSSHUserAuthenticationRequest/Request-swift.enum`` describes the kind of authentication attempt the client is making.
-    public enum Request {
+    public enum Request: Sendable {
         /// The client would like to perform public key authentication.
         case publicKey(PublicKey)
 
@@ -117,7 +117,7 @@ extension NIOSSHUserAuthenticationRequest {
 
 extension NIOSSHUserAuthenticationRequest.Request {
     /// Information provided by the client when attempting to perform a public-key authentication.
-    public struct PublicKey {
+    public struct PublicKey: Sendable {
         /// The user's public key.
         public var publicKey: NIOSSHPublicKey
 
@@ -127,7 +127,7 @@ extension NIOSSHUserAuthenticationRequest.Request {
     }
 
     /// Information provided by the client when attempting to perform password-based authentication.
-    public struct Password {
+    public struct Password: Sendable {
         /// The user's password.
         public var password: String
 
@@ -139,7 +139,7 @@ extension NIOSSHUserAuthenticationRequest.Request {
     /// Information provided by the client when attempting to perform host-based authentication.
     ///
     /// This method is currently unsupported by ``NIOSSH``.
-    public struct HostBased {
+    public struct HostBased: Sendable {
         init() {
             fatalError("PublicKeyRequest is currently unimplemented")
         }
@@ -158,7 +158,7 @@ extension NIOSSHUserAuthenticationRequest.Request.HostBased: Hashable {}
 
 /// A specific offer of user authentication. This type is the one used on the client side. The
 /// associated server side type is ``NIOSSHUserAuthenticationRequest``.
-public struct NIOSSHUserAuthenticationOffer {
+public struct NIOSSHUserAuthenticationOffer: Sendable {
     /// The username for which the client would like to authenticate.
     public var username: String
 
@@ -173,7 +173,7 @@ public struct NIOSSHUserAuthenticationOffer {
 
 extension NIOSSHUserAuthenticationOffer {
     /// ``NIOSSHUserAuthenticationOffer/Offer-swift.enum`` describes the kind of authentication offer the client is making.
-    public enum Offer {
+    public enum Offer: Sendable {
         /// The client would like to perform private key authentication.
         case privateKey(PrivateKey)
 
@@ -192,7 +192,7 @@ extension NIOSSHUserAuthenticationOffer {
 
 extension NIOSSHUserAuthenticationOffer.Offer {
     /// Information provided by the client when attempting to perform private key authentication.
-    public struct PrivateKey {
+    public struct PrivateKey: Sendable {
         /// The client's private key.
         ///
         /// This is not sent to the server, but is used by ``NIOSSH`` to respond to auth challenges.
@@ -215,7 +215,7 @@ extension NIOSSHUserAuthenticationOffer.Offer {
     }
 
     /// Information provided by the client when attempting to perform password-based authentication.
-    public struct Password {
+    public struct Password: Sendable {
         /// The client's password.
         public var password: String
 
@@ -227,7 +227,7 @@ extension NIOSSHUserAuthenticationOffer.Offer {
     /// Information provided by the client when attempting to perform host-based authentication.
     ///
     /// This method is currently unsupported by ``NIOSSH``.
-    public struct HostBased {
+    public struct HostBased: Sendable {
         init() {
             fatalError("PublicKeyRequest is currently unimplemented")
         }
@@ -261,7 +261,7 @@ extension SSHMessage.UserAuthRequestMessage {
 }
 
 /// The outcome of a user authentication attempt.
-public enum NIOSSHUserAuthenticationOutcome {
+public enum NIOSSHUserAuthenticationOutcome: Sendable {
     /// The authentication attempt succeeded and the client is authenticated.
     case success
 

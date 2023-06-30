@@ -21,7 +21,7 @@ import NIOCore
 /// exposing too many of the internals of swift-nio-ssh to these types.
 ///
 /// This type is entirely opaque to the user: all it can do is be serialized.
-public struct NIOSSHEncryptablePayload {
+public struct NIOSSHEncryptablePayload: Sendable {
     fileprivate var message: SSHMessage
 
     internal init(message: SSHMessage) {

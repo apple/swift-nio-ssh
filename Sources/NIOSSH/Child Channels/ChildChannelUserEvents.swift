@@ -121,7 +121,7 @@ public enum SSHChannelRequestEvent {
     }
 
     /// A request for this session to exec a command.
-    public struct ExecRequest: Hashable {
+    public struct ExecRequest: Hashable, Sendable {
         /// The command to exec.
         public var command: String
 

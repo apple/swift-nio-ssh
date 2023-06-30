@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Crypto
+@preconcurrency import Crypto
 import NIOCore
 
 /// The result of a round of key exchange.
@@ -46,7 +46,7 @@ extension KeyExchangeResult: Equatable {}
 /// Of these types, the encryption keys and the MAC keys are intended to be secret, and so
 /// we store them in the `SymmetricKey` types. The IVs do not need to be secret, and so are
 /// stored in regular heap buffers.
-public struct NIOSSHSessionKeys {
+public struct NIOSSHSessionKeys: Sendable {
     public var initialInboundIV: [UInt8]
 
     public var initialOutboundIV: [UInt8]
@@ -77,7 +77,7 @@ extension NIOSSHSessionKeys: Equatable {}
 /// hash function invocations. The output of these hash functions is truncated to an appropriate
 /// length as needed, which means we need to ensure the code doing the calculation knows how
 /// to truncate appropriately.
-public struct ExpectedKeySizes {
+public struct ExpectedKeySizes: Sendable {
     public var ivSize: Int
 
     public var encryptionKeySize: Int
