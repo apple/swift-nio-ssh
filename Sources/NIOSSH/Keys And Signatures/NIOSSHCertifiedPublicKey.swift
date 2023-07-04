@@ -242,6 +242,9 @@ public struct NIOSSHCertifiedPublicKey {
     }
 }
 
+// `NIOSSHCertifiedPublicKey` implements copy on write (CoW) and is therefore `Sendable`
+extension NIOSSHCertifiedPublicKey: @unchecked Sendable {}
+
 extension NIOSSHCertifiedPublicKey {
     /// Validates that a given certified public key is valid for usage.
     ///
@@ -400,7 +403,7 @@ extension NIOSSHCertifiedPublicKey {
     ///
     /// For extensibility purposes this is not defined as an enumeration, but instead as a `RawRepresentable` type
     /// wrapping the base type.
-    public struct CertificateType: RawRepresentable {
+    public struct CertificateType: RawRepresentable, Sendable {
         public var rawValue: UInt32
 
         public init(rawValue: UInt32) {
@@ -449,7 +452,7 @@ extension NIOSSHCertifiedPublicKey {
     /// SSH CA, and so the odds of them being uniquely owned are very high. Thus, the CoW costs are low.
     ///
     /// This all justifies moving this type into class-backed storage.
-    fileprivate class Backing {
+    fileprivate final class Backing {
         fileprivate var nonce: ByteBuffer
         fileprivate var serial: UInt64
         fileprivate var type: CertificateType

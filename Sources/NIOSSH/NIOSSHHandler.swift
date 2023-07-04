@@ -74,6 +74,9 @@ public final class NIOSSHHandler {
     }
 }
 
+@available(*, unavailable)
+extension NIOSSHHandler: Sendable {}
+
 extension NIOSSHHandler {
     enum PendingGlobalRequestResponse {
         case tcpForwarding(EventLoopPromise<GlobalRequest.TCPForwardingResponse?>)

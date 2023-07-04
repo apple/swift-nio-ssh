@@ -17,7 +17,7 @@ import NIOCore
 /// The various channel options specific to `SSHChildChannel`s.
 ///
 /// Please note that some of NIO's regular `ChannelOptions` are valid on `SSHChildChannel`s.
-public struct SSHChildChannelOptions {
+public struct SSHChildChannelOptions: Sendable {
     /// See: ``SSHChildChannelOptions/Types/LocalChannelIdentifierOption``.
     public static let localChannelIdentifier: SSHChildChannelOptions.Types.LocalChannelIdentifierOption = .init()
 

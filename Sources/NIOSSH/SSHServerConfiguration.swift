@@ -56,7 +56,7 @@ extension SSHServerConfiguration {
     /// A server sends a ``UserAuthBanner`` to the client at some point during authentication.
     /// A client is obligated to display this banner to the end user, unless explicitely told
     /// to ignore banners.
-    public struct UserAuthBanner {
+    public struct UserAuthBanner: Sendable {
         // The message to be displayed by the client to the end user during authentication.
         // Note that control characters contained in the message might be filtered by
         // the client in accordance with RFC 4252.

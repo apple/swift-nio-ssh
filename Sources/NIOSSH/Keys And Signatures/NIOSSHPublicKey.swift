@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Crypto
+@preconcurrency import Crypto
 import Foundation
 import NIOCore
 
@@ -23,7 +23,7 @@ import NIOCore
 /// to validate users.
 ///
 /// This key is not capable of signing, only verifying.
-public struct NIOSSHPublicKey: Hashable {
+public struct NIOSSHPublicKey: Sendable, Hashable {
     /// The actual key structure used to perform the key operations.
     internal var backingKey: BackingKey
 
