@@ -118,7 +118,7 @@ extension AcceptsUserAuthMessages {
             return SSHMultiMessage(.userAuthPKOK(message))
         }
     }
-    
+
     private static func transform(_ result: SSHMessage.UserAuthRequestMessage?) -> SSHMultiMessage? {
         result.map { SSHMultiMessage(.userAuthRequest($0)) }
     }
