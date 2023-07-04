@@ -62,11 +62,9 @@ extension AcceptsUserAuthMessages {
         let result = try self.userAuthStateMachine.receiveUserAuthRequest(message)
 
         if let future = result {
-            let banner: SSHServerConfiguration.UserAuthBanner?
+            var banner: SSHServerConfiguration.UserAuthBanner?
             if case .server(let config) = role {
                 banner = config.banner
-            } else {
-                banner = nil
             }
 
             return .possibleFutureMessage(future.map { Self.transform($0, banner: banner) })
