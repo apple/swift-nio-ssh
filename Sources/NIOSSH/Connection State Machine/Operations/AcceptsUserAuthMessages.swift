@@ -113,7 +113,6 @@ extension AcceptsUserAuthMessages {
         }
     }
 
-    @Sendable
     private static func transform(_ result: SSHMessage.UserAuthRequestMessage?) -> SSHMultiMessage? {
         result.map { SSHMultiMessage(.userAuthRequest($0)) }
     }
