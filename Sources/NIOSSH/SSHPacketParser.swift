@@ -23,6 +23,7 @@ struct SSHPacketParser {
         case encryptedWaitingForBytes(UInt32, NIOSSHTransportProtection)
     }
 
+    private let isServer: Bool
     private var buffer: ByteBuffer
     private var state: State
     private(set) var sequenceNumber: UInt32
@@ -32,7 +33,8 @@ struct SSHPacketParser {
         self.buffer.readerIndex
     }
 
-    init(allocator: ByteBufferAllocator) {
+    init(isServer: Bool, allocator: ByteBufferAllocator) {
+        self.isServer = isServer
         self.buffer = allocator.buffer(capacity: 0)
         self.state = .initialized
         self.sequenceNumber = 0
@@ -121,18 +123,31 @@ struct SSHPacketParser {
         let carriageReturn = UInt8(ascii: "\r")
         let lineFeed = UInt8(ascii: "\n")
 
-        // Search for version line, which starts with "SSH-". Lines without this prefix may come before the version line.
-        var slice = self.buffer.readableBytesView
-        while let lfIndex = slice.firstIndex(of: lineFeed), lfIndex < slice.endIndex {
-            if slice.starts(with: "SSH-".utf8) {
-                // Return all data upto the last LF we found, excluding the last [CR]LF.
-                slice = self.buffer.readableBytesView
+        // Per RFC 4253 §4.2:
+        //  The server MAY send other lines of data before sending the version string.
+        // This means that server does not expect any lines before version so we will return all data before first line feed
+        if self.isServer {
+            // Looking for a string ending with \r\n
+            let slice = self.buffer.readableBytesView
+            if let lfIndex = slice.firstIndex(of: lineFeed), lfIndex < slice.endIndex {
                 let versionEndIndex = slice[lfIndex.advanced(by: -1)] == carriageReturn ? lfIndex.advanced(by: -1) : lfIndex
                 let version = String(decoding: slice[slice.startIndex ..< versionEndIndex], as: UTF8.self)
                 self.buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: lfIndex).advanced(by: 1))
                 return version
-            } else {
-                slice = slice[slice.index(after: lfIndex)...]
+            }
+        } else {
+            // Search for version line, which starts with "SSH-". Lines without this prefix may come before the version line.
+            var slice = self.buffer.readableBytesView
+            let startIndex = slice.startIndex
+            while let lfIndex = slice.firstIndex(of: lineFeed), lfIndex < slice.endIndex {
+                if slice.starts(with: "SSH-".utf8) {
+                    let versionEndIndex = slice[lfIndex.advanced(by: -1)] == carriageReturn ? lfIndex.advanced(by: -1) : lfIndex
+                    let version = String(decoding: slice[slice.startIndex ..< versionEndIndex], as: UTF8.self)
+                    self.buffer.moveReaderIndex(forwardBy: startIndex.distance(to: lfIndex).advanced(by: 1))
+                    return version
+                } else {
+                    slice = slice[slice.index(after: lfIndex)...]
+                }
             }
         }
         return nil
