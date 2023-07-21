@@ -120,7 +120,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
                     .channelOption(ChannelOptions.allowRemoteHalfClosure, value: true)
                     .channelInitializer { pipeChannel in
                         pipeChannel.pipeline.addHandler(theirs)
-                    }.withPipes(inputDescriptor: dup(outPipe.fileHandleForReading.fileDescriptor), outputDescriptor: dup(inPipe.fileHandleForWriting.fileDescriptor)).wait()
+                    }.takingOwnershipOfDescriptors(input: dup(outPipe.fileHandleForReading.fileDescriptor), output: dup(inPipe.fileHandleForWriting.fileDescriptor)).wait()
 
                 // Ok, great, we've sorted stdout and stdin. For stderr we need a different strategy: we just park a thread for this.
                 DispatchQueue(label: "stderrorwhatever").async {

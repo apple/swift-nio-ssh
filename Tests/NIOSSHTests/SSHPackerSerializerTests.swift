@@ -51,7 +51,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         let message = SSHMessage.disconnect(.init(reason: 42, description: "description", tag: "tag"))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
-        var parser = SSHPacketParser(allocator: allocator)
+        var parser = SSHPacketParser(isServer: false, allocator: allocator)
 
         self.runVersionHandshake(serializer: &serializer, parser: &parser)
 
@@ -74,7 +74,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         let message = SSHMessage.serviceRequest(.init(service: "ssh-userauth"))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
-        var parser = SSHPacketParser(allocator: allocator)
+        var parser = SSHPacketParser(isServer: false, allocator: allocator)
 
         self.runVersionHandshake(serializer: &serializer, parser: &parser)
 
@@ -97,7 +97,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         let message = SSHMessage.serviceAccept(.init(service: "ssh-userauth"))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
-        var parser = SSHPacketParser(allocator: allocator)
+        var parser = SSHPacketParser(isServer: false, allocator: allocator)
 
         self.runVersionHandshake(serializer: &serializer, parser: &parser)
 
@@ -133,7 +133,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         ))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
-        var parser = SSHPacketParser(allocator: allocator)
+        var parser = SSHPacketParser(isServer: false, allocator: allocator)
 
         self.runVersionHandshake(serializer: &serializer, parser: &parser)
 
@@ -165,7 +165,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         let message = SSHMessage.keyExchangeInit(.init(publicKey: ByteBuffer.of(bytes: [42])))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
-        var parser = SSHPacketParser(allocator: allocator)
+        var parser = SSHPacketParser(isServer: false, allocator: allocator)
 
         self.runVersionHandshake(serializer: &serializer, parser: &parser)
 
@@ -193,7 +193,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         ))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
-        var parser = SSHPacketParser(allocator: allocator)
+        var parser = SSHPacketParser(isServer: false, allocator: allocator)
 
         self.runVersionHandshake(serializer: &serializer, parser: &parser)
 
@@ -226,7 +226,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         let message = SSHMessage.newKeys
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
-        var parser = SSHPacketParser(allocator: allocator)
+        var parser = SSHPacketParser(isServer: false, allocator: allocator)
 
         self.runVersionHandshake(serializer: &serializer, parser: &parser)
 
@@ -247,7 +247,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         let message = SSHMessage.newKeys
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
-        var parser = SSHPacketParser(allocator: allocator)
+        var parser = SSHPacketParser(isServer: false, allocator: allocator)
 
         self.runVersionHandshake(serializer: &serializer, parser: &parser)
 

@@ -25,7 +25,7 @@ final class SSHEncryptedTrafficTests: XCTestCase {
 
     override func setUp() {
         self.serializer = SSHPacketSerializer()
-        self.parser = SSHPacketParser(allocator: .init())
+        self.parser = SSHPacketParser(isServer: false, allocator: .init())
 
         self.assertPacketRoundTrips(.version("SSH-2.0-SwiftSSH_1.0"))
     }

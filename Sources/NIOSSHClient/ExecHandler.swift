@@ -48,7 +48,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
             DispatchQueue(label: "pipe bootstrap").async {
                 bootstrap.channelOption(ChannelOptions.allowRemoteHalfClosure, value: true).channelInitializer { channel in
                     channel.pipeline.addHandler(theirs)
-                }.withPipes(inputDescriptor: 0, outputDescriptor: 1).whenComplete { result in
+                }.takingOwnershipOfDescriptors(input: 0, output: 1).whenComplete { result in
                     switch result {
                     case .success:
                         // We need to exec a thing.
