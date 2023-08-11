@@ -18,7 +18,7 @@ protocol Benchmark: AnyObject {
     func run() throws -> Int
 }
 
-@MainActor func measureAndPrint<B: Benchmark>(desc: String, benchmark bench: B) throws {
+func measureAndPrint<B: Benchmark>(desc: String, benchmark bench: B) throws {
     try bench.setUp()
     defer {
         bench.tearDown()
