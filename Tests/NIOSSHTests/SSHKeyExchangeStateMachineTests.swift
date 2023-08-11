@@ -988,7 +988,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let response = try assertNoThrowWithValue(client.handle(keyExchangeReply: ecdhReply))
 
         // This future has not completed yet.
-        var completed = false
+        let completed = NIOLoopBoundBox(false, eventLoop: response.eventLoop)
         response.whenComplete { result in
             switch result {
             case .success:
@@ -996,9 +996,9 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
             case .failure(let error):
                 XCTAssertEqual(error as? TestError, .bang)
             }
-            completed = true
+            completed.value = true
         }
-        XCTAssertFalse(completed)
+        XCTAssertFalse(completed.value)
 
         // The host key we gave the delegate matches the one we got.
         guard let (hostKey, promise) = hostKeyDelegate.data else {
@@ -1007,11 +1007,11 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         }
 
         XCTAssertEqual(hostKey, serverHostKey.publicKey)
-        XCTAssertFalse(completed)
+        XCTAssertFalse(completed.value)
 
         // Fail the promise.
         promise.fail(TestError.bang)
-        XCTAssertTrue(completed)
+        XCTAssertTrue(completed.value)
     }
 }
 
