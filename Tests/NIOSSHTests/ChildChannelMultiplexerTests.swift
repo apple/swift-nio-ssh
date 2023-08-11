@@ -1447,7 +1447,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         XCTAssertEqual(harness.flushedMessages.count, 0)
 
-        let childPromiseError =  NIOLoopBoundBox<Error?>(nil, eventLoop: harness.eventLoop)
+        let childPromiseError = NIOLoopBoundBox<Error?>(nil, eventLoop: harness.eventLoop)
         let childPromise: EventLoopPromise<Channel> = harness.eventLoop.makePromise()
         childPromise.futureResult.whenFailure { error in childPromiseError.value = error }
         harness.multiplexer.createChildChannel(childPromise, channelType: .session) { channel, _ in
