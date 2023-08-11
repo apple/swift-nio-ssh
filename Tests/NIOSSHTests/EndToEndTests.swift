@@ -87,7 +87,8 @@ class BackToBackEmbeddedChannel {
         let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate, banner: harness.serverAuthBanner)),
                                           allocator: self.server.allocator) { channel, _ in
             self.activeServerChannels.append(channel)
-            channel.closeFuture.whenComplete { _ in self.activeServerChannels.removeAll(where: { $0 === channel }) }
+            let boxedSelf = NIOLoopBound(self, eventLoop: channel.eventLoop)
+            channel.closeFuture.whenComplete { _ in boxedSelf.value.activeServerChannels.removeAll(where: { $0 === channel }) }
             return channel.eventLoop.makeSucceededFuture(())
         }
 
@@ -337,21 +338,21 @@ class EndToEndTests: XCTestCase {
     }
 
     func testGlobalRequestTooEarlyIsDelayed() throws {
-        var completed = false
+        let completed = NIOLoopBoundBox(false, eventLoop: self.channel.client.eventLoop)
         let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
-        promise.futureResult.whenComplete { _ in completed = true }
+        promise.futureResult.whenComplete { _ in completed.value = true }
 
         XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
 
         // Issue a forwarding request early. This should be queued.
         self.channel.clientSSHHandler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 2222), promise: promise)
-        XCTAssertFalse(completed)
+        XCTAssertFalse(completed.value)
 
         // Activate. This will complete the forwarding request.
         XCTAssertNoThrow(try self.channel.activate())
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
-        XCTAssertTrue(completed)
+        XCTAssertTrue(completed.value)
     }
 
     func testGlobalRequestsAreCancelledIfRemoved() throws {
@@ -360,32 +361,32 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
         // Enqueue a global request.
-        var err: Error?
+        let err = NIOLoopBoundBox<Error?>(nil, eventLoop: self.channel.client.eventLoop)
         let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
-        promise.futureResult.whenFailure { error in err = error }
+        promise.futureResult.whenFailure { error in err.value = error }
         self.channel.clientSSHHandler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 1234), promise: promise)
-        XCTAssertNil(err)
+        XCTAssertNil(err.value)
 
         self.channel.client.close(promise: nil)
         XCTAssertNoThrow(try self.channel.interactInMemory())
-        XCTAssertEqual(err as? ChannelError, .eof)
+        XCTAssertEqual(err.value as? ChannelError, .eof)
     }
 
     func testNeverStartedGlobalRequestsAreCancelledIfRemoved() throws {
-        var err: Error?
+        let err = NIOLoopBoundBox<Error?>(nil, eventLoop: self.channel.client.eventLoop)
         let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
-        promise.futureResult.whenFailure { error in err = error }
+        promise.futureResult.whenFailure { error in err.value = error }
 
         XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
 
         // Enqueue a forwarding request
         self.channel.clientSSHHandler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 1234), promise: promise)
-        XCTAssertNil(err)
+        XCTAssertNil(err.value)
 
         // Now close the channel.
         self.channel.client.close(promise: nil)
         XCTAssertNoThrow(try self.channel.interactInMemory())
-        XCTAssertEqual(err as? ChannelError, .eof)
+        XCTAssertEqual(err.value as? ChannelError, .eof)
     }
 
     func testGlobalRequestAfterCloseFails() throws {
@@ -401,11 +402,11 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
         // Enqueue a global request.
-        var err: Error?
+        let err = NIOLoopBoundBox<Error?>(nil, eventLoop: self.channel.client.eventLoop)
         let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
-        promise.futureResult.whenFailure { error in err = error }
+        promise.futureResult.whenFailure { error in err.value = error }
         handler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 1234), promise: promise)
-        XCTAssertEqual(err as? ChannelError, .ioOnClosedChannel)
+        XCTAssertEqual(err.value as? ChannelError, .ioOnClosedChannel)
     }
 
     func testSecureEnclaveKeys() throws {
@@ -475,8 +476,10 @@ class EndToEndTests: XCTestCase {
 
             func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
                 // Short delay here, but we'll be forced to wait.
+                let eventLoopSelf = NIOLoopBoundBox(self,
+                                                               eventLoop: validationCompletePromise.futureResult.eventLoop)
                 validationCompletePromise.futureResult.eventLoop.scheduleTask(in: .milliseconds(100)) {
-                    self.validationCount += 1
+                    eventLoopSelf.value.validationCount += 1
                     validationCompletePromise.succeed(())
                 }
             }
@@ -551,13 +554,13 @@ class EndToEndTests: XCTestCase {
         // Get an early ref to the handler and try to create a child channel.
         let handler = self.channel.clientSSHHandler
 
-        var err: Error?
+        let err = NIOLoopBoundBox<Error?>(nil, eventLoop: self.channel.client.eventLoop)
         let promise = self.channel.client.eventLoop.makePromise(of: Channel.self)
-        promise.futureResult.whenFailure { error in err = error }
+        promise.futureResult.whenFailure { error in err.value = error }
         handler!.createChannel(promise, channelType: .session) { channel, _ in
             channel.eventLoop.makeSucceededFuture(())
         }
-        XCTAssertNil(err)
+        XCTAssertNil(err.value)
 
         // Activation errors.
         XCTAssertNoThrow(try self.channel.activate())
@@ -565,7 +568,7 @@ class EndToEndTests: XCTestCase {
             XCTAssertEqual(error as? TestError, .bang)
         }
         self.channel.run()
-        XCTAssertEqual(err as? ChannelError?, .eof)
+        XCTAssertEqual(err.value as? ChannelError?, .eof)
     }
 
     func testCreateChannelAfterDisconnectFailsWithEventLoopTick() throws {
@@ -578,16 +581,16 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
         // Attempting to create a child channel should immediately fail.
-        var err: Error?
+        let err = NIOLoopBoundBox<Error?>(nil, eventLoop: self.channel.client.eventLoop)
         let promise = self.channel.client.eventLoop.makePromise(of: Channel.self)
-        promise.futureResult.whenFailure { error in err = error }
+        promise.futureResult.whenFailure { error in err.value = error }
         self.channel.clientSSHHandler!.createChannel(promise, channelType: .session) { channel, _ in
             channel.eventLoop.makeSucceededFuture(())
         }
         self.channel.run()
 
-        XCTAssertNotNil(err)
-        XCTAssertEqual((err as? NIOSSHError)?.type, .creatingChannelAfterClosure)
+        XCTAssertNotNil(err.value)
+        XCTAssertEqual((err.value as? NIOSSHError)?.type, .creatingChannelAfterClosure)
     }
 
     func testCreateChannelAfterDisconnectFailsWithoutEventLoopTick() throws {
@@ -600,16 +603,16 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
         // Attempting to create a child channel should immediately fail.
-        var err: Error?
+        let err = NIOLoopBoundBox<Error?>(nil, eventLoop: self.channel.client.eventLoop)
         let promise = self.channel.client.eventLoop.makePromise(of: Channel.self)
-        promise.futureResult.whenFailure { error in err = error }
+        promise.futureResult.whenFailure { error in err.value = error }
         self.channel.clientSSHHandler!.createChannel(promise, channelType: .session) { channel, _ in
             channel.eventLoop.makeSucceededFuture(())
         }
         self.channel.run()
 
-        XCTAssertNotNil(err)
-        XCTAssertEqual((err as? NIOSSHError)?.type, .creatingChannelAfterClosure)
+        XCTAssertNotNil(err.value)
+        XCTAssertEqual((err.value as? NIOSSHError)?.type, .creatingChannelAfterClosure)
     }
 
     func testHandshakeSuccess() throws {
