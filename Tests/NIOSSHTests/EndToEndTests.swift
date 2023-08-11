@@ -216,11 +216,11 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try serverChannel.pipeline.addHandler(userEventRecorder).wait())
 
         func helper<Event: Equatable>(_ event: Event) {
-            var clientSent = false
-            clientChannel.triggerUserOutboundEvent(event).whenSuccess { clientSent = true }
+            let clientSent = NIOLoopBoundBox(false, eventLoop: clientChannel.eventLoop)
+            clientChannel.triggerUserOutboundEvent(event).whenSuccess { clientSent.value = true }
             XCTAssertNoThrow(try self.channel.interactInMemory())
 
-            XCTAssertTrue(clientSent)
+            XCTAssertTrue(clientSent.value)
             XCTAssertEqual(userEventRecorder.userEvents.last as? Event?, event)
         }
 
