@@ -477,7 +477,7 @@ class EndToEndTests: XCTestCase {
             func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
                 // Short delay here, but we'll be forced to wait.
                 let eventLoopSelf = NIOLoopBoundBox(self,
-                                                               eventLoop: validationCompletePromise.futureResult.eventLoop)
+                                                    eventLoop: validationCompletePromise.futureResult.eventLoop)
                 validationCompletePromise.futureResult.eventLoop.scheduleTask(in: .milliseconds(100)) {
                     eventLoopSelf.value.validationCount += 1
                     validationCompletePromise.succeed(())
