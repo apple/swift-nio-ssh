@@ -14,7 +14,7 @@
 
 import Foundation
 import NIOCore
-import CryptoKit
+import Crypto
 
 struct Curve25519Signature: NIOSSHSignatureProtocol {
     static let signaturePrefix = "ssh-ed25519"
