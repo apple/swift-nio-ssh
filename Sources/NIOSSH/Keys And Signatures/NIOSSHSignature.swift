@@ -22,94 +22,24 @@ import NIOFoundationCompat
 /// This type is intentionally highly opaque: we don't expect users to do anything with this directly.
 /// Instead, we expect them to work with other APIs available on our opaque types.
 public struct NIOSSHSignature: Hashable, Sendable {
-    internal var backingSignature: BackingSignature
+    public internal(set) var backingSignature: NIOSSHSignatureProtocol
 
-    internal init(backingSignature: BackingSignature) {
+    public var rawRepresentation: Data {
+        backingSignature.rawRepresentation
+    }
+
+    internal init(backingSignature: NIOSSHSignatureProtocol) {
         self.backingSignature = backingSignature
     }
-}
 
-extension NIOSSHSignature {
-    /// The various signature types that can be used with NIOSSH.
-    internal enum BackingSignature: Sendable {
-        case ed25519(RawBytes) // There is no structured Signature type for Curve25519, and we may want Data or ByteBuffer.
-        case ecdsaP256(P256.Signing.ECDSASignature)
-        case ecdsaP384(P384.Signing.ECDSASignature)
-        case ecdsaP521(P521.Signing.ECDSASignature)
-
-        internal enum RawBytes {
-            case byteBuffer(ByteBuffer)
-            case data(Data)
-        }
+    public static func ==(lhs: NIOSSHSignature, rhs: NIOSSHSignature) -> Bool {
+        lhs.backingSignature.signaturePrefix == rhs.backingSignature.signaturePrefix &&
+            lhs.backingSignature.rawRepresentation == rhs.backingSignature.rawRepresentation
     }
 
-    /// The prefix of an Ed25519 signature.
-    fileprivate static let ed25519SignaturePrefix = "ssh-ed25519".utf8
-
-    /// The prefix of a P256 ECDSA public key.
-    fileprivate static let ecdsaP256SignaturePrefix = "ecdsa-sha2-nistp256".utf8
-
-    /// The prefix of a P384 ECDSA public key.
-    fileprivate static let ecdsaP384SignaturePrefix = "ecdsa-sha2-nistp384".utf8
-
-    /// The prefix of a P521 ECDSA public key.
-    fileprivate static let ecdsaP521SignaturePrefix = "ecdsa-sha2-nistp521".utf8
-}
-
-extension NIOSSHSignature.BackingSignature.RawBytes: Equatable {
-    public static func == (lhs: NIOSSHSignature.BackingSignature.RawBytes, rhs: NIOSSHSignature.BackingSignature.RawBytes) -> Bool {
-        switch (lhs, rhs) {
-        case (.byteBuffer(let lhs), .byteBuffer(let rhs)):
-            return lhs == rhs
-        case (.data(let lhs), .data(let rhs)):
-            return lhs == rhs
-        case (.byteBuffer(let lhs), .data(let rhs)):
-            return lhs.readableBytesView.elementsEqual(rhs)
-        case (.data(let lhs), .byteBuffer(let rhs)):
-            return rhs.readableBytesView.elementsEqual(lhs)
-        }
-    }
-}
-
-extension NIOSSHSignature.BackingSignature.RawBytes: Hashable {}
-
-extension NIOSSHSignature.BackingSignature: Equatable {
-    static func == (lhs: NIOSSHSignature.BackingSignature, rhs: NIOSSHSignature.BackingSignature) -> Bool {
-        // We implement equatable in terms of the key representation.
-        switch (lhs, rhs) {
-        case (.ed25519(let lhs), .ed25519(let rhs)):
-            return lhs == rhs
-        case (.ecdsaP256(let lhs), .ecdsaP256(let rhs)):
-            return lhs.rawRepresentation == rhs.rawRepresentation
-        case (.ecdsaP384(let lhs), .ecdsaP384(let rhs)):
-            return lhs.rawRepresentation == rhs.rawRepresentation
-        case (.ecdsaP521(let lhs), .ecdsaP521(let rhs)):
-            return lhs.rawRepresentation == rhs.rawRepresentation
-        case (.ed25519, _),
-             (.ecdsaP256, _),
-             (.ecdsaP384, _),
-             (.ecdsaP521, _):
-            return false
-        }
-    }
-}
-
-extension NIOSSHSignature.BackingSignature: Hashable {
-    func hash(into hasher: inout Hasher) {
-        switch self {
-        case .ed25519(let bytes):
-            hasher.combine(0)
-            hasher.combine(bytes)
-        case .ecdsaP256(let sig):
-            hasher.combine(1)
-            hasher.combine(sig.rawRepresentation)
-        case .ecdsaP384(let sig):
-            hasher.combine(2)
-            hasher.combine(sig.rawRepresentation)
-        case .ecdsaP521(let sig):
-            hasher.combine(3)
-            hasher.combine(sig.rawRepresentation)
-        }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(backingSignature.signaturePrefix)
+        hasher.combine(backingSignature.rawRepresentation)
     }
 }
 
@@ -117,35 +47,20 @@ extension ByteBuffer {
     /// Writes an SSH host key to this `ByteBuffer`.
     @discardableResult
     mutating func writeSSHSignature(_ sig: NIOSSHSignature) -> Int {
-        switch sig.backingSignature {
-        case .ed25519(let sig):
-            return self.writeEd25519Signature(signatureBytes: sig)
-        case .ecdsaP256(let sig):
-            return self.writeECDSAP256Signature(baseSignature: sig)
-        case .ecdsaP384(let sig):
-            return self.writeECDSAP384Signature(baseSignature: sig)
-        case .ecdsaP521(let sig):
-            return self.writeECDSAP521Signature(baseSignature: sig)
-        }
+        sig.backingSignature.write(to: &self)
     }
 
-    private mutating func writeEd25519Signature(signatureBytes: NIOSSHSignature.BackingSignature.RawBytes) -> Int {
+    mutating func writeEd25519Signature(signature: Curve25519Signature) -> Int {
         // The Ed25519 signature format is easy: the ed25519 signature prefix, followed by
         // the raw signature bytes.
-        var writtenLength = self.writeSSHString(NIOSSHSignature.ed25519SignaturePrefix)
-
-        switch signatureBytes {
-        case .byteBuffer(var buf):
-            writtenLength += self.writeSSHString(&buf)
-        case .data(let d):
-            writtenLength += self.writeSSHString(d)
-        }
+        var writtenLength = self.writeSSHString(Curve25519Signature.signaturePrefix.utf8)
+        writtenLength += self.writeSSHString(signature.rawRepresentation)
 
         return writtenLength
     }
 
-    private mutating func writeECDSAP256Signature(baseSignature: P256.Signing.ECDSASignature) -> Int {
-        var writtenLength = self.writeSSHString(NIOSSHSignature.ecdsaP256SignaturePrefix)
+    mutating func writeECDSAP256Signature(baseSignature: P256.Signing.ECDSASignature) -> Int {
+        var writtenLength = self.writeSSHString(P256.Signing.ECDSASignature.signaturePrefix.utf8)
 
         // For ECDSA-P256, the key format is `mpint r` followed by `mpint s`. In this context, `r` is the
         // first 32 bytes, and `s` is the second.
@@ -164,8 +79,8 @@ extension ByteBuffer {
         return writtenLength
     }
 
-    private mutating func writeECDSAP384Signature(baseSignature: P384.Signing.ECDSASignature) -> Int {
-        var writtenLength = self.writeSSHString(NIOSSHSignature.ecdsaP384SignaturePrefix)
+    mutating func writeECDSAP384Signature(baseSignature: P384.Signing.ECDSASignature) -> Int {
+        var writtenLength = self.writeSSHString(P384.Signing.ECDSASignature.signaturePrefix.utf8)
 
         // For ECDSA-P384, the key format is `mpint r` followed by `mpint s`. In this context, `r` is the
         // first 48 bytes, and `s` is the second.
@@ -184,8 +99,8 @@ extension ByteBuffer {
         return writtenLength
     }
 
-    private mutating func writeECDSAP521Signature(baseSignature: P521.Signing.ECDSASignature) -> Int {
-        var writtenLength = self.writeSSHString(NIOSSHSignature.ecdsaP521SignaturePrefix)
+    mutating func writeECDSAP521Signature(baseSignature: P521.Signing.ECDSASignature) -> Int {
+        var writtenLength = self.writeSSHString(P521.Signing.ECDSASignature.signaturePrefix.utf8)
 
         // For ECDSA-P521, the key format is `mpint r` followed by `mpint s`. In this context, `r` is the
         // first 66 bytes, and `s` is the second.
@@ -205,7 +120,7 @@ extension ByteBuffer {
     }
 
     mutating func readSSHSignature() throws -> NIOSSHSignature? {
-        try self.rewindOnNilOrError { buffer in
+        try self.rewindOnNilOrError { buffer -> NIOSSHSignature? in
             // The wire format always begins with an SSH string containing the signature format identifier. Let's grab that.
             guard var signatureIdentifierBytes = buffer.readSSHString() else {
                 return nil
@@ -213,13 +128,13 @@ extension ByteBuffer {
 
             // Now we need to check if they match our supported signature algorithms.
             let bytesView = signatureIdentifierBytes.readableBytesView
-            if bytesView.elementsEqual(NIOSSHSignature.ed25519SignaturePrefix) {
+            if bytesView.elementsEqual(Curve25519Signature.signaturePrefix.utf8) {
                 return try buffer.readEd25519Signature()
-            } else if bytesView.elementsEqual(NIOSSHSignature.ecdsaP256SignaturePrefix) {
+            } else if bytesView.elementsEqual(P256.Signing.ECDSASignature.signaturePrefix.utf8) {
                 return try buffer.readECDSAP256Signature()
-            } else if bytesView.elementsEqual(NIOSSHSignature.ecdsaP384SignaturePrefix) {
+            } else if bytesView.elementsEqual(P384.Signing.ECDSASignature.signaturePrefix.utf8) {
                 return try buffer.readECDSAP384Signature()
-            } else if bytesView.elementsEqual(NIOSSHSignature.ecdsaP521SignaturePrefix) {
+            } else if bytesView.elementsEqual(P521.Signing.ECDSASignature.signaturePrefix.utf8) {
                 return try buffer.readECDSAP521Signature()
             } else {
                 // We don't know this signature type.
@@ -235,11 +150,13 @@ extension ByteBuffer {
     /// the rewind.
     private mutating func readEd25519Signature() throws -> NIOSSHSignature? {
         // For ed25519 the signature is just r||s encoded as a String.
-        guard let sigBytes = self.readSSHString() else {
+        guard var sigBytes = self.readSSHString() else {
             return nil
         }
 
-        return NIOSSHSignature(backingSignature: .ed25519(.byteBuffer(sigBytes)))
+        return NIOSSHSignature(backingSignature: Curve25519Signature(
+            rawRepresentation: sigBytes.readData(length: sigBytes.readableBytes)!
+        ))
     }
 
     /// A helper function that reads an ECDSA P-256 signature.
@@ -257,7 +174,9 @@ extension ByteBuffer {
 
         // Time to put these into the raw format that CryptoKit wants. This is r || s, with each
         // integer explicitly left-padded with zeros.
-        return try NIOSSHSignature(backingSignature: .ecdsaP256(ECDSASignatureHelper.toECDSASignature(r: rBytes, s: sBytes)))
+        return try NIOSSHSignature(
+            backingSignature: ECDSASignatureHelper.toECDSASignature(r: rBytes, s: sBytes) as P256.Signing.ECDSASignature
+        )
     }
 
     /// A helper function that reads an ECDSA P-384 signature.
@@ -275,7 +194,7 @@ extension ByteBuffer {
 
         // Time to put these into the raw format that CryptoKit wants. This is r || s, with each
         // integer explicitly left-padded with zeros.
-        return try NIOSSHSignature(backingSignature: .ecdsaP384(ECDSASignatureHelper.toECDSASignature(r: rBytes, s: sBytes)))
+        return try NIOSSHSignature(backingSignature: ECDSASignatureHelper.toECDSASignature(r: rBytes, s: sBytes) as P384.Signing.ECDSASignature)
     }
 
     /// A helper function that reads an ECDSA P-521 signature.
@@ -293,7 +212,7 @@ extension ByteBuffer {
 
         // Time to put these into the raw format that CryptoKit wants. This is r || s, with each
         // integer explicitly left-padded with zeros.
-        return try NIOSSHSignature(backingSignature: .ecdsaP521(ECDSASignatureHelper.toECDSASignature(r: rBytes, s: sBytes)))
+        return try NIOSSHSignature(backingSignature: ECDSASignatureHelper.toECDSASignature(r: rBytes, s: sBytes) as P521.Signing.ECDSASignature)
     }
 }
 

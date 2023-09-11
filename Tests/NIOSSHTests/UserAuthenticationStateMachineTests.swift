@@ -780,10 +780,10 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
         stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
 
-        let dataToSign = UserAuthSignablePayload(sessionIdentifier: self.sessionID, userName: "foo", serviceName: "ssh-connection", publicKey: NIOSSHPublicKey(delegate.certifiedKey))
+        let dataToSign = UserAuthSignablePayload(sessionIdentifier: self.sessionID, userName: "foo", serviceName: "ssh-connection", publicKey: NIOSSHPublicKey(backingKey: delegate.certifiedKey))
         let signature = try delegate.privateKey.sign(dataToSign)
 
-        let firstMessage = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .publicKey(.known(key: NIOSSHPublicKey(delegate.certifiedKey), signature: signature)))
+        let firstMessage = SSHMessage.UserAuthRequestMessage(username: "foo", service: "ssh-connection", method: .publicKey(.known(key: NIOSSHPublicKey(backingKey: delegate.certifiedKey), signature: signature)))
         XCTAssertNoThrow(try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, userAuthPayload: dataToSign, stateMachine: &stateMachine))
         stateMachine.sendUserAuthRequest(firstMessage)
 

@@ -378,7 +378,7 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
 
     func testExtraECDHReplyForbidden() throws {
         let privateKey = Curve25519.Signing.PrivateKey()
-        let message = SSHMessage.keyExchangeReply(.init(hostKey: .init(backingKey: .ed25519(privateKey.publicKey)), publicKey: ByteBufferAllocator().buffer(capacity: 1024), signature: .init(backingSignature: .ed25519(.byteBuffer(ByteBufferAllocator().buffer(capacity: 1024))))))
+        let message = SSHMessage.keyExchangeReply(.init(hostKey: .init(backingKey: privateKey.publicKey), publicKey: ByteBufferAllocator().buffer(capacity: 1024), signature: .init(backingSignature: Curve25519Signature(rawRepresentation: Data(repeating: 0x00, count: 1024)))))
         try self.assertSendingExtraMessageFails(message: message, allowedStages: .beforeReceiveKeyExchangeReplyClient)
     }
 
