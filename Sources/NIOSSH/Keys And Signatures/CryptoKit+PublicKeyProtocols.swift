@@ -14,7 +14,7 @@
 
 import Foundation
 import NIOCore
-import CryptoKit
+import Crypto
 
 extension Curve25519.Signing.PublicKey: NIOSSHPublicKeyProtocol {
     internal static var prefix: String { "ssh-ed25519" }
