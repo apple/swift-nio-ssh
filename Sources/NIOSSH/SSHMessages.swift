@@ -1289,7 +1289,7 @@ extension ByteBuffer {
         ///
         /// - See: https://github.com/apple/swift/issues/69883
         var joinedAlgorithms: [UInt8] = []
-        joinedAlgorithms.reserveCapacity(algorithms.reduce(0, { $0 + $1.count + 1 }))
+        joinedAlgorithms.reserveCapacity(algorithms.reduce(0) { $0 + $1.count + 1 })
         var iterator = algorithms.makeIterator()
         if let algorithm = iterator.next() {
             joinedAlgorithms.append(contentsOf: algorithm.utf8)
