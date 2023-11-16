@@ -14,9 +14,9 @@ services:
   test:
     image: swift-nio-ssh:22.04-5.10
     environment:
-      - MAX_ALLOCS_ALLOWED_client_server_many_small_commands_per_connection=199900
-      - MAX_ALLOCS_ALLOWED_client_server_one_command_per_connection=1060050
-      - MAX_ALLOCS_ALLOWED_client_server_streaming_large_message_in_small_chunks=43050
+      - MAX_ALLOCS_ALLOWED_client_server_many_small_commands_per_connection=193750
+      - MAX_ALLOCS_ALLOWED_client_server_one_command_per_connection=939050
+      - MAX_ALLOCS_ALLOWED_client_server_streaming_large_message_in_small_chunks=40950
       - IMPORT_CHECK_ARG=--explicit-target-dependency-import-check error
       #- SANITIZER_ARG=--sanitize=thread
       - WARN_AS_ERROR_ARG=-Xswiftc -warnings-as-errors
