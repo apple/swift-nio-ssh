@@ -1285,7 +1285,20 @@ extension ByteBuffer {
     }
 
     mutating func writeAlgorithms(_ algorithms: [Substring]) -> Int {
-        self.writeSSHString(algorithms.joined(separator: ",").utf8)
+        /// Work around the lack of sepicalized `[Substring].join` since Swift 5.9:
+        ///
+        /// - See: https://github.com/apple/swift/issues/69883
+        var joinedAlgorithms: [UInt8] = []
+        joinedAlgorithms.reserveCapacity(algorithms.reduce(0) { $0 + $1.count + 1 })
+        var iterator = algorithms.makeIterator()
+        if let algorithm = iterator.next() {
+            joinedAlgorithms.append(contentsOf: algorithm.utf8)
+            while let algorithm = iterator.next() {
+                joinedAlgorithms.append(UInt8(ascii: ","))
+                joinedAlgorithms.append(contentsOf: algorithm.utf8)
+            }
+        }
+        return self.writeSSHString(joinedAlgorithms)
     }
 
     mutating func writeUserAuthRequestMessage(_ message: SSHMessage.UserAuthRequestMessage) -> Int {
