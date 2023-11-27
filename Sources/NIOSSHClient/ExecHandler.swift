@@ -100,7 +100,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
         case .stdErr:
             // We just write to stderr directly, pipe channel can't help us here.
             bytes.withUnsafeReadableBytes { str in
-                let rc = fwrite(str.baseAddress, 1, str.count, stderr)
+                let rc = fwrite(str.baseAddress!, 1, str.count, stderr)
                 precondition(rc == str.count)
             }
 
