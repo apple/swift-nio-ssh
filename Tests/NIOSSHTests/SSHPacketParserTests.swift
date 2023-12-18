@@ -249,6 +249,7 @@ final class SSHPacketParserTests: XCTestCase {
         XCTAssertEqual(parser._discardableBytes, 0)
     }
 
+    @available(iOS 13.2, macOS 10.15, watchOS 6.1, tvOS 13.2, *)
     func testSequencePreservedBetweenPlainAndCypher() throws {
         let allocator = ByteBufferAllocator()
         var parser = SSHPacketParser(isServer: false, allocator: allocator)
