@@ -98,6 +98,7 @@ struct InsecureEncryptionAlgorithm {
     }
 }
 
+@available(iOS 13.2, macOS 10.15, watchOS 6.1, tvOS 13.2, *)
 class TestTransportProtection: NIOSSHTransportProtection {
     enum TestError: Error {
         case doubleDecode

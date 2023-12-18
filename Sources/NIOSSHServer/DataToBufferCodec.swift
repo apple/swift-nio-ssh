@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(Foundation.Process)
+
 import Dispatch
 import Foundation
 import NIOCore
@@ -57,3 +59,5 @@ func createOutboundConnection(targetHost: String, targetPort: Int, loop: EventLo
         channel.eventLoop.makeSucceededFuture(())
     }.connect(host: targetHost, port: targetPort)
 }
+
+#endif // canImport(Foundation.Process)

@@ -243,6 +243,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         }
     }
 
+    @available(iOS 13.2, macOS 10.15, watchOS 6.1, tvOS 13.2, *)
     func testSequencePreservedBetweenPlainAndCypher() {
         let message = SSHMessage.newKeys
         let allocator = ByteBufferAllocator()

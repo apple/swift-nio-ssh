@@ -28,6 +28,7 @@ final class UtilitiesTests: XCTestCase {
         XCTAssertEqual(message, plaintext)
     }
 
+    @available(iOS 13.2, macOS 10.15, watchOS 6.1, tvOS 13.2, *)
     func testTestTransportProtection() throws {
         let inboundEncryptionKey = SymmetricKey(size: .bits128)
         let outboundEncryptionKey = SymmetricKey(size: .bits128)

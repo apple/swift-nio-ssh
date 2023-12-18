@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(Foundation.Process)
+
 import Dispatch
 import Foundation
 import NIOCore
@@ -156,3 +158,5 @@ final class ExampleExecHandler: ChannelDuplexHandler {
         }
     }
 }
+
+#endif // canImport(Foundation.Process)

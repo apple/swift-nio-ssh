@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(Foundation.Process)
+
 import Crypto
 import Dispatch
 import NIOCore
@@ -85,3 +87,9 @@ let channel = try bootstrap.bind(host: "0.0.0.0", port: 2222).wait()
 
 // Run forever
 try channel.closeFuture.wait()
+
+#else // canImport(Foundation.Process)
+
+fatalError("NIOSSHServer is only supported on platforms with Foundation.Process")
+
+#endif // !canImport(Foundation.Process)

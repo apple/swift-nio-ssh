@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(Foundation.Process)
+
 import NIOCore
 
 final class GlueHandler {
@@ -122,3 +124,5 @@ extension GlueHandler: ChannelDuplexHandler {
         }
     }
 }
+
+#endif // canImport(Foundation.Process)

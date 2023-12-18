@@ -591,6 +591,7 @@ final class SSHConnectionStateMachineTests: XCTestCase {
         }
     }
 
+    @available(iOS 13.2, macOS 10.15, watchOS 6.1, tvOS 13.2, *)
     func testFirstBlockDecodedOnce() throws {
         let allocator = ByteBufferAllocator()
         let loop = EmbeddedEventLoop()
