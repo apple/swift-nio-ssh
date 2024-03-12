@@ -15,6 +15,7 @@
 import Crypto
 import Dispatch
 import NIOCore
+import Foundation
 #if canImport(Darwin)
 import Darwin
 #else
@@ -44,6 +45,74 @@ import Glibc
 /// to check at runtime whether a given ``NIOSSHPublicKey`` is _actually_ a ``NIOSSHCertifiedPublicKey``, and allows
 /// users that have a ``NIOSSHCertifiedPublicKey`` to use it as though it were a ``NIOSSHPublicKey``.
 public struct NIOSSHCertifiedPublicKey {
+    /// The various key types that can be used with NIOSSHCertifiedPublicKey.
+    internal enum SupportedKey: Hashable, Sendable {
+        case ed25519(Curve25519.Signing.PublicKey)
+        case ecdsaP256(P256.Signing.PublicKey)
+        case ecdsaP384(P384.Signing.PublicKey)
+        case ecdsaP521(P521.Signing.PublicKey)
+        
+        init(_ key: NIOSSHPublicKey) throws {
+            switch key.backingKey {
+            case let key as Curve25519.Signing.PublicKey:
+                self = .ed25519(key)
+            case let key as P256.Signing.PublicKey:
+                self = .ecdsaP256(key)
+            case let key as P384.Signing.PublicKey:
+                self = .ecdsaP384(key)
+            case let key as P521.Signing.PublicKey:
+                self = .ecdsaP521(key)
+            default:
+                throw NIOSSHError.invalidCertificate(diagnostics: "Unsupported key type")
+            }
+        }
+
+        var publicKey: NIOSSHPublicKeyProtocol {
+            switch self {
+            case .ed25519(let key):
+                return key
+            case .ecdsaP256(let key):
+                return key
+            case .ecdsaP384(let key):
+                return key
+            case .ecdsaP521(let key):
+                return key
+            }
+        }
+
+        public static func ==(lhs: SupportedKey, rhs: SupportedKey) -> Bool {
+            switch (lhs, rhs) {
+            case (.ed25519(let lhs), .ed25519(let rhs)):
+                return lhs.rawRepresentation == rhs.rawRepresentation
+            case (.ecdsaP256(let lhs), .ecdsaP256(let rhs)):
+                return lhs.rawRepresentation == rhs.rawRepresentation
+            case (.ecdsaP384(let lhs), .ecdsaP384(let rhs)):
+                return lhs.rawRepresentation == rhs.rawRepresentation
+            case (.ecdsaP521(let lhs), .ecdsaP521(let rhs)):
+                return lhs.rawRepresentation == rhs.rawRepresentation
+            default:
+                return false
+            }
+        }
+
+        public func hash(into hasher: inout Hasher) {
+            switch self {
+            case .ed25519(let key):
+                hasher.combine(1)
+                hasher.combine(key.rawRepresentation)
+            case .ecdsaP256(let key):
+                hasher.combine(2)
+                hasher.combine(key.rawRepresentation)
+            case .ecdsaP384(let key):
+                hasher.combine(3)
+                hasher.combine(key.rawRepresentation)
+            case .ecdsaP521(let key):
+                hasher.combine(4)
+                hasher.combine(key.rawRepresentation)
+            }
+        }
+    }
+
     /// A CA-provided random bitstring of arbitrary length (typically 16 or 32 bytes). This defends against
     /// hash-collision attacks.
     public var nonce: ByteBuffer {
@@ -82,11 +151,20 @@ public struct NIOSSHCertifiedPublicKey {
     /// The base public key associated with this certified public key.
     public var key: NIOSSHPublicKey {
         get {
-            self.backing.key
+            switch self.backing.key {
+            case .ed25519(let key):
+                return NIOSSHPublicKey(backingKey: key)
+            case .ecdsaP256(let key):
+                return NIOSSHPublicKey(backingKey: key)
+            case .ecdsaP384(let key):
+                return NIOSSHPublicKey(backingKey: key)
+            case .ecdsaP521(let key):
+                return NIOSSHPublicKey(backingKey: key)
+            }
         }
         set {
             self.ensureUniqueStorage()
-            self.backing.key = newValue
+            self.backing.key = try! SupportedKey(newValue)
         }
     }
 
@@ -182,11 +260,11 @@ public struct NIOSSHCertifiedPublicKey {
     /// The public key corresponding to the private key used to sign this ``NIOSSHCertifiedPublicKey``.
     public var signatureKey: NIOSSHPublicKey {
         get {
-            self.backing.signatureKey
+            NIOSSHPublicKey(backingKey: self.backing.signatureKey.publicKey)
         }
         set {
             self.ensureUniqueStorage()
-            self.backing.signatureKey = newValue
+            self.backing.signatureKey = try! SupportedKey(newValue)
         }
     }
 
@@ -219,14 +297,14 @@ public struct NIOSSHCertifiedPublicKey {
         self.backing = try Backing(nonce: nonce,
                                    serial: serial,
                                    type: type,
-                                   key: key,
+                                   key: SupportedKey(key),
                                    keyID: keyID,
                                    validPrincipals: validPrincipals,
                                    validAfter: validAfter,
                                    validBefore: validBefore,
                                    criticalOptions: criticalOptions,
                                    extensions: extensions,
-                                   signatureKey: signatureKey,
+                                   signatureKey: SupportedKey(signatureKey),
                                    signature: signature)
     }
 
@@ -234,11 +312,11 @@ public struct NIOSSHCertifiedPublicKey {
     ///
     /// Not all public keys are certified, so this method will fail if the key is not.
     public init?(_ key: NIOSSHPublicKey) {
-        guard case .certified(let base) = key.backingKey else {
+        guard let key = key.backingKey as? NIOSSHCertifiedPublicKey else {
             return nil
         }
 
-        self = base
+        self = key
     }
 }
 
@@ -320,16 +398,50 @@ extension NIOSSHCertifiedPublicKey {
         return bytes
     }
 
-    static let p256KeyPrefix = "ecdsa-sha2-nistp256-cert-v01@openssh.com".utf8
+    static let p256KeyPrefix = "ecdsa-sha2-nistp256-cert-v01@openssh.com"
 
-    static let p384KeyPrefix = "ecdsa-sha2-nistp384-cert-v01@openssh.com".utf8
+    static let p384KeyPrefix = "ecdsa-sha2-nistp384-cert-v01@openssh.com"
 
-    static let p521KeyPrefix = "ecdsa-sha2-nistp521-cert-v01@openssh.com".utf8
+    static let p521KeyPrefix = "ecdsa-sha2-nistp521-cert-v01@openssh.com"
 
-    static let ed25519KeyPrefix = "ssh-ed25519-cert-v01@openssh.com".utf8
+    static let ed25519KeyPrefix = "ssh-ed25519-cert-v01@openssh.com"
 
     internal var keyPrefix: String.UTF8View {
-        switch self.key.backingKey {
+        switch self.backing.key {
+        case .ed25519:
+            return Self.ed25519KeyPrefix.utf8
+        case .ecdsaP256:
+            return Self.p256KeyPrefix.utf8
+        case .ecdsaP384:
+            return Self.p384KeyPrefix.utf8
+        case .ecdsaP521:
+            return Self.p521KeyPrefix.utf8
+        }
+    }
+
+    public func isValidSignature<D: DataProtocol>(_ signature: NIOSSHSignature, for data: D) -> Bool {
+        self.key.isValidSignature(signature, for: data)
+    }
+
+    internal static func baseKeyPrefixForKeyPrefix<Bytes: Collection>(_ prefix: Bytes) throws -> String.UTF8View where Bytes.Element == UInt8 {
+        if prefix.elementsEqual(Self.ed25519KeyPrefix.utf8) {
+            return Curve25519.Signing.PublicKey.prefix.utf8
+        } else if prefix.elementsEqual(Self.p256KeyPrefix.utf8) {
+            return P256.Signing.PublicKey.prefix.utf8
+        } else if prefix.elementsEqual(Self.p384KeyPrefix.utf8) {
+            return P384.Signing.PublicKey.prefix.utf8
+        } else if prefix.elementsEqual(Self.p521KeyPrefix.utf8) {
+            return P521.Signing.PublicKey.prefix.utf8
+        } else {
+            throw NIOSSHError.unknownPublicKey(algorithm: String(decoding: prefix, as: UTF8.self))
+        }
+    }
+}
+
+extension NIOSSHCertifiedPublicKey: NIOSSHPublicKeyProtocol {
+    public static var publicKeyPrefix: String? { nil }
+    public var publicKeyPrefix: String { 
+        switch self.backing.key {
         case .ed25519:
             return Self.ed25519KeyPrefix
         case .ecdsaP256:
@@ -338,35 +450,20 @@ extension NIOSSHCertifiedPublicKey {
             return Self.p384KeyPrefix
         case .ecdsaP521:
             return Self.p521KeyPrefix
-        case .certified:
-            preconditionFailure("base key cannot be certified")
         }
     }
+    public var rawRepresentation: Data { key.backingKey.rawRepresentation }
 
-    internal func isValidSignature<DigestBytes: Digest>(_ signature: NIOSSHSignature, for digest: DigestBytes) -> Bool {
-        self.key.isValidSignature(signature, for: digest)
+    public func write(to buffer: inout ByteBuffer) -> Int {
+        buffer.writeCertifiedKey(self)
     }
 
-    internal func isValidSignature(_ signature: NIOSSHSignature, for bytes: ByteBuffer) -> Bool {
-        self.key.isValidSignature(signature, for: bytes)
+    public func writeHostKey(to buffer: inout ByteBuffer) -> Int {
+        buffer.writeCertifiedKey(self)
     }
 
-    internal func isValidSignature(_ signature: NIOSSHSignature, for payload: UserAuthSignablePayload) -> Bool {
-        self.key.isValidSignature(signature, for: payload)
-    }
-
-    internal static func baseKeyPrefixForKeyPrefix<Bytes: Collection>(_ prefix: Bytes) throws -> String.UTF8View where Bytes.Element == UInt8 {
-        if prefix.elementsEqual(Self.ed25519KeyPrefix) {
-            return NIOSSHPublicKey.ed25519PublicKeyPrefix
-        } else if prefix.elementsEqual(Self.p256KeyPrefix) {
-            return NIOSSHPublicKey.ecdsaP256PublicKeyPrefix
-        } else if prefix.elementsEqual(Self.p384KeyPrefix) {
-            return NIOSSHPublicKey.ecdsaP384PublicKeyPrefix
-        } else if prefix.elementsEqual(Self.p521KeyPrefix) {
-            return NIOSSHPublicKey.ecdsaP521PublicKeyPrefix
-        } else {
-            throw NIOSSHError.unknownPublicKey(algorithm: String(decoding: prefix, as: UTF8.self))
-        }
+    public static func read(from buffer: inout ByteBuffer) -> NIOSSHCertifiedPublicKey? {
+        try? buffer.readCertifiedKey()
     }
 }
 
@@ -456,13 +553,7 @@ extension NIOSSHCertifiedPublicKey {
         fileprivate var nonce: ByteBuffer
         fileprivate var serial: UInt64
         fileprivate var type: CertificateType
-        fileprivate var key: NIOSSHPublicKey {
-            willSet {
-                if case .certified = newValue.backingKey {
-                    preconditionFailure("Certificate may not use certified key as public key")
-                }
-            }
-        }
+        fileprivate var key: SupportedKey
 
         fileprivate var keyID: String
         fileprivate var validPrincipals: [String]
@@ -470,37 +561,22 @@ extension NIOSSHCertifiedPublicKey {
         fileprivate var validBefore: UInt64
         fileprivate var criticalOptions: [String: String]
         fileprivate var extensions: [String: String]
-        fileprivate var signatureKey: NIOSSHPublicKey {
-            willSet {
-                if case .certified = newValue.backingKey {
-                    preconditionFailure("Certificate may not be signed by certified key")
-                }
-            }
-        }
+        fileprivate var signatureKey: SupportedKey
 
         fileprivate var signature: NIOSSHSignature
 
         fileprivate init(nonce: ByteBuffer,
                          serial: UInt64,
                          type: CertificateType,
-                         key: NIOSSHPublicKey,
+                         key: SupportedKey,
                          keyID: String,
                          validPrincipals: [String],
                          validAfter: UInt64,
                          validBefore: UInt64,
                          criticalOptions: [String: String],
                          extensions: [String: String],
-                         signatureKey: NIOSSHPublicKey,
+                         signatureKey: SupportedKey,
                          signature: NIOSSHSignature) throws {
-            // These two contrains are _very important_: without them, a number of NIOSSHPublicKey operations become infinitely
-            // recursive.
-            if case .certified = key.backingKey {
-                throw NIOSSHError.invalidCertificate(diagnostics: "Certificate may not use certified key as public key")
-            }
-            if case .certified = signatureKey.backingKey {
-                throw NIOSSHError.invalidCertificate(diagnostics: "Certificate may not be signed by certified key")
-            }
-
             self.nonce = nonce
             self.serial = serial
             self.type = type

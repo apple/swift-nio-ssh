@@ -24,140 +24,57 @@ import NIOCore
 /// Users cannot do much with this key other than construct it, but NIO uses it internally.
 public struct NIOSSHPrivateKey: Sendable {
     /// The actual key structure used to perform the key operations.
-    internal var backingKey: BackingKey
+    internal var backingKey: NIOSSHPrivateKeyProtocol
 
-    private init(backingKey: BackingKey) {
+    private init(backingKey: NIOSSHPrivateKeyProtocol) {
         self.backingKey = backingKey
     }
 
     public init(ed25519Key key: Curve25519.Signing.PrivateKey) {
-        self.backingKey = .ed25519(key)
+        self.backingKey = key
     }
 
     public init(p256Key key: P256.Signing.PrivateKey) {
-        self.backingKey = .ecdsaP256(key)
+        self.backingKey = key
     }
 
     public init(p384Key key: P384.Signing.PrivateKey) {
-        self.backingKey = .ecdsaP384(key)
+        self.backingKey = key
     }
 
     public init(p521Key key: P521.Signing.PrivateKey) {
-        self.backingKey = .ecdsaP521(key)
+        self.backingKey = key
     }
 
     #if canImport(Darwin)
     public init(secureEnclaveP256Key key: SecureEnclave.P256.Signing.PrivateKey) {
-        self.backingKey = .secureEnclaveP256(key)
+        self.backingKey = key
     }
     #endif
 
     // The algorithms that apply to this host key.
     internal var hostKeyAlgorithms: [Substring] {
-        switch self.backingKey {
-        case .ed25519:
-            return ["ssh-ed25519"]
-        case .ecdsaP256:
-            return ["ecdsa-sha2-nistp256"]
-        case .ecdsaP384:
-            return ["ecdsa-sha2-nistp384"]
-        case .ecdsaP521:
-            return ["ecdsa-sha2-nistp521"]
-        #if canImport(Darwin)
-        case .secureEnclaveP256:
-            return ["ecdsa-sha2-nistp256"]
-        #endif
-        }
-    }
-}
-
-extension NIOSSHPrivateKey {
-    /// The various key types that can be used with NIOSSH.
-    internal enum BackingKey {
-        case ed25519(Curve25519.Signing.PrivateKey)
-        case ecdsaP256(P256.Signing.PrivateKey)
-        case ecdsaP384(P384.Signing.PrivateKey)
-        case ecdsaP521(P521.Signing.PrivateKey)
-
-        #if canImport(Darwin)
-        case secureEnclaveP256(SecureEnclave.P256.Signing.PrivateKey)
-        #endif
+        return [ Substring(backingKey.keyPrefix) ]
     }
 }
 
 extension NIOSSHPrivateKey {
     func sign<DigestBytes: Digest>(digest: DigestBytes) throws -> NIOSSHSignature {
-        switch self.backingKey {
-        case .ed25519(let key):
-            let signature = try digest.withUnsafeBytes { ptr in
-                try key.signature(for: ptr)
-            }
-            return NIOSSHSignature(backingSignature: .ed25519(.data(signature)))
-        case .ecdsaP256(let key):
-            let signature = try digest.withUnsafeBytes { ptr in
-                try key.signature(for: ptr)
-            }
-            return NIOSSHSignature(backingSignature: .ecdsaP256(signature))
-        case .ecdsaP384(let key):
-            let signature = try digest.withUnsafeBytes { ptr in
-                try key.signature(for: ptr)
-            }
-            return NIOSSHSignature(backingSignature: .ecdsaP384(signature))
-        case .ecdsaP521(let key):
-            let signature = try digest.withUnsafeBytes { ptr in
-                try key.signature(for: ptr)
-            }
-            return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
-
-        #if canImport(Darwin)
-        case .secureEnclaveP256(let key):
-            let signature = try digest.withUnsafeBytes { ptr in
-                try key.signature(for: ptr)
-            }
-            return NIOSSHSignature(backingSignature: .ecdsaP256(signature))
-        #endif
+        let signature = try digest.withUnsafeBytes { ptr in
+            try backingKey.sshSignature(for: ptr)
         }
+        return NIOSSHSignature(backingSignature: signature)
     }
 
     func sign(_ payload: UserAuthSignablePayload) throws -> NIOSSHSignature {
-        switch self.backingKey {
-        case .ed25519(let key):
-            let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return NIOSSHSignature(backingSignature: .ed25519(.data(signature)))
-        case .ecdsaP256(let key):
-            let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return NIOSSHSignature(backingSignature: .ecdsaP256(signature))
-        case .ecdsaP384(let key):
-            let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return NIOSSHSignature(backingSignature: .ecdsaP384(signature))
-        case .ecdsaP521(let key):
-            let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
-        #if canImport(Darwin)
-        case .secureEnclaveP256(let key):
-            let signature = try key.signature(for: payload.bytes.readableBytesView)
-            return NIOSSHSignature(backingSignature: .ecdsaP256(signature))
-        #endif
-        }
+        let signature = try backingKey.sshSignature(for: payload.bytes.readableBytesView)
+        return NIOSSHSignature(backingSignature: signature)
     }
 }
 
 extension NIOSSHPrivateKey {
     /// Obtains the public key for a corresponding private key.
     public var publicKey: NIOSSHPublicKey {
-        switch self.backingKey {
-        case .ed25519(let privateKey):
-            return NIOSSHPublicKey(backingKey: .ed25519(privateKey.publicKey))
-        case .ecdsaP256(let privateKey):
-            return NIOSSHPublicKey(backingKey: .ecdsaP256(privateKey.publicKey))
-        case .ecdsaP384(let privateKey):
-            return NIOSSHPublicKey(backingKey: .ecdsaP384(privateKey.publicKey))
-        case .ecdsaP521(let privateKey):
-            return NIOSSHPublicKey(backingKey: .ecdsaP521(privateKey.publicKey))
-        #if canImport(Darwin)
-        case .secureEnclaveP256(let privateKey):
-            return NIOSSHPublicKey(backingKey: .ecdsaP256(privateKey.publicKey))
-        #endif
-        }
+        NIOSSHPublicKey(backingKey: backingKey.sshPublicKey)
     }
 }

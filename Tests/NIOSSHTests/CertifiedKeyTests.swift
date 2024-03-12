@@ -79,7 +79,7 @@ final class CertifiedKeyTests: XCTestCase {
             XCTFail("Key is not certified")
             return
         }
-        let secondKey = NIOSSHPublicKey(certifiedKey)
+        let secondKey = NIOSSHPublicKey(backingKey: certifiedKey)
         XCTAssertEqual(key, secondKey)
         let setOfKeys = Set([key, secondKey])
         XCTAssertEqual(setOfKeys.count, 1)
@@ -469,7 +469,7 @@ final class CertifiedKeyTests: XCTestCase {
         XCTAssertThrowsError(try NIOSSHCertifiedPublicKey(nonce: userKey.nonce,
                                                           serial: userKey.serial,
                                                           type: userKey.type,
-                                                          key: NIOSSHPublicKey(hostKey),
+                                                          key: NIOSSHPublicKey(backingKey: hostKey),
                                                           keyID: userKey.keyID,
                                                           validPrincipals: userKey.validPrincipals,
                                                           validAfter: userKey.validAfter,
@@ -496,7 +496,7 @@ final class CertifiedKeyTests: XCTestCase {
                                                           validBefore: userKey.validBefore,
                                                           criticalOptions: userKey.criticalOptions,
                                                           extensions: userKey.extensions,
-                                                          signatureKey: NIOSSHPublicKey(hostKey),
+                                                          signatureKey: NIOSSHPublicKey(backingKey: hostKey),
                                                           signature: userKey.signature)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidCertificate)
         }
