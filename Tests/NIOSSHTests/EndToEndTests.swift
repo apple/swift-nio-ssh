@@ -34,7 +34,7 @@ class BackToBackEmbeddedChannel {
     }
 
     var serverSSHHandler: NIOSSHHandler? {
-        try? self.client.pipeline.handler(type: NIOSSHHandler.self).wait()
+        try? self.server.pipeline.handler(type: NIOSSHHandler.self).wait()
     }
 
     init() {
@@ -264,6 +264,43 @@ class EndToEndTests: XCTestCase {
         XCTAssertThrowsError(try helper(.cancel(host: "localhost", port: 8765))) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .globalRequestRefused)
         }
+    }
+    
+    func testServerRecordsAuthenticatedUsername() throws {
+        class ClientHandshakeHandler: ChannelInboundHandler {
+            typealias InboundIn = Any
+            
+            let promise: EventLoopPromise<Void>
+            
+            init(promise: EventLoopPromise<Void>) {
+                self.promise = promise
+            }
+            
+            func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+                if event is UserAuthSuccessEvent {
+                    self.promise.succeed(())
+                }
+            }
+        }
+        
+        let promise = self.channel.client.eventLoop.makePromise(of: Void.self)
+        let handshaker = ClientHandshakeHandler(promise: promise)
+        
+        let clientAuthDelegate = InfinitePasswordDelegate()
+        let username = UUID().uuidString
+        clientAuthDelegate.username = username
+        var harness = TestHarness()
+        harness.clientAuthDelegate = clientAuthDelegate
+        
+        // Set up the connection, validate all is well.
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(handshaker).wait())
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        
+        XCTAssertNoThrow(try promise.futureResult.wait())
+        
+        XCTAssertEqual(self.channel.serverSSHHandler?.username, username)
     }
 
     func testGlobalRequestWithCustomDelegate() throws {

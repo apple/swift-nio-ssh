@@ -726,11 +726,21 @@ struct SSHConnectionStateMachine {
         }
     }
 
+    class Attributes {
+        var username: String? = nil
+    }
+    
     /// The state of this state machine.
     private var state: State
+    
+    /// Attributes of the connection which can be changed by messages handlers
+    private let attributes: Attributes
+    
+    var username: String? { attributes.username }
 
     init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type] = Constants.bundledTransportProtectionSchemes) {
-        self.state = .idle(IdleState(role: role, protectionSchemes: protectionSchemes))
+        self.attributes = Attributes()
+        self.state = .idle(IdleState(role: role, protectionSchemes: protectionSchemes, attributes: attributes))
     }
 
     func start() -> SSHMultiMessage? {

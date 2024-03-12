@@ -40,8 +40,9 @@ private enum Fixtures {
 
 /// An authentication delegate that yields passwords forever.
 final class InfinitePasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
+    var username = "foo"
     func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
-        let request = NIOSSHUserAuthenticationOffer(username: "foo", serviceName: "", offer: .password(.init(password: "bar")))
+        let request = NIOSSHUserAuthenticationOffer(username: username, serviceName: "", offer: .password(.init(password: "bar")))
         nextChallengePromise.succeed(request)
     }
 }

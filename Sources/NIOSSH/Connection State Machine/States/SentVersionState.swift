@@ -28,6 +28,8 @@ extension SSHConnectionStateMachine {
 
         var protectionSchemes: [NIOSSHTransportProtection.Type]
 
+        let connectionAttributes: SSHConnectionStateMachine.Attributes
+
         private let allocator: ByteBufferAllocator
 
         init(idleState state: IdleState, allocator: ByteBufferAllocator) {
@@ -37,6 +39,7 @@ extension SSHConnectionStateMachine {
 
             self.parser = SSHPacketParser(isServer: self.role.isServer, allocator: allocator)
             self.allocator = allocator
+            self.connectionAttributes = state.connectionAttributes
         }
 
         mutating func bufferInboundData(_ data: inout ByteBuffer) {
