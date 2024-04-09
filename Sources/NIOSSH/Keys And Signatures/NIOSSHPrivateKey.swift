@@ -60,15 +60,13 @@ public struct NIOSSHPrivateKey: Sendable {
 
 extension NIOSSHPrivateKey {
     func sign<DigestBytes: Digest>(digest: DigestBytes) throws -> NIOSSHSignature {
-        let signature = try digest.withUnsafeBytes { ptr in
+        return try digest.withUnsafeBytes { ptr in
             try backingKey.sshSignature(for: ptr)
         }
-        return NIOSSHSignature(backingSignature: signature)
     }
 
     func sign(_ payload: UserAuthSignablePayload) throws -> NIOSSHSignature {
-        let signature = try backingKey.sshSignature(for: payload.bytes.readableBytesView)
-        return NIOSSHSignature(backingSignature: signature)
+        return try backingKey.sshSignature(for: payload.bytes.readableBytesView)
     }
 }
 

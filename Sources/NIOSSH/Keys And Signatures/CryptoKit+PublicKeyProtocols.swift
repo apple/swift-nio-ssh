@@ -22,7 +22,7 @@ extension Curve25519.Signing.PublicKey: NIOSSHPublicKeyProtocol {
     public var publicKeyPrefix: String { Self.prefix }
 
     public func isValidSignature<D: DataProtocol>(_ signature: NIOSSHSignature, for data: D) -> Bool {
-        guard let signature = signature.backingSignature as? Curve25519Signature else {
+        guard case .ed25519(let signature) = signature._backingSignature else {
             return false
         }
 
@@ -55,7 +55,7 @@ extension P256.Signing.PublicKey: NIOSSHPublicKeyProtocol {
     public var publicKeyPrefix: String { Self.prefix }
 
     public func isValidSignature<D: DataProtocol>(_ signature: NIOSSHSignature, for data: D) -> Bool {
-        guard let signature = signature.backingSignature as? P256.Signing.ECDSASignature else {
+        guard case .p256(let signature) = signature._backingSignature else {
             return false
         }
 
@@ -98,7 +98,7 @@ extension P384.Signing.PublicKey: NIOSSHPublicKeyProtocol {
     public var publicKeyPrefix: String { Self.prefix }
 
     public func isValidSignature<D: DataProtocol>(_ signature: NIOSSHSignature, for data: D) -> Bool {
-        guard let signature = signature.backingSignature as? P384.Signing.ECDSASignature else {
+        guard case .p384(let signature) = signature._backingSignature else {
             return false
         }
         
@@ -141,7 +141,7 @@ extension P521.Signing.PublicKey: NIOSSHPublicKeyProtocol {
     public var publicKeyPrefix: String { Self.prefix }
 
     public func isValidSignature<D: DataProtocol>(_ signature: NIOSSHSignature, for data: D) -> Bool {
-        guard let signature = signature.backingSignature as? P521.Signing.ECDSASignature else {
+        guard case .p521(let signature) = signature._backingSignature else {
             return false
         }
         

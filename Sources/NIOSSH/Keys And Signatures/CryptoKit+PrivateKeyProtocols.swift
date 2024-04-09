@@ -39,8 +39,9 @@ extension Curve25519.Signing.PrivateKey: NIOSSHPrivateKeyProtocol {
     
     public var sshPublicKey: NIOSSHPublicKeyProtocol { publicKey }
 
-    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignatureProtocol {
-        return try Curve25519Signature(rawRepresentation: self.signature(for: data))
+    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignature {
+        let signature = try Curve25519Signature(rawRepresentation: self.signature(for: data))
+        return NIOSSHSignature(backingSignature: .ed25519(signature))
     }
 }
 
@@ -65,9 +66,8 @@ extension P256.Signing.PrivateKey: NIOSSHPrivateKeyProtocol {
     
     public var sshPublicKey: NIOSSHPublicKeyProtocol { publicKey }
 
-    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignatureProtocol {
-        let signature: P256.Signing.ECDSASignature = try self.signature(for: data)
-        return signature
+    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignature {
+        return try NIOSSHSignature(backingSignature: .p256(self.signature(for: data)))
     }
 }
 
@@ -92,9 +92,8 @@ extension P384.Signing.PrivateKey: NIOSSHPrivateKeyProtocol {
     
     public var sshPublicKey: NIOSSHPublicKeyProtocol { publicKey }
 
-    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignatureProtocol {
-        let signature: P384.Signing.ECDSASignature = try self.signature(for: data)
-        return signature
+    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignature {
+        return try NIOSSHSignature(backingSignature: .p384(self.signature(for: data)))
     }
 }
 
@@ -121,9 +120,8 @@ extension P521.Signing.PrivateKey: NIOSSHPrivateKeyProtocol {
     
     public var sshPublicKey: NIOSSHPublicKeyProtocol { publicKey }
 
-    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignatureProtocol {
-        let signature: P521.Signing.ECDSASignature = try self.signature(for: data)
-        return signature
+    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignature {
+        return try NIOSSHSignature(backingSignature: .p521(self.signature(for: data)))
     }
 }
 
@@ -133,9 +131,8 @@ extension SecureEnclave.P256.Signing.PrivateKey: NIOSSHPrivateKeyProtocol {
     
     public var sshPublicKey: NIOSSHPublicKeyProtocol { publicKey }
 
-    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignatureProtocol {
-        let signature: P256.Signing.ECDSASignature = try self.signature(for: data)
-        return signature
+    public func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignature {
+        return try NIOSSHSignature(backingSignature: .p256(self.signature(for: data)))
     }
 }
 #endif

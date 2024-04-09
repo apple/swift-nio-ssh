@@ -25,7 +25,7 @@ public protocol NIOSSHPrivateKeyProtocol: Sendable {
     var sshPublicKey: NIOSSHPublicKeyProtocol { get }
 
     /// Creates a signature, proving that `data` has been sent by the holder of this private key, and can be verified by `publicKey`.
-    func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignatureProtocol
+    func sshSignature<D: DataProtocol>(for data: D) throws -> NIOSSHSignature
 }
 
 internal extension NIOSSHPrivateKeyProtocol {

@@ -189,7 +189,7 @@ final class SSHPacketSerializerTests: XCTestCase {
         let message = SSHMessage.keyExchangeReply(.init(
             hostKey: NIOSSHPublicKey(backingKey: key),
             publicKey: ByteBuffer.of(bytes: [42, 42]),
-            signature: NIOSSHSignature(backingSignature: Curve25519Signature(rawRepresentation: signature))
+            signature: NIOSSHSignature(backingSignature: .ed25519(Curve25519Signature(rawRepresentation: signature)))
         ))
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
