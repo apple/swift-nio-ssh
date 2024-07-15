@@ -17,9 +17,11 @@ import Dispatch
 import NIOCore
 #if canImport(Darwin)
 import Darwin
-#else
+#elseif canImport(Glibc)
 import Glibc
-#endif // canImport(Darwin)
+#elseif canImport(Bionic)
+import Bionic
+#endif
 
 /// A ``NIOSSHCertifiedPublicKey`` is an SSH public key combined with an SSH certificate.
 ///
