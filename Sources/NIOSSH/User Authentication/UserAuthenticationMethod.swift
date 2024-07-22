@@ -210,7 +210,7 @@ extension NIOSSHUserAuthenticationOffer.Offer {
 
         public init(privateKey: NIOSSHPrivateKey, certifiedKey: NIOSSHCertifiedPublicKey) {
             self.privateKey = privateKey
-            self.publicKey = NIOSSHPublicKey(certifiedKey)
+            self.publicKey = NIOSSHPublicKey(backingKey: certifiedKey)
         }
     }
 
