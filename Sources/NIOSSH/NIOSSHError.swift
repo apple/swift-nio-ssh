@@ -47,6 +47,8 @@ extension NIOSSHError {
 
     internal static let invalidEncryptedPacketLength = NIOSSHError(type: .invalidEncryptedPacketLength, diagnostics: nil)
 
+    internal static let invalidSSHSignature = NIOSSHError(type: .invalidSSHSignature, diagnostics: nil)
+
     internal static let invalidDecryptedPlaintextLength = NIOSSHError(type: .invalidDecryptedPlaintextLength, diagnostics: nil)
 
     internal static let invalidKeySize = NIOSSHError(type: .invalidKeySize, diagnostics: nil)
@@ -180,6 +182,7 @@ extension NIOSSHError {
             case invalidHostKeyForKeyExchange
             case invalidOpenSSHPublicKey
             case invalidCertificate
+            case invalidSSHSignature
         }
 
         private var base: Base
@@ -277,6 +280,8 @@ extension NIOSSHError {
 
         /// A certificate failed validation.
         public static let invalidCertificate: ErrorType = .init(.invalidCertificate)
+
+        public static let invalidSSHSignature: ErrorType = .init(.invalidSSHSignature)
     }
 }
 
