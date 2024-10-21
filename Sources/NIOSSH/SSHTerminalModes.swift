@@ -63,7 +63,7 @@ extension SSHTerminalModes {
         /// Erase the character to left of the cursor.
         public static let VERASE = Opcode(rawValue: 3)
 
-        /// Kill the current input line.
+        /// Discard the current input line.
         public static let VKILL = Opcode(rawValue: 4)
 
         /// End-of-file character (sends EOF from the terminal).
@@ -159,7 +159,7 @@ extension SSHTerminalModes {
         /// Visually erase chars.
         public static let ECHOE = Opcode(rawValue: 54)
 
-        /// Kill character discards current line.
+        /// Discard current line.
         public static let ECHOK = Opcode(rawValue: 55)
 
         /// Echo NL even if ECHO is off.
@@ -177,7 +177,7 @@ extension SSHTerminalModes {
         /// Echo control characters as ^(Char).
         public static let ECHOCTL = Opcode(rawValue: 60)
 
-        /// Visual erase for line kill.
+        /// Visual erase for discard line.
         public static let ECHOKE = Opcode(rawValue: 61)
 
         /// Retype pending input.

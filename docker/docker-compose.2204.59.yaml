@@ -9,9 +9,6 @@ services:
         ubuntu_version: "jammy"
         swift_version: "5.9"
 
-  documentation-check:
-    image: swift-nio-ssh:22.04-5.9
-
   test:
     image: swift-nio-ssh:22.04-5.9
     environment:
@@ -19,7 +16,6 @@ services:
       - MAX_ALLOCS_ALLOWED_client_server_one_command_per_connection=862050
       - MAX_ALLOCS_ALLOWED_client_server_streaming_large_message_in_small_chunks=42850
       - IMPORT_CHECK_ARG=--explicit-target-dependency-import-check error
-      #- SANITIZER_ARG=--sanitize=thread
       - WARN_AS_ERROR_ARG=-Xswiftc -warnings-as-errors
   shell:
     image: swift-nio-ssh:22.04-5.9

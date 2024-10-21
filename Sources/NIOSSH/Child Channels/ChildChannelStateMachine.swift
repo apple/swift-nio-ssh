@@ -39,7 +39,7 @@ extension ChildChannelStateMachine {
 
         /// `requestedRemotely` is a channel for which the remote peer has sent a channel request, but we have not yet
         /// responded. This channel is also "active on the network" in the sense that if our initialization fails we have
-        /// to take some kind of action to kill this channel. However, this channel can't do I/O yet, so from the perspective
+        /// to take some kind of action to terminate this channel. However, this channel can't do I/O yet, so from the perspective
         /// of the user of the channel this channel isn't active yet.
         case requestedRemotely(channelID: SSHChannelIdentifier)
 

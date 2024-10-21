@@ -8,9 +8,6 @@ services:
       args:
         base_image: "swiftlang/swift:nightly-main-jammy"
 
-  documentation-check:
-    image: swift-nio-ssh:22.04-main
-
   test:
     image: swift-nio-ssh:22.04-main
     environment:
@@ -18,7 +15,6 @@ services:
       - MAX_ALLOCS_ALLOWED_client_server_one_command_per_connection=852050
       - MAX_ALLOCS_ALLOWED_client_server_streaming_large_message_in_small_chunks=40850
       - IMPORT_CHECK_ARG=--explicit-target-dependency-import-check error
-      #- SANITIZER_ARG=--sanitize=thread
       - WARN_AS_ERROR_ARG=-Xswiftc -warnings-as-errors
 
   shell:

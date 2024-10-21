@@ -10,7 +10,7 @@ In the interest of fostering an open and welcoming environment, we as contributo
 
 Examples of behavior that contributes to creating a positive environment include:
 
-* Using welcoming and inclusive language (e.g., prefer non-gendered words like “folks” to “guys”, non-ableist words like “soundness check” to “sanity check”, etc.)
+* Using welcoming and inclusive language
 * Being respectful of differing viewpoints and experiences
 * Gracefully accepting constructive criticism
 * Focusing on what is best for the community
