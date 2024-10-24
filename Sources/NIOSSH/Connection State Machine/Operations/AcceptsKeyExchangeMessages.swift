@@ -19,7 +19,9 @@ protocol AcceptsKeyExchangeMessages {
 }
 
 extension AcceptsKeyExchangeMessages {
-    mutating func receiveKeyExchangeMessage(_ message: SSHMessage.KeyExchangeMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
+    mutating func receiveKeyExchangeMessage(
+        _ message: SSHMessage.KeyExchangeMessage
+    ) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let message = try self.keyExchangeStateMachine.handle(keyExchange: message)
 
         if let message = message {
@@ -29,7 +31,9 @@ extension AcceptsKeyExchangeMessages {
         }
     }
 
-    mutating func receiveKeyExchangeInitMessage(_ message: SSHMessage.KeyExchangeECDHInitMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
+    mutating func receiveKeyExchangeInitMessage(
+        _ message: SSHMessage.KeyExchangeECDHInitMessage
+    ) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let message = try self.keyExchangeStateMachine.handle(keyExchangeInit: message)
 
         if let message = message {
@@ -39,7 +43,9 @@ extension AcceptsKeyExchangeMessages {
         }
     }
 
-    mutating func receiveKeyExchangeReplyMessage(_ message: SSHMessage.KeyExchangeECDHReplyMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
+    mutating func receiveKeyExchangeReplyMessage(
+        _ message: SSHMessage.KeyExchangeECDHReplyMessage
+    ) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let message = try self.keyExchangeStateMachine.handle(keyExchangeReply: message)
         return .possibleFutureMessage(message)
     }

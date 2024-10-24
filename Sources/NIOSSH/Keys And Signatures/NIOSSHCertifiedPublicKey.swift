@@ -15,6 +15,7 @@
 import Crypto
 import Dispatch
 import NIOCore
+
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -206,30 +207,34 @@ public struct NIOSSHCertifiedPublicKey {
     /// The class-based backing storage.
     private var backing: Backing
 
-    public init(nonce: ByteBuffer,
-                serial: UInt64,
-                type: CertificateType,
-                key: NIOSSHPublicKey,
-                keyID: String,
-                validPrincipals: [String],
-                validAfter: UInt64,
-                validBefore: UInt64,
-                criticalOptions: [String: String],
-                extensions: [String: String],
-                signatureKey: NIOSSHPublicKey,
-                signature: NIOSSHSignature) throws {
-        self.backing = try Backing(nonce: nonce,
-                                   serial: serial,
-                                   type: type,
-                                   key: key,
-                                   keyID: keyID,
-                                   validPrincipals: validPrincipals,
-                                   validAfter: validAfter,
-                                   validBefore: validBefore,
-                                   criticalOptions: criticalOptions,
-                                   extensions: extensions,
-                                   signatureKey: signatureKey,
-                                   signature: signature)
+    public init(
+        nonce: ByteBuffer,
+        serial: UInt64,
+        type: CertificateType,
+        key: NIOSSHPublicKey,
+        keyID: String,
+        validPrincipals: [String],
+        validAfter: UInt64,
+        validBefore: UInt64,
+        criticalOptions: [String: String],
+        extensions: [String: String],
+        signatureKey: NIOSSHPublicKey,
+        signature: NIOSSHSignature
+    ) throws {
+        self.backing = try Backing(
+            nonce: nonce,
+            serial: serial,
+            type: type,
+            key: key,
+            keyID: keyID,
+            validPrincipals: validPrincipals,
+            validAfter: validAfter,
+            validBefore: validBefore,
+            criticalOptions: criticalOptions,
+            extensions: extensions,
+            signatureKey: signatureKey,
+            signature: signature
+        )
     }
 
     /// Attempt to unwrap a ``NIOSSHPublicKey`` that may contain a ``NIOSSHCertifiedPublicKey``.
@@ -274,15 +279,19 @@ extension NIOSSHCertifiedPublicKey {
     ///         separately from this function.
     /// - returns: The values of the supported critical options.
     /// - throws: If the certifiate fails to validate.
-    public func validate(principal: String,
-                         type: CertificateType,
-                         allowedAuthoritySigningKeys: [NIOSSHPublicKey],
-                         acceptableCriticalOptions: [String] = []) throws -> [String: String] {
+    public func validate(
+        principal: String,
+        type: CertificateType,
+        allowedAuthoritySigningKeys: [NIOSSHPublicKey],
+        acceptableCriticalOptions: [String] = []
+    ) throws -> [String: String] {
         // Before we do any computation on values in this certificate, we first need to do the cryptographic
         // validation, to avoid the cryptographic doom principle. First, check if the signing key is in our allowed
         // set: second, validate the signature.
         guard allowedAuthoritySigningKeys.contains(self.signatureKey) else {
-            throw NIOSSHError.invalidCertificate(diagnostics: "Certificate was not signed by one of the allowed principals")
+            throw NIOSSHError.invalidCertificate(
+                diagnostics: "Certificate was not signed by one of the allowed principals"
+            )
         }
 
         guard self.signatureKey.isValidSignature(self.signature, for: self.signableBytes) else {
@@ -357,7 +366,8 @@ extension NIOSSHCertifiedPublicKey {
         self.key.isValidSignature(signature, for: payload)
     }
 
-    internal static func baseKeyPrefixForKeyPrefix<Bytes: Collection>(_ prefix: Bytes) throws -> String.UTF8View where Bytes.Element == UInt8 {
+    internal static func baseKeyPrefixForKeyPrefix<Bytes: Collection>(_ prefix: Bytes) throws -> String.UTF8View
+    where Bytes.Element == UInt8 {
         if prefix.elementsEqual(Self.ed25519KeyPrefix) {
             return NIOSSHPublicKey.ed25519PublicKeyPrefix
         } else if prefix.elementsEqual(Self.p256KeyPrefix) {
@@ -482,18 +492,20 @@ extension NIOSSHCertifiedPublicKey {
 
         fileprivate var signature: NIOSSHSignature
 
-        fileprivate init(nonce: ByteBuffer,
-                         serial: UInt64,
-                         type: CertificateType,
-                         key: NIOSSHPublicKey,
-                         keyID: String,
-                         validPrincipals: [String],
-                         validAfter: UInt64,
-                         validBefore: UInt64,
-                         criticalOptions: [String: String],
-                         extensions: [String: String],
-                         signatureKey: NIOSSHPublicKey,
-                         signature: NIOSSHSignature) throws {
+        fileprivate init(
+            nonce: ByteBuffer,
+            serial: UInt64,
+            type: CertificateType,
+            key: NIOSSHPublicKey,
+            keyID: String,
+            validPrincipals: [String],
+            validAfter: UInt64,
+            validBefore: UInt64,
+            criticalOptions: [String: String],
+            extensions: [String: String],
+            signatureKey: NIOSSHPublicKey,
+            signature: NIOSSHSignature
+        ) throws {
             // These two contrains are _very important_: without them, a number of NIOSSHPublicKey operations become infinitely
             // recursive.
             if case .certified = key.backingKey {
@@ -543,18 +555,11 @@ extension NIOSSHCertifiedPublicKey {
 
 extension NIOSSHCertifiedPublicKey.Backing: Hashable {
     static func == (lhs: NIOSSHCertifiedPublicKey.Backing, rhs: NIOSSHCertifiedPublicKey.Backing) -> Bool {
-        (lhs.nonce == rhs.nonce &&
-            lhs.serial == rhs.serial &&
-            lhs.type == rhs.type &&
-            lhs.key == rhs.key &&
-            lhs.keyID == rhs.keyID &&
-            lhs.validPrincipals == rhs.validPrincipals &&
-            lhs.validAfter == rhs.validAfter &&
-            lhs.validBefore == rhs.validBefore &&
-            lhs.criticalOptions == rhs.criticalOptions &&
-            lhs.extensions == rhs.extensions &&
-            lhs.signatureKey == rhs.signatureKey &&
-            lhs.signature == rhs.signature)
+        (lhs.nonce == rhs.nonce && lhs.serial == rhs.serial && lhs.type == rhs.type && lhs.key == rhs.key
+            && lhs.keyID == rhs.keyID && lhs.validPrincipals == rhs.validPrincipals && lhs.validAfter == rhs.validAfter
+            && lhs.validBefore == rhs.validBefore && lhs.criticalOptions == rhs.criticalOptions
+            && lhs.extensions == rhs.extensions && lhs.signatureKey == rhs.signatureKey
+            && lhs.signature == rhs.signature)
     }
 
     func hash(into hasher: inout Hasher) {
@@ -600,7 +605,7 @@ extension ByteBuffer {
         written += self.writeInteger(key.validBefore)
         written += self.writeMapStringString(key.criticalOptions)
         written += self.writeMapStringString(key.extensions)
-        written += self.writeSSHString([]) // reserved
+        written += self.writeSSHString([])  // reserved
         written += self.writeCompositeSSHString { buffer in
             buffer.writeSSHHostKey(key.signatureKey)
         }
@@ -617,7 +622,9 @@ extension ByteBuffer {
         }
     }
 
-    mutating func readCertifiedKeyWithoutKeyPrefix<Bytes: Collection>(_ keyPrefix: Bytes) throws -> NIOSSHCertifiedPublicKey? where Bytes.Element == UInt8 {
+    mutating func readCertifiedKeyWithoutKeyPrefix<Bytes: Collection>(
+        _ keyPrefix: Bytes
+    ) throws -> NIOSSHCertifiedPublicKey? where Bytes.Element == UInt8 {
         try self.rewindOnNilOrError { `self` in
             let innerKeyPrefix = try NIOSSHCertifiedPublicKey.baseKeyPrefixForKeyPrefix(keyPrefix)
 
@@ -632,7 +639,7 @@ extension ByteBuffer {
                 let validBefore = self.readInteger(as: UInt64.self),
                 var rawCriticalOptions = self.readSSHString(),
                 var rawExtensions = self.readSSHString(),
-                let _ = self.readSSHString(), // reserved
+                let _ = self.readSSHString(),  // reserved
                 var rawSignatureKey = self.readSSHString(),
                 var rawSignature = self.readSSHString()
             else {
@@ -649,18 +656,20 @@ extension ByteBuffer {
                 throw NIOSSHError.invalidSSHMessage(reason: "invalid encoding of certified key")
             }
 
-            return try NIOSSHCertifiedPublicKey(nonce: nonce,
-                                                serial: serial,
-                                                type: NIOSSHCertifiedPublicKey.CertificateType(rawValue: rawType),
-                                                key: key,
-                                                keyID: keyID,
-                                                validPrincipals: principals,
-                                                validAfter: validAfter,
-                                                validBefore: validBefore,
-                                                criticalOptions: criticalOptions,
-                                                extensions: extensions,
-                                                signatureKey: signatureKey,
-                                                signature: signature)
+            return try NIOSSHCertifiedPublicKey(
+                nonce: nonce,
+                serial: serial,
+                type: NIOSSHCertifiedPublicKey.CertificateType(rawValue: rawType),
+                key: key,
+                keyID: keyID,
+                validPrincipals: principals,
+                validAfter: validAfter,
+                validBefore: validBefore,
+                criticalOptions: criticalOptions,
+                extensions: extensions,
+                signatureKey: signatureKey,
+                signature: signature
+            )
         }
     }
 
@@ -689,7 +698,7 @@ extension ByteBuffer {
                 if entry.value.utf8.count > 0 {
                     written += buffer.writeCompositeSSHString { $0.writeSSHString(entry.value.utf8) }
                 } else {
-                    written += buffer.writeInteger(UInt32(0)) // Empty SSH string
+                    written += buffer.writeInteger(UInt32(0))  // Empty SSH string
                 }
             }
             return written

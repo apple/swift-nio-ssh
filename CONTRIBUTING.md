@@ -63,6 +63,10 @@ We require that your commit messages match our template. The easiest way to do t
 
     git config commit.template dev/git.commit.template
 
+### Run CI checks locally
+
+You can run the Github Actions workflows locally using [act](https://github.com/nektos/act). For detailed steps on how to do this please see [https://github.com/swiftlang/github-workflows?tab=readme-ov-file#running-workflows-locally](https://github.com/swiftlang/github-workflows?tab=readme-ov-file#running-workflows-locally).
+
 ## How to contribute your work
 
 Please open a pull request at https://github.com/apple/swift-nio-ssh. Make sure the CI passes, and then wait for code review.

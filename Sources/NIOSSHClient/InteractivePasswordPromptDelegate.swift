@@ -31,7 +31,10 @@ final class InteractivePasswordPromptDelegate: NIOSSHClientUserAuthenticationDel
         self.password = password
     }
 
-    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
+    func nextAuthenticationType(
+        availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+        nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+    ) {
         guard availableMethods.contains(.password) else {
             print("Error: password auth not supported")
             nextChallengePromise.fail(SSHClientError.passwordAuthenticationNotSupported)
@@ -53,7 +56,13 @@ final class InteractivePasswordPromptDelegate: NIOSSHClientUserAuthenticationDel
                 #endif
             }
 
-            nextChallengePromise.succeed(NIOSSHUserAuthenticationOffer(username: self.username!, serviceName: "", offer: .password(.init(password: self.password!))))
+            nextChallengePromise.succeed(
+                NIOSSHUserAuthenticationOffer(
+                    username: self.username!,
+                    serviceName: "",
+                    offer: .password(.init(password: self.password!))
+                )
+            )
         }
     }
 }

@@ -14,8 +14,9 @@
 
 import Crypto
 import NIOCore
-@testable import NIOSSH
 import XCTest
+
+@testable import NIOSSH
 
 final class SSHEncryptedTrafficTests: XCTestCase {
     private var serializer: SSHPacketSerializer!
@@ -46,7 +47,11 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         XCTAssertNoThrow(XCTAssertNil(try self.parser.nextPacket(), file: file, line: line), file: file, line: line)
     }
 
-    private func assertPacketRoundTripsDripFed(_ message: SSHMessage, file: StaticString = #filePath, line: UInt = #line) {
+    private func assertPacketRoundTripsDripFed(
+        _ message: SSHMessage,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         self.buffer.clear()
         XCTAssertNoThrow(try self.serializer.serialize(message: message, to: &self.buffer), file: file, line: line)
 
@@ -69,7 +74,9 @@ final class SSHEncryptedTrafficTests: XCTestCase {
 
     private func assertPacketErrors(_ message: SSHMessage, file: StaticString = #filePath, line: UInt = #line) {
         self.buffer.clear()
-        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer))
+        XCTAssertNoThrow(
+            try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer)
+        )
         self.parser.append(bytes: &self.buffer)
 
         XCTAssertThrowsError(try self.parser.nextPacket()) { error in
@@ -110,12 +117,14 @@ final class SSHEncryptedTrafficTests: XCTestCase {
     func testRejectsCorruptedPacket() {
         self.protect(.aes128)
         self.buffer.clear()
-        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer))
+        XCTAssertNoThrow(
+            try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer)
+        )
 
         // Mutate the buffer. We don't allow mutating the length because if we set the length to very long the parser returns nil instead.
-        let index = (4 ..< self.buffer.writerIndex).randomElement()!
+        let index = (4..<self.buffer.writerIndex).randomElement()!
         let currentValue = self.buffer.getInteger(at: index, as: UInt8.self)!
-        self.buffer.setInteger(currentValue ^ 0xFF, at: index) // Flip every bit
+        self.buffer.setInteger(currentValue ^ 0xFF, at: index)  // Flip every bit
         self.parser.append(bytes: &self.buffer)
 
         XCTAssertThrowsError(try self.parser.nextPacket())
@@ -127,7 +136,9 @@ final class SSHEncryptedTrafficTests: XCTestCase {
         self.serializer.addEncryption(clientProtection)
         self.parser.addEncryption(serverProtection)
 
-        XCTAssertNoThrow(try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer))
+        XCTAssertNoThrow(
+            try self.serializer.serialize(message: .serviceRequest(.init(service: "some service")), to: &self.buffer)
+        )
         self.parser.append(bytes: &self.buffer)
 
         XCTAssertThrowsError(try self.parser.nextPacket())
@@ -135,17 +146,30 @@ final class SSHEncryptedTrafficTests: XCTestCase {
 
     func testSamplePacketFromTesting() throws {
         // This is a regression test from an early example that caused us some wrinkles.
-        let keys = NIOSSHSessionKeys(initialInboundIV: [178, 178, 37, 48, 59, 189, 228, 147, 215, 24, 162, 20],
-                                     initialOutboundIV: [156, 13, 118, 91, 255, 77, 47, 189, 62, 32, 93, 62],
-                                     inboundEncryptionKey: .init(data: [241, 99, 181, 233, 148, 184, 187, 134, 80, 195, 18, 18, 218, 44, 118, 219, 120, 69, 225, 63, 105, 179, 131, 204, 156, 172, 105, 142, 12, 75, 148, 88]),
-                                     outboundEncryptionKey: .init(data: [109, 86, 219, 88, 84, 20, 197, 13, 74, 19, 120, 17, 95, 59, 25, 181, 12, 237, 109, 51, 239, 86, 169, 53, 85, 35, 162, 88, 215, 199, 219, 82]),
-                                     inboundMACKey: .init(size: .bits128), outboundMACKey: .init(size: .bits128))
+        let keys = NIOSSHSessionKeys(
+            initialInboundIV: [178, 178, 37, 48, 59, 189, 228, 147, 215, 24, 162, 20],
+            initialOutboundIV: [156, 13, 118, 91, 255, 77, 47, 189, 62, 32, 93, 62],
+            inboundEncryptionKey: .init(data: [
+                241, 99, 181, 233, 148, 184, 187, 134, 80, 195, 18, 18, 218, 44, 118, 219, 120, 69, 225, 63, 105, 179,
+                131, 204, 156, 172, 105, 142, 12, 75, 148, 88,
+            ]),
+            outboundEncryptionKey: .init(data: [
+                109, 86, 219, 88, 84, 20, 197, 13, 74, 19, 120, 17, 95, 59, 25, 181, 12, 237, 109, 51, 239, 86, 169, 53,
+                85, 35, 162, 88, 215, 199, 219, 82,
+            ]),
+            inboundMACKey: .init(size: .bits128),
+            outboundMACKey: .init(size: .bits128)
+        )
         let protection = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: keys))
 
         self.parser.addEncryption(protection)
 
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeBytes([0, 0, 0, 32, 49, 46, 121, 14, 95, 220, 77, 39, 178, 59, 26, 135, 163, 154, 166, 208, 209, 96, 3, 190, 205, 76, 105, 53, 20, 127, 211, 176, 54, 205, 52, 39, 30, 255, 128, 181, 87, 183, 49, 153, 6, 179, 118, 188, 204, 186, 249, 175])
+        buffer.writeBytes([
+            0, 0, 0, 32, 49, 46, 121, 14, 95, 220, 77, 39, 178, 59, 26, 135, 163, 154, 166, 208, 209, 96, 3, 190, 205,
+            76, 105, 53, 20, 127, 211, 176, 54, 205, 52, 39, 30, 255, 128, 181, 87, 183, 49, 153, 6, 179, 118, 188, 204,
+            186, 249, 175,
+        ])
 
         self.parser.append(bytes: &buffer)
         let packet = try assertNoThrowWithValue(self.parser.nextPacket())
@@ -171,27 +195,37 @@ extension SSHEncryptedTrafficTests {
             }
         }
 
-        private func aes128Protection() -> (client: AES128GCMOpenSSHTransportProtection, server: AES128GCMOpenSSHTransportProtection) {
+        private func aes128Protection() -> (
+            client: AES128GCMOpenSSHTransportProtection, server: AES128GCMOpenSSHTransportProtection
+        ) {
             let keys = self.generateKeys(keySize: .bits128, ivSize: 12, macSize: .bits128)
             let client = try! AES128GCMOpenSSHTransportProtection(initialKeys: keys)
             let server = try! AES128GCMOpenSSHTransportProtection(initialKeys: keys.inverted)
             return (client: client, server: server)
         }
 
-        private func aes256Protection() -> (client: AES256GCMOpenSSHTransportProtection, server: AES256GCMOpenSSHTransportProtection) {
+        private func aes256Protection() -> (
+            client: AES256GCMOpenSSHTransportProtection, server: AES256GCMOpenSSHTransportProtection
+        ) {
             let keys = self.generateKeys(keySize: .bits256, ivSize: 12, macSize: .bits128)
             let client = try! AES256GCMOpenSSHTransportProtection(initialKeys: keys)
             let server = try! AES256GCMOpenSSHTransportProtection(initialKeys: keys.inverted)
             return (client: client, server: server)
         }
 
-        private func generateKeys(keySize: SymmetricKeySize, ivSize: Int, macSize: SymmetricKeySize) -> NIOSSHSessionKeys {
-            NIOSSHSessionKeys(initialInboundIV: .init(randomBytes: ivSize),
-                              initialOutboundIV: .init(randomBytes: ivSize),
-                              inboundEncryptionKey: SymmetricKey(size: keySize),
-                              outboundEncryptionKey: SymmetricKey(size: keySize),
-                              inboundMACKey: SymmetricKey(size: macSize),
-                              outboundMACKey: SymmetricKey(size: macSize))
+        private func generateKeys(
+            keySize: SymmetricKeySize,
+            ivSize: Int,
+            macSize: SymmetricKeySize
+        ) -> NIOSSHSessionKeys {
+            NIOSSHSessionKeys(
+                initialInboundIV: .init(randomBytes: ivSize),
+                initialOutboundIV: .init(randomBytes: ivSize),
+                inboundEncryptionKey: SymmetricKey(size: keySize),
+                outboundEncryptionKey: SymmetricKey(size: keySize),
+                inboundMACKey: SymmetricKey(size: macSize),
+                outboundMACKey: SymmetricKey(size: macSize)
+            )
         }
     }
 }

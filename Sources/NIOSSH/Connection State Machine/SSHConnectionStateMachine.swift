@@ -99,8 +99,10 @@ struct SSHConnectionStateMachine {
             }
         }
 
-        mutating func processInboundMessage(allocator: ByteBufferAllocator,
-                                            loop: EventLoop) throws -> StateMachineInboundProcessResult? {
+        mutating func processInboundMessage(
+            allocator: ByteBufferAllocator,
+            loop: EventLoop
+        ) throws -> StateMachineInboundProcessResult? {
             switch self {
             case .idle:
                 preconditionFailure("Received messages before sending our first message.")
@@ -114,7 +116,12 @@ struct SSHConnectionStateMachine {
                     switch message {
                     case .version(let version):
                         try state.receiveVersionMessage(version, role: state.role)
-                        let newState = KeyExchangeState(sentVersionState: state, allocator: allocator, loop: loop, remoteVersion: version)
+                        let newState = KeyExchangeState(
+                            sentVersionState: state,
+                            allocator: allocator,
+                            loop: loop,
+                            remoteVersion: version
+                        )
                         let message = newState.keyExchangeStateMachine.createKeyExchangeMessage()
                         self = .keyExchange(newState)
                         return .emitMessage(SSHMultiMessage(.keyExchange(message)))
@@ -127,7 +134,10 @@ struct SSHConnectionStateMachine {
                         throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
 
                     default:
-                        throw NIOSSHError.protocolViolation(protocolName: "transport", violation: "Did not receive version message")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "transport",
+                            violation: "Did not receive version message"
+                        )
                     }
                 } catch {
                     self = .sentVersion(state)
@@ -183,7 +193,10 @@ struct SSHConnectionStateMachine {
                         // > o  Specific key exchange method messages (30 to 49).
                         //
                         // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "user auth",
+                            violation: "Unexpected user auth message: \(message)"
+                        )
                     }
                 } catch {
                     self = .keyExchange(state)
@@ -240,7 +253,10 @@ struct SSHConnectionStateMachine {
                         // > o  Specific key exchange method messages (30 to 49).
                         //
                         // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                        throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "key exchange",
+                            violation: "Unexpected message: \(message)"
+                        )
                     }
                 } catch {
                     self = .sentNewKeys(state)
@@ -272,13 +288,19 @@ struct SSHConnectionStateMachine {
                         return .noMessage
 
                     case .serviceAccept, .userAuthRequest, .userAuthSuccess, .userAuthFailure:
-                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "user auth",
+                            violation: "Unexpected user auth message: \(message)"
+                        )
 
                     case .unimplemented(let unimplemented):
                         throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
 
                     default:
-                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "user auth",
+                            violation: "Unexpected inbound message: \(message)"
+                        )
                     }
                 } catch {
                     self = .receivedNewKeys(state)
@@ -338,7 +360,10 @@ struct SSHConnectionStateMachine {
                         throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
 
                     default:
-                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected inbound message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "user auth",
+                            violation: "Unexpected inbound message: \(message)"
+                        )
                     }
                 } catch {
                     self = .userAuthentication(state)
@@ -404,7 +429,10 @@ struct SSHConnectionStateMachine {
                         throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
 
                     default:
-                        throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "connection",
+                            violation: "Unexpected inbound message: \(message)"
+                        )
                     }
 
                     self = .active(state)
@@ -458,7 +486,10 @@ struct SSHConnectionStateMachine {
                         // > o  Specific key exchange method messages (30 to 49).
                         //
                         // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                        throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "key exchange",
+                            violation: "Unexpected message: \(message)"
+                        )
                     }
                 } catch {
                     self = .receivedKexInitWhenActive(state)
@@ -524,7 +555,10 @@ struct SSHConnectionStateMachine {
                         throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
 
                     default:
-                        throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "connection",
+                            violation: "Unexpected inbound message: \(message)"
+                        )
                     }
 
                     self = .sentKexInitWhenActive(state)
@@ -586,7 +620,10 @@ struct SSHConnectionStateMachine {
                         // > o  Specific key exchange method messages (30 to 49).
                         //
                         // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                        throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Unexpected user auth message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "user auth",
+                            violation: "Unexpected user auth message: \(message)"
+                        )
                     }
                 } catch {
                     self = .rekeying(state)
@@ -649,7 +686,10 @@ struct SSHConnectionStateMachine {
                         throw NIOSSHError.remotePeerDoesNotSupportMessage(unimplemented)
 
                     default:
-                        throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Unexpected inbound message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "connection",
+                            violation: "Unexpected inbound message: \(message)"
+                        )
                     }
 
                     self = .rekeyingReceivedNewKeysState(state)
@@ -712,7 +752,10 @@ struct SSHConnectionStateMachine {
                         // > o  Specific key exchange method messages (30 to 49).
                         //
                         // We should enforce that, but right now we don't have a good mechanism by which to do so.
-                        throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Unexpected message: \(message)")
+                        throw NIOSSHError.protocolViolation(
+                            protocolName: "key exchange",
+                            violation: "Unexpected message: \(message)"
+                        )
                     }
                 } catch {
                     self = .rekeyingSentNewKeysState(state)
@@ -729,7 +772,10 @@ struct SSHConnectionStateMachine {
     /// The state of this state machine.
     private var state: State
 
-    init(role: SSHConnectionRole, protectionSchemes: [NIOSSHTransportProtection.Type] = Constants.bundledTransportProtectionSchemes) {
+    init(
+        role: SSHConnectionRole,
+        protectionSchemes: [NIOSSHTransportProtection.Type] = Constants.bundledTransportProtectionSchemes
+    ) {
         self.state = .idle(IdleState(role: role, protectionSchemes: protectionSchemes))
     }
 
@@ -738,8 +784,8 @@ struct SSHConnectionStateMachine {
         case .idle:
             return SSHMultiMessage(SSHMessage.version(Constants.version))
         case .sentVersion, .keyExchange, .sentNewKeys, .receivedNewKeys, .userAuthentication,
-             .active, .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
-             .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
+            .active, .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+            .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
             return nil
         }
     }
@@ -748,15 +794,19 @@ struct SSHConnectionStateMachine {
         self.state.bufferInboundData(&data)
     }
 
-    mutating func processInboundMessage(allocator: ByteBufferAllocator,
-                                        loop: EventLoop) throws -> StateMachineInboundProcessResult? {
+    mutating func processInboundMessage(
+        allocator: ByteBufferAllocator,
+        loop: EventLoop
+    ) throws -> StateMachineInboundProcessResult? {
         try self.state.processInboundMessage(allocator: allocator, loop: loop)
     }
 
-    mutating func processOutboundMessage(_ message: SSHMessage,
-                                         buffer: inout ByteBuffer,
-                                         allocator: ByteBufferAllocator,
-                                         loop: EventLoop) throws {
+    mutating func processOutboundMessage(
+        _ message: SSHMessage,
+        buffer: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        loop: EventLoop
+    ) throws {
         switch self.state {
         case .idle(var state):
             switch message {
@@ -798,7 +848,12 @@ struct SSHConnectionStateMachine {
 
                 // If we have a service request message, re-spin the state machine to process that too.
                 if let additionalMessage = possibleMessage {
-                    try self.processOutboundMessage(.serviceRequest(additionalMessage), buffer: &buffer, allocator: allocator, loop: loop)
+                    try self.processOutboundMessage(
+                        .serviceRequest(additionalMessage),
+                        buffer: &buffer,
+                        allocator: allocator,
+                        loop: loop
+                    )
                 }
 
             case .disconnect:
@@ -810,7 +865,10 @@ struct SSHConnectionStateMachine {
                 self.state = .keyExchange(kex)
 
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "key exchange",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
         case .receivedNewKeys(var kex):
@@ -833,7 +891,12 @@ struct SSHConnectionStateMachine {
 
                 // If we have a service request message, re-spin the state machine to process that too.
                 if let additionalMessage = possibleMessage {
-                    try self.processOutboundMessage(.serviceRequest(additionalMessage), buffer: &buffer, allocator: allocator, loop: loop)
+                    try self.processOutboundMessage(
+                        .serviceRequest(additionalMessage),
+                        buffer: &buffer,
+                        allocator: allocator,
+                        loop: loop
+                    )
                 }
 
             case .disconnect:
@@ -845,7 +908,10 @@ struct SSHConnectionStateMachine {
                 self.state = .receivedNewKeys(kex)
 
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "key exchange",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
         case .sentNewKeys(var state):
@@ -857,7 +923,10 @@ struct SSHConnectionStateMachine {
                 self.state = .sentNewKeys(state)
 
             case .serviceAccept, .userAuthRequest, .userAuthSuccess, .userAuthFailure:
-                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Cannot send \(message) before receiving newKeys")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "user auth",
+                    violation: "Cannot send \(message) before receiving newKeys"
+                )
 
             case .disconnect:
                 try state.serializer.serialize(message: message, to: &buffer)
@@ -868,7 +937,10 @@ struct SSHConnectionStateMachine {
                 self.state = .sentNewKeys(state)
 
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "user auth",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
         case .userAuthentication(var state):
@@ -912,7 +984,10 @@ struct SSHConnectionStateMachine {
                 self.state = .userAuthentication(state)
 
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "user auth", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "user auth",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
         case .active(var state):
@@ -952,7 +1027,10 @@ struct SSHConnectionStateMachine {
             case .ignore, .debug, .unimplemented:
                 try state.serializer.serialize(message: message, to: &buffer)
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "connection",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
             self.state = .active(state)
@@ -973,7 +1051,10 @@ struct SSHConnectionStateMachine {
                 self.state = .receivedKexInitWhenActive(state)
 
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "key exchange",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
         case .sentKexInitWhenActive(var state):
@@ -988,7 +1069,10 @@ struct SSHConnectionStateMachine {
                 self.state = .sentKexInitWhenActive(state)
 
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "key exchange",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
         case .rekeying(var state):
@@ -1016,7 +1100,10 @@ struct SSHConnectionStateMachine {
                 self.state = .rekeying(state)
 
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "key exchange",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
         case .rekeyingReceivedNewKeysState(var state):
@@ -1044,7 +1131,10 @@ struct SSHConnectionStateMachine {
                 self.state = .rekeyingReceivedNewKeysState(state)
 
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "key exchange", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "key exchange",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
         case .rekeyingSentNewKeysState(var state):
@@ -1086,7 +1176,10 @@ struct SSHConnectionStateMachine {
                 try state.serializer.serialize(message: message, to: &buffer)
                 self.state = .rekeyingSentNewKeysState(state)
             default:
-                throw NIOSSHError.protocolViolation(protocolName: "connection", violation: "Sent unexpected message type: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: "connection",
+                    violation: "Sent unexpected message type: \(message)"
+                )
             }
 
             self.state = .rekeyingSentNewKeysState(state)
@@ -1136,8 +1229,8 @@ extension SSHConnectionStateMachine {
             self.state = .sentKexInitWhenActive(newState)
             return
         case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication,
-             .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
-             .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
+            .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+            .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
             preconditionFailure("May not rekey in this state: \(self.state)")
         }
     }
@@ -1151,8 +1244,8 @@ extension SSHConnectionStateMachine {
         case .active:
             return true
         case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication,
-             .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
-             .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
+            .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+            .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
             return false
         }
     }
@@ -1162,8 +1255,8 @@ extension SSHConnectionStateMachine {
         case .receivedDisconnect, .sentDisconnect:
             return true
         case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication, .active,
-             .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
-             .rekeyingSentNewKeysState:
+            .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+            .rekeyingSentNewKeysState:
             return false
         }
     }
@@ -1172,7 +1265,7 @@ extension SSHConnectionStateMachine {
     var hasActivated: Bool {
         switch self.state {
         case .active, .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
-             .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
+            .rekeyingSentNewKeysState, .receivedDisconnect, .sentDisconnect:
             return true
         case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication:
             return false

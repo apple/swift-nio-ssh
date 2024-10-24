@@ -38,7 +38,9 @@ public struct UserAuthSuccessEvent: Hashable, Sendable {
 }
 
 extension AcceptsUserAuthMessages {
-    mutating func receiveServiceRequest(_ message: SSHMessage.ServiceRequestMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
+    mutating func receiveServiceRequest(
+        _ message: SSHMessage.ServiceRequestMessage
+    ) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let result = try self.userAuthStateMachine.receiveServiceRequest(message)
 
         if let message = result {
@@ -48,19 +50,25 @@ extension AcceptsUserAuthMessages {
         }
     }
 
-    mutating func receiveServiceAccept(_ message: SSHMessage.ServiceAcceptMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
+    mutating func receiveServiceAccept(
+        _ message: SSHMessage.ServiceAcceptMessage
+    ) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let result = try self.userAuthStateMachine.receiveServiceAccept(message)
 
         if let future = result {
-            return .possibleFutureMessage(future.map {
-                Self.transform($0)
-            })
+            return .possibleFutureMessage(
+                future.map {
+                    Self.transform($0)
+                }
+            )
         } else {
             return .noMessage
         }
     }
 
-    mutating func receiveUserAuthRequest(_ message: SSHMessage.UserAuthRequestMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
+    mutating func receiveUserAuthRequest(
+        _ message: SSHMessage.UserAuthRequestMessage
+    ) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let result = try self.userAuthStateMachine.receiveUserAuthRequest(message)
 
         if let future = result {
@@ -85,30 +93,42 @@ extension AcceptsUserAuthMessages {
         return .event(UserAuthSuccessEvent())
     }
 
-    mutating func receiveUserAuthFailure(_ message: SSHMessage.UserAuthFailureMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
+    mutating func receiveUserAuthFailure(
+        _ message: SSHMessage.UserAuthFailureMessage
+    ) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         let result = try self.userAuthStateMachine.receiveUserAuthFailure(message)
 
         if let future = result {
-            return .possibleFutureMessage(future.map {
-                Self.transform($0)
-            })
+            return .possibleFutureMessage(
+                future.map {
+                    Self.transform($0)
+                }
+            )
         } else {
             return .noMessage
         }
     }
 
-    mutating func receiveUserAuthBanner(_ message: SSHMessage.UserAuthBannerMessage) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
+    mutating func receiveUserAuthBanner(
+        _ message: SSHMessage.UserAuthBannerMessage
+    ) throws -> SSHConnectionStateMachine.StateMachineInboundProcessResult {
         try self.userAuthStateMachine.receiveUserAuthBanner(message)
         return .event(NIOUserAuthBannerEvent(message: message.message, languageTag: message.languageTag))
     }
 
-    private static func transform(_ result: NIOSSHUserAuthenticationResponseMessage, banner: SSHServerConfiguration.UserAuthBanner? = nil) -> SSHMultiMessage {
+    private static func transform(
+        _ result: NIOSSHUserAuthenticationResponseMessage,
+        banner: SSHServerConfiguration.UserAuthBanner? = nil
+    ) -> SSHMultiMessage {
         switch result {
         case .success:
             if let banner = banner {
                 // Send banner bundled with auth success to avoid leaking any information to unauthenticated clients.
                 // Note that this is by no means the only option according to RFC 4252
-                return SSHMultiMessage(.userAuthBanner(.init(message: banner.message, languageTag: banner.languageTag)), .userAuthSuccess)
+                return SSHMultiMessage(
+                    .userAuthBanner(.init(message: banner.message, languageTag: banner.languageTag)),
+                    .userAuthSuccess
+                )
             }
 
             return SSHMultiMessage(.userAuthSuccess)

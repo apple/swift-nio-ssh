@@ -15,30 +15,49 @@
 import Crypto
 import NIOCore
 import NIOEmbedded
-@testable import NIOSSH
 import XCTest
+
+@testable import NIOSSH
 
 class SSHHandlerTests: XCTestCase {
     func testHandlerInitializationOnAdd() throws {
         let allocator = ByteBufferAllocator()
         let channel = EmbeddedChannel()
-        let handler = NIOSSHHandler(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())), allocator: allocator, inboundChildChannelInitializer: nil)
+        let handler = NIOSSHHandler(
+            role: .client(
+                .init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())
+            ),
+            allocator: allocator,
+            inboundChildChannelInitializer: nil
+        )
 
         _ = try channel.connect(to: .init(unixDomainSocketPath: "/foo"))
 
         XCTAssertNoThrow(try channel.pipeline.addHandler(handler).wait())
-        XCTAssertEqual(try channel.readOutbound(as: IOData.self), .byteBuffer(allocator.buffer(string: Constants.version + "\r\n")))
+        XCTAssertEqual(
+            try channel.readOutbound(as: IOData.self),
+            .byteBuffer(allocator.buffer(string: Constants.version + "\r\n"))
+        )
     }
 
     func testHandlerInitializationActive() throws {
         let allocator = ByteBufferAllocator()
         let channel = EmbeddedChannel()
-        let handler = NIOSSHHandler(role: .client(.init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())), allocator: allocator, inboundChildChannelInitializer: nil)
+        let handler = NIOSSHHandler(
+            role: .client(
+                .init(userAuthDelegate: InfinitePasswordDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())
+            ),
+            allocator: allocator,
+            inboundChildChannelInitializer: nil
+        )
 
         XCTAssertNoThrow(try channel.pipeline.addHandler(handler).wait())
         XCTAssertNil(try channel.readOutbound())
 
         _ = try channel.connect(to: .init(unixDomainSocketPath: "/foo"))
-        XCTAssertEqual(try channel.readOutbound(as: IOData.self), .byteBuffer(allocator.buffer(string: Constants.version + "\r\n")))
+        XCTAssertEqual(
+            try channel.readOutbound(as: IOData.self),
+            .byteBuffer(allocator.buffer(string: Constants.version + "\r\n"))
+        )
     }
 }

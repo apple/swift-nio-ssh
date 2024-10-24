@@ -24,9 +24,18 @@ final class AcceptAllHostKeysDelegate: NIOSSHClientServerAuthenticationDelegate 
 }
 
 final class HardcodedClientPasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
-    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
+    func nextAuthenticationType(
+        availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+        nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+    ) {
         precondition(availableMethods.contains(.password))
-        nextChallengePromise.succeed(NIOSSHUserAuthenticationOffer(username: "username", serviceName: "", offer: .password(.init(password: "password"))))
+        nextChallengePromise.succeed(
+            NIOSSHUserAuthenticationOffer(
+                username: "username",
+                serviceName: "",
+                offer: .password(.init(password: "password"))
+            )
+        )
     }
 }
 
@@ -35,7 +44,10 @@ final class HardcodedServerPasswordDelegate: NIOSSHServerUserAuthenticationDeleg
         .password
     }
 
-    func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+    func requestReceived(
+        request: NIOSSHUserAuthenticationRequest,
+        responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>
+    ) {
         guard request.username == "username", case .password(let passwordRequest) = request.request else {
             responsePromise.succeed(.failure)
             return

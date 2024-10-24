@@ -34,5 +34,8 @@ public protocol NIOSSHClientUserAuthenticationDelegate {
     /// - parameters:
     ///     - availableMethods: The authentication methods the server is willing to accept.
     ///     - nextChallengePromise: An `EventLoopPromise` to be fulfilled with the next authentication offer.
-    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>)
+    func nextAuthenticationType(
+        availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+        nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+    )
 }

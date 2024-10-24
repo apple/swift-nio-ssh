@@ -14,15 +14,25 @@
 
 import Crypto
 import NIOCore
-@testable import NIOSSH
 import XCTest
 
+@testable import NIOSSH
+
 final class SSHPacketSerializerTests: XCTestCase {
-    private func runVersionHandshake(serializer: inout SSHPacketSerializer, parser: inout SSHPacketParser, file: StaticString = #filePath, line: UInt = #line) {
+    private func runVersionHandshake(
+        serializer: inout SSHPacketSerializer,
+        parser: inout SSHPacketParser,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         var buffer = ByteBufferAllocator().buffer(capacity: 22)
         let versionString = "SSH-2.0-SwiftSSH_1.0"
 
-        XCTAssertNoThrow(try serializer.serialize(message: .version(versionString), to: &buffer), file: file, line: line)
+        XCTAssertNoThrow(
+            try serializer.serialize(message: .version(versionString), to: &buffer),
+            file: file,
+            line: line
+        )
         parser.append(bytes: &buffer)
 
         var resultingMessage: SSHMessage?
@@ -81,7 +91,10 @@ final class SSHPacketSerializerTests: XCTestCase {
         var buffer = allocator.buffer(capacity: 20)
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
-        XCTAssertEqual([0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
+        XCTAssertEqual(
+            [0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104],
+            buffer.getBytes(at: 0, length: 22)
+        )
         XCTAssertEqual(1, serializer.sequenceNumber)
 
         parser.append(bytes: &buffer)
@@ -104,7 +117,10 @@ final class SSHPacketSerializerTests: XCTestCase {
         var buffer = allocator.buffer(capacity: 20)
         XCTAssertNoThrow(try serializer.serialize(message: message, to: &buffer))
 
-        XCTAssertEqual([0, 0, 0, 28, 10, 6, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104], buffer.getBytes(at: 0, length: 22))
+        XCTAssertEqual(
+            [0, 0, 0, 28, 10, 6, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104],
+            buffer.getBytes(at: 0, length: 22)
+        )
         XCTAssertEqual(1, serializer.sequenceNumber)
 
         parser.append(bytes: &buffer)
@@ -117,20 +133,24 @@ final class SSHPacketSerializerTests: XCTestCase {
     }
 
     func testKeyExchange() throws {
-        let message = SSHMessage.keyExchange(.init(
-            cookie: ByteBuffer.of(bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-            keyExchangeAlgorithms: ["curve25519-sha256"],
-            serverHostKeyAlgorithms: ["ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521"],
-            encryptionAlgorithmsClientToServer: ["aes256-ctr"],
-            encryptionAlgorithmsServerToClient: ["aes256-ctr"],
-            macAlgorithmsClientToServer: ["hmac-sha2-256"],
-            macAlgorithmsServerToClient: ["hmac-sha2-256"],
-            compressionAlgorithmsClientToServer: ["none"],
-            compressionAlgorithmsServerToClient: ["none"],
-            languagesClientToServer: [],
-            languagesServerToClient: [],
-            firstKexPacketFollows: false
-        ))
+        let message = SSHMessage.keyExchange(
+            .init(
+                cookie: ByteBuffer.of(bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+                keyExchangeAlgorithms: ["curve25519-sha256"],
+                serverHostKeyAlgorithms: [
+                    "ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
+                ],
+                encryptionAlgorithmsClientToServer: ["aes256-ctr"],
+                encryptionAlgorithmsServerToClient: ["aes256-ctr"],
+                macAlgorithmsClientToServer: ["hmac-sha2-256"],
+                macAlgorithmsServerToClient: ["hmac-sha2-256"],
+                compressionAlgorithmsClientToServer: ["none"],
+                compressionAlgorithmsServerToClient: ["none"],
+                languagesClientToServer: [],
+                languagesServerToClient: [],
+                firstKexPacketFollows: false
+            )
+        )
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
         var parser = SSHPacketParser(isServer: false, allocator: allocator)
@@ -146,7 +166,10 @@ final class SSHPacketSerializerTests: XCTestCase {
         case .keyExchange(let message):
             XCTAssertEqual(ByteBuffer.of(bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), message.cookie)
             XCTAssertEqual(["curve25519-sha256"], message.keyExchangeAlgorithms)
-            XCTAssertEqual(["ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521"], message.serverHostKeyAlgorithms)
+            XCTAssertEqual(
+                ["ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521"],
+                message.serverHostKeyAlgorithms
+            )
             XCTAssertEqual(["aes256-ctr"], message.encryptionAlgorithmsClientToServer)
             XCTAssertEqual(["aes256-ctr"], message.encryptionAlgorithmsServerToClient)
             XCTAssertEqual(["hmac-sha2-256"], message.macAlgorithmsClientToServer)
@@ -184,13 +207,22 @@ final class SSHPacketSerializerTests: XCTestCase {
     }
 
     func testKeyExchangeReply() throws {
-        let key = try Curve25519.Signing.PublicKey(rawRepresentation: [182, 37, 100, 183, 198, 201, 188, 148, 70, 200, 201, 225, 14, 66, 236, 124, 45, 246, 72, 46, 242, 24, 149, 170, 135, 58, 10, 18, 208, 163, 106, 118])
-        let signature = Data([18, 95, 167, 169, 241, 132, 161, 143, 58, 35, 228, 10, 66, 187, 185, 176, 60, 95, 53, 188, 238, 226, 202, 75, 45, 226, 101, 39, 51, 168, 2, 92, 211, 28, 235, 229, 200, 249, 234, 71, 231, 245, 198, 167, 222, 207, 11, 151, 144, 218, 148, 205, 15, 77, 69, 72, 201, 37, 125, 94, 227, 173, 194, 10])
-        let message = SSHMessage.keyExchangeReply(.init(
-            hostKey: NIOSSHPublicKey(backingKey: .ed25519(key)),
-            publicKey: ByteBuffer.of(bytes: [42, 42]),
-            signature: NIOSSHSignature(backingSignature: .ed25519(.data(signature)))
-        ))
+        let key = try Curve25519.Signing.PublicKey(rawRepresentation: [
+            182, 37, 100, 183, 198, 201, 188, 148, 70, 200, 201, 225, 14, 66, 236, 124, 45, 246, 72, 46, 242, 24, 149,
+            170, 135, 58, 10, 18, 208, 163, 106, 118,
+        ])
+        let signature = Data([
+            18, 95, 167, 169, 241, 132, 161, 143, 58, 35, 228, 10, 66, 187, 185, 176, 60, 95, 53, 188, 238, 226, 202,
+            75, 45, 226, 101, 39, 51, 168, 2, 92, 211, 28, 235, 229, 200, 249, 234, 71, 231, 245, 198, 167, 222, 207,
+            11, 151, 144, 218, 148, 205, 15, 77, 69, 72, 201, 37, 125, 94, 227, 173, 194, 10,
+        ])
+        let message = SSHMessage.keyExchangeReply(
+            .init(
+                hostKey: NIOSSHPublicKey(backingKey: .ed25519(key)),
+                publicKey: ByteBuffer.of(bytes: [42, 42]),
+                signature: NIOSSHSignature(backingSignature: .ed25519(.data(signature)))
+            )
+        )
         let allocator = ByteBufferAllocator()
         var serializer = SSHPacketSerializer()
         var parser = SSHPacketParser(isServer: false, allocator: allocator)
@@ -264,14 +296,16 @@ final class SSHPacketSerializerTests: XCTestCase {
         let outboundEncryptionKey = SymmetricKey(size: .bits128)
         let inboundMACKey = SymmetricKey(size: .bits128)
         let outboundMACKey = SymmetricKey(size: .bits128)
-        let protection = TestTransportProtection(initialKeys: .init(
-            initialInboundIV: [],
-            initialOutboundIV: [],
-            inboundEncryptionKey: inboundEncryptionKey,
-            outboundEncryptionKey: outboundEncryptionKey,
-            inboundMACKey: inboundMACKey,
-            outboundMACKey: outboundMACKey
-        ))
+        let protection = TestTransportProtection(
+            initialKeys: .init(
+                initialInboundIV: [],
+                initialOutboundIV: [],
+                inboundEncryptionKey: inboundEncryptionKey,
+                outboundEncryptionKey: outboundEncryptionKey,
+                inboundMACKey: inboundMACKey,
+                outboundMACKey: outboundMACKey
+            )
+        )
 
         serializer.addEncryption(protection)
         buffer = allocator.buffer(capacity: 5)

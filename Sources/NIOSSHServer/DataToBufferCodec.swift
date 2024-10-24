@@ -60,4 +60,4 @@ func createOutboundConnection(targetHost: String, targetPort: Int, loop: EventLo
     }.connect(host: targetHost, port: targetPort)
 }
 
-#endif // canImport(Foundation.Process)
+#endif  // canImport(Foundation.Process)

@@ -16,6 +16,7 @@
 set -eu
 here="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# shellcheck disable=SC2154 # Provided by framework
 tmp_dir="/tmp"
 
 while getopts "t:" opt; do

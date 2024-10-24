@@ -15,8 +15,9 @@
 import Crypto
 import NIOCore
 import NIOEmbedded
-@testable import NIOSSH
 import XCTest
+
+@testable import NIOSSH
 
 enum EndToEndTestError: Error {
     case unableToCreateChildChannel
@@ -81,14 +82,33 @@ class BackToBackEmbeddedChannel {
     }
 
     func configureWithHarness(_ harness: TestHarness) throws {
-        let clientHandler = NIOSSHHandler(role: .client(.init(userAuthDelegate: harness.clientAuthDelegate, serverAuthDelegate: harness.clientServerAuthDelegate, globalRequestDelegate: harness.clientGlobalRequestDelegate)),
-                                          allocator: self.client.allocator,
-                                          inboundChildChannelInitializer: nil)
-        let serverHandler = NIOSSHHandler(role: .server(.init(hostKeys: harness.serverHostKeys, userAuthDelegate: harness.serverAuthDelegate, globalRequestDelegate: harness.serverGlobalRequestDelegate, banner: harness.serverAuthBanner)),
-                                          allocator: self.server.allocator) { channel, _ in
+        let clientHandler = NIOSSHHandler(
+            role: .client(
+                .init(
+                    userAuthDelegate: harness.clientAuthDelegate,
+                    serverAuthDelegate: harness.clientServerAuthDelegate,
+                    globalRequestDelegate: harness.clientGlobalRequestDelegate
+                )
+            ),
+            allocator: self.client.allocator,
+            inboundChildChannelInitializer: nil
+        )
+        let serverHandler = NIOSSHHandler(
+            role: .server(
+                .init(
+                    hostKeys: harness.serverHostKeys,
+                    userAuthDelegate: harness.serverAuthDelegate,
+                    globalRequestDelegate: harness.serverGlobalRequestDelegate,
+                    banner: harness.serverAuthBanner
+                )
+            ),
+            allocator: self.server.allocator
+        ) { channel, _ in
             self.activeServerChannels.append(channel)
             let boxedSelf = NIOLoopBound(self, eventLoop: channel.eventLoop)
-            channel.closeFuture.whenComplete { _ in boxedSelf.value.activeServerChannels.removeAll(where: { $0 === channel }) }
+            channel.closeFuture.whenComplete { _ in
+                boxedSelf.value.activeServerChannels.removeAll(where: { $0 === channel })
+            }
             return channel.eventLoop.makeSucceededFuture(())
         }
 
@@ -153,14 +173,19 @@ final class PrivateKeyClientAuth: NIOSSHClientUserAuthenticationDelegate {
         self.key = key
     }
 
-    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
+    func nextAuthenticationType(
+        availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+        nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+    ) {
         guard availableMethods.contains(.publicKey), let key = self.key else {
             nextChallengePromise.succeed(nil)
             return
         }
 
         self.key = nil
-        nextChallengePromise.succeed(.init(username: "foo", serviceName: "ssh-connection", offer: .privateKey(.init(privateKey: key))))
+        nextChallengePromise.succeed(
+            .init(username: "foo", serviceName: "ssh-connection", offer: .privateKey(.init(privateKey: key)))
+        )
     }
 }
 
@@ -173,7 +198,10 @@ final class ExpectPublicKeyAuth: NIOSSHServerUserAuthenticationDelegate {
 
     let supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods = .publicKey
 
-    func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+    func requestReceived(
+        request: NIOSSHUserAuthenticationRequest,
+        responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>
+    ) {
         guard case .publicKey(let actualKey) = request.request else {
             responsePromise.succeed(.failure)
             return
@@ -228,17 +256,35 @@ class EndToEndTests: XCTestCase {
         helper(SSHChannelRequestEvent.ExecRequest(command: "uname -a", wantReply: true))
         helper(SSHChannelRequestEvent.EnvironmentRequest(wantReply: true, name: "foo", value: "bar"))
         helper(SSHChannelRequestEvent.ExitStatus(exitStatus: 5))
-        helper(SSHChannelRequestEvent.PseudoTerminalRequest(wantReply: true,
-                                                            term: "vt100",
-                                                            terminalCharacterWidth: 80,
-                                                            terminalRowHeight: 24,
-                                                            terminalPixelWidth: 0,
-                                                            terminalPixelHeight: 0,
-                                                            terminalModes: .init([.ECHO: 5])))
+        helper(
+            SSHChannelRequestEvent.PseudoTerminalRequest(
+                wantReply: true,
+                term: "vt100",
+                terminalCharacterWidth: 80,
+                terminalRowHeight: 24,
+                terminalPixelWidth: 0,
+                terminalPixelHeight: 0,
+                terminalModes: .init([.ECHO: 5])
+            )
+        )
         helper(SSHChannelRequestEvent.ShellRequest(wantReply: true))
-        helper(SSHChannelRequestEvent.ExitSignal(signalName: "ILL", errorMessage: "illegal instruction", language: "en", dumpedCore: true))
+        helper(
+            SSHChannelRequestEvent.ExitSignal(
+                signalName: "ILL",
+                errorMessage: "illegal instruction",
+                language: "en",
+                dumpedCore: true
+            )
+        )
         helper(SSHChannelRequestEvent.SubsystemRequest(subsystem: "file transfer", wantReply: false))
-        helper(SSHChannelRequestEvent.WindowChangeRequest(terminalCharacterWidth: 0, terminalRowHeight: 0, terminalPixelWidth: 720, terminalPixelHeight: 480))
+        helper(
+            SSHChannelRequestEvent.WindowChangeRequest(
+                terminalCharacterWidth: 0,
+                terminalRowHeight: 0,
+                terminalPixelWidth: 720,
+                terminalPixelHeight: 480
+            )
+        )
         helper(SSHChannelRequestEvent.LocalFlowControlRequest(clientCanDo: true))
         helper(SSHChannelRequestEvent.SignalRequest(signal: "USR1"))
         helper(ChannelSuccessEvent())
@@ -272,7 +318,11 @@ class EndToEndTests: XCTestCase {
 
             var port: Int? = 0
 
-            func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>) {
+            func tcpForwardingRequest(
+                _ request: GlobalRequest.TCPForwardingRequest,
+                handler: NIOSSHHandler,
+                promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>
+            ) {
                 self.requests.append(request)
                 let port = self.port
                 self.port = nil
@@ -302,7 +352,10 @@ class EndToEndTests: XCTestCase {
         XCTAssertEqual(firstResponse, GlobalRequest.TCPForwardingResponse(boundPort: 0))
         XCTAssertEqual(secondResponse, GlobalRequest.TCPForwardingResponse(boundPort: nil))
 
-        XCTAssertEqual(customDelegate.requests, [.listen(host: "localhost", port: 8765), .cancel(host: "localhost", port: 8765)])
+        XCTAssertEqual(
+            customDelegate.requests,
+            [.listen(host: "localhost", port: 8765), .cancel(host: "localhost", port: 8765)]
+        )
     }
 
     func testUnknownGlobalRequestCanTriggerResponse() throws {
@@ -322,7 +375,8 @@ class EndToEndTests: XCTestCase {
 
         let firstReply = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
         clientSSHHandler.sendGlobalRequestMessage(
-            .init(wantReply: true, type: .unknown("test", randomPayload)), promise: firstReply
+            .init(wantReply: true, type: .unknown("test", randomPayload)),
+            promise: firstReply
         )
 
         XCTAssertNoThrow(try self.channel.interactInMemory())
@@ -330,7 +384,8 @@ class EndToEndTests: XCTestCase {
 
         let secondReply = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
         clientSSHHandler.sendGlobalRequestMessage(
-            .init(wantReply: false, type: .unknown("test", randomPayload)), promise: secondReply
+            .init(wantReply: false, type: .unknown("test", randomPayload)),
+            promise: secondReply
         )
 
         XCTAssertNoThrow(try self.channel.interactInMemory())
@@ -345,7 +400,10 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
 
         // Issue a forwarding request early. This should be queued.
-        self.channel.clientSSHHandler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 2222), promise: promise)
+        self.channel.clientSSHHandler?.sendTCPForwardingRequest(
+            .listen(host: "localhost", port: 2222),
+            promise: promise
+        )
         XCTAssertFalse(completed.value)
 
         // Activate. This will complete the forwarding request.
@@ -364,7 +422,10 @@ class EndToEndTests: XCTestCase {
         let err = NIOLoopBoundBox<Error?>(nil, eventLoop: self.channel.client.eventLoop)
         let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
         promise.futureResult.whenFailure { error in err.value = error }
-        self.channel.clientSSHHandler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 1234), promise: promise)
+        self.channel.clientSSHHandler?.sendTCPForwardingRequest(
+            .listen(host: "localhost", port: 1234),
+            promise: promise
+        )
         XCTAssertNil(err.value)
 
         self.channel.client.close(promise: nil)
@@ -380,7 +441,10 @@ class EndToEndTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
 
         // Enqueue a forwarding request
-        self.channel.clientSSHHandler?.sendTCPForwardingRequest(.listen(host: "localhost", port: 1234), promise: promise)
+        self.channel.clientSSHHandler?.sendTCPForwardingRequest(
+            .listen(host: "localhost", port: 1234),
+            promise: promise
+        )
         XCTAssertNil(err.value)
 
         // Now close the channel.
@@ -476,8 +540,10 @@ class EndToEndTests: XCTestCase {
 
             func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
                 // Short delay here, but we'll be forced to wait.
-                let eventLoopSelf = NIOLoopBoundBox(self,
-                                                    eventLoop: validationCompletePromise.futureResult.eventLoop)
+                let eventLoopSelf = NIOLoopBoundBox(
+                    self,
+                    eventLoop: validationCompletePromise.futureResult.eventLoop
+                )
                 validationCompletePromise.futureResult.eventLoop.scheduleTask(in: .milliseconds(100)) {
                     eventLoopSelf.value.validationCount += 1
                     validationCompletePromise.succeed(())
@@ -720,7 +786,10 @@ class EndToEndTests: XCTestCase {
         let handshaker = ClientHandshakeHandler(promise: promise)
 
         var harness = TestHarness()
-        harness.serverAuthBanner = .init(message: ClientHandshakeHandler.expectedAuthBannerMessage, languageTag: ClientHandshakeHandler.expectedAuthBannerLanguageTag)
+        harness.serverAuthBanner = .init(
+            message: ClientHandshakeHandler.expectedAuthBannerMessage,
+            languageTag: ClientHandshakeHandler.expectedAuthBannerLanguageTag
+        )
 
         // Set up the connection, validate all is well.
         XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
@@ -754,7 +823,10 @@ class EndToEndTests: XCTestCase {
         }
 
         struct BadPasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
-            func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
+            func nextAuthenticationType(
+                availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+                nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+            ) {
                 nextChallengePromise.fail(TestError.bang)
             }
         }

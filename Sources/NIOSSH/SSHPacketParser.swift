@@ -130,8 +130,9 @@ struct SSHPacketParser {
             // Looking for a string ending with \r\n
             let slice = self.buffer.readableBytesView
             if let lfIndex = slice.firstIndex(of: lineFeed), lfIndex < slice.endIndex {
-                let versionEndIndex = slice[lfIndex.advanced(by: -1)] == carriageReturn ? lfIndex.advanced(by: -1) : lfIndex
-                let version = String(decoding: slice[slice.startIndex ..< versionEndIndex], as: UTF8.self)
+                let versionEndIndex =
+                    slice[lfIndex.advanced(by: -1)] == carriageReturn ? lfIndex.advanced(by: -1) : lfIndex
+                let version = String(decoding: slice[slice.startIndex..<versionEndIndex], as: UTF8.self)
                 self.buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: lfIndex).advanced(by: 1))
                 return version
             }
@@ -141,8 +142,9 @@ struct SSHPacketParser {
             let startIndex = slice.startIndex
             while let lfIndex = slice.firstIndex(of: lineFeed), lfIndex < slice.endIndex {
                 if slice.starts(with: "SSH-".utf8) {
-                    let versionEndIndex = slice[lfIndex.advanced(by: -1)] == carriageReturn ? lfIndex.advanced(by: -1) : lfIndex
-                    let version = String(decoding: slice[slice.startIndex ..< versionEndIndex], as: UTF8.self)
+                    let versionEndIndex =
+                        slice[lfIndex.advanced(by: -1)] == carriageReturn ? lfIndex.advanced(by: -1) : lfIndex
+                    let version = String(decoding: slice[slice.startIndex..<versionEndIndex], as: UTF8.self)
                     self.buffer.moveReaderIndex(forwardBy: startIndex.distance(to: lfIndex).advanced(by: 1))
                     return version
                 } else {
@@ -175,7 +177,8 @@ struct SSHPacketParser {
             buffer.moveReaderIndex(forwardBy: MemoryLayout<UInt32>.size)
 
             var content = try buffer.sliceContentFromPadding()
-            guard let message = try content.readSSHMessage(), content.readableBytes == 0, buffer.readableBytes == 0 else {
+            guard let message = try content.readSSHMessage(), content.readableBytes == 0, buffer.readableBytes == 0
+            else {
                 // Throw this error if the content wasn't exactly the right length for the message.
                 throw NIOSSHError.invalidPacketFormat
             }
@@ -191,7 +194,8 @@ struct SSHPacketParser {
             }
 
             var content = try protection.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: self.sequenceNumber)
-            guard let message = try content.readSSHMessage(), content.readableBytes == 0, buffer.readableBytes == 0 else {
+            guard let message = try content.readSSHMessage(), content.readableBytes == 0, buffer.readableBytes == 0
+            else {
                 // Throw this error if the content wasn't exactly the right length for the message.
                 throw NIOSSHError.invalidPacketFormat
             }

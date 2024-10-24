@@ -23,16 +23,20 @@ protocol EllipticCurveKeyExchangeProtocol {
 
     func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage
 
-    mutating func completeKeyExchangeServerSide(clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
-                                                serverHostKey: NIOSSHPrivateKey,
-                                                initialExchangeBytes: inout ByteBuffer,
-                                                allocator: ByteBufferAllocator,
-                                                expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage)
+    mutating func completeKeyExchangeServerSide(
+        clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
+        serverHostKey: NIOSSHPrivateKey,
+        initialExchangeBytes: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage)
 
-    mutating func receiveServerKeyExchangePayload(serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
-                                                  initialExchangeBytes: inout ByteBuffer,
-                                                  allocator: ByteBufferAllocator,
-                                                  expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult
+    mutating func receiveServerKeyExchangePayload(
+        serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
+        initialExchangeBytes: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> KeyExchangeResult
 
     static var keyExchangeAlgorithmNames: [Substring] { get }
 }
@@ -77,19 +81,23 @@ extension EllipticCurveKeyExchange {
     ///     - initialExchangeBytes: The initial bytes of the exchange, suitable for writing into the exchange hash.
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
-    mutating func completeKeyExchangeServerSide(clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
-                                                serverHostKey: NIOSSHPrivateKey,
-                                                initialExchangeBytes: inout ByteBuffer,
-                                                allocator: ByteBufferAllocator,
-                                                expectedKeySizes: ExpectedKeySizes) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage) {
+    mutating func completeKeyExchangeServerSide(
+        clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
+        serverHostKey: NIOSSHPrivateKey,
+        initialExchangeBytes: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> (KeyExchangeResult, SSHMessage.KeyExchangeECDHReplyMessage) {
         precondition(self.ourRole.isServer, "Only servers may receive a client key exchange packet!")
 
         // With that, we have enough to finalize the key exchange.
-        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: message.publicKey,
-                                                     initialExchangeBytes: &initialExchangeBytes,
-                                                     serverHostKey: serverHostKey.publicKey,
-                                                     allocator: allocator,
-                                                     expectedKeySizes: expectedKeySizes)
+        let kexResult = try self.finalizeKeyExchange(
+            theirKeyBytes: message.publicKey,
+            initialExchangeBytes: &initialExchangeBytes,
+            serverHostKey: serverHostKey.publicKey,
+            allocator: allocator,
+            expectedKeySizes: expectedKeySizes
+        )
 
         // We should now sign the exchange hash.
         let exchangeHashSignature = try serverHostKey.sign(digest: kexResult.exchangeHash)
@@ -100,9 +108,11 @@ extension EllipticCurveKeyExchange {
         self.ourKey.publicKey.write(to: &publicKeyBytes)
 
         // Now we have all we need.
-        let responseMessage = SSHMessage.KeyExchangeECDHReplyMessage(hostKey: serverHostKey.publicKey,
-                                                                     publicKey: publicKeyBytes,
-                                                                     signature: exchangeHashSignature)
+        let responseMessage = SSHMessage.KeyExchangeECDHReplyMessage(
+            hostKey: serverHostKey.publicKey,
+            publicKey: publicKeyBytes,
+            signature: exchangeHashSignature
+        )
 
         return (KeyExchangeResult(kexResult), responseMessage)
     }
@@ -116,10 +126,12 @@ extension EllipticCurveKeyExchange {
     ///     - initialExchangeBytes: The initial bytes of the exchange, suitable for writing into the exchange hash.
     ///     - allocator: A `ByteBufferAllocator` suitable for this connection.
     ///     - expectedKeySizes: The sizes of the keys we need to generate.
-    mutating func receiveServerKeyExchangePayload(serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
-                                                  initialExchangeBytes: inout ByteBuffer,
-                                                  allocator: ByteBufferAllocator,
-                                                  expectedKeySizes: ExpectedKeySizes) throws -> KeyExchangeResult {
+    mutating func receiveServerKeyExchangePayload(
+        serverKeyExchangeMessage message: SSHMessage.KeyExchangeECDHReplyMessage,
+        initialExchangeBytes: inout ByteBuffer,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> KeyExchangeResult {
         precondition(self.ourRole.isClient, "Only clients may receive a server key exchange packet!")
 
         // Ok, we have a few steps here. Firstly, we need to extract the server's public key and generate our shared
@@ -131,11 +143,13 @@ extension EllipticCurveKeyExchange {
         //
         // Finally, we return our generated keys to the state machine.
 
-        let kexResult = try self.finalizeKeyExchange(theirKeyBytes: message.publicKey,
-                                                     initialExchangeBytes: &initialExchangeBytes,
-                                                     serverHostKey: message.hostKey,
-                                                     allocator: allocator,
-                                                     expectedKeySizes: expectedKeySizes)
+        let kexResult = try self.finalizeKeyExchange(
+            theirKeyBytes: message.publicKey,
+            initialExchangeBytes: &initialExchangeBytes,
+            serverHostKey: message.hostKey,
+            allocator: allocator,
+            expectedKeySizes: expectedKeySizes
+        )
 
         // We can now verify signature over the exchange hash.
         guard message.hostKey.isValidSignature(message.signature, for: kexResult.exchangeHash) else {
@@ -146,11 +160,13 @@ extension EllipticCurveKeyExchange {
         return KeyExchangeResult(kexResult)
     }
 
-    private mutating func finalizeKeyExchange(theirKeyBytes: ByteBuffer,
-                                              initialExchangeBytes: inout ByteBuffer,
-                                              serverHostKey: NIOSSHPublicKey,
-                                              allocator: ByteBufferAllocator,
-                                              expectedKeySizes: ExpectedKeySizes) throws -> EllipticCurveKeyExchangeResult {
+    private mutating func finalizeKeyExchange(
+        theirKeyBytes: ByteBuffer,
+        initialExchangeBytes: inout ByteBuffer,
+        serverHostKey: NIOSSHPublicKey,
+        allocator: ByteBufferAllocator,
+        expectedKeySizes: ExpectedKeySizes
+    ) throws -> EllipticCurveKeyExchangeResult {
         self.theirKey = try PrivateKey.PublicKey(buffer: theirKeyBytes)
         self.sharedSecret = try self.ourKey.generatedSharedSecret(with: self.theirKey!)
 
@@ -196,13 +212,23 @@ extension EllipticCurveKeyExchange {
         }
 
         // Now we can generate the keys.
-        let keys = self.generateKeys(sharedSecret: self.sharedSecret!, exchangeHash: exchangeHash, sessionID: sessionID, expectedKeySizes: expectedKeySizes)
+        let keys = self.generateKeys(
+            sharedSecret: self.sharedSecret!,
+            exchangeHash: exchangeHash,
+            sessionID: sessionID,
+            expectedKeySizes: expectedKeySizes
+        )
 
         // All done!
         return EllipticCurveKeyExchangeResult(sessionID: sessionID, exchangeHash: exchangeHash, keys: keys)
     }
 
-    private func generateKeys(sharedSecret: SharedSecret, exchangeHash: PrivateKey.Hasher.Digest, sessionID: ByteBuffer, expectedKeySizes: ExpectedKeySizes) -> NIOSSHSessionKeys {
+    private func generateKeys(
+        sharedSecret: SharedSecret,
+        exchangeHash: PrivateKey.Hasher.Digest,
+        sessionID: ByteBuffer,
+        expectedKeySizes: ExpectedKeySizes
+    ) -> NIOSSHSessionKeys {
         // Cool, now it's time to generate the keys. In my ideal world I'd have a mechanism to handle this digest securely, but this is
         // not available in CryptoKit so we're going to spill these keys all over the heap and the stack. This isn't ideal, but I don't
         // think the risk is too bad.
@@ -228,53 +254,173 @@ extension EllipticCurveKeyExchange {
 
         switch self.ourRole {
         case .client:
-            return NIOSSHSessionKeys(initialInboundIV: self.generateServerToClientIV(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.ivSize),
-                                     initialOutboundIV: self.generateClientToServerIV(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.ivSize),
-                                     inboundEncryptionKey: self.generateServerToClientEncryptionKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.encryptionKeySize),
-                                     outboundEncryptionKey: self.generateClientToServerEncryptionKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.encryptionKeySize),
-                                     inboundMACKey: self.generateServerToClientMACKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.macKeySize),
-                                     outboundMACKey: self.generateClientToServerMACKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.macKeySize))
+            return NIOSSHSessionKeys(
+                initialInboundIV: self.generateServerToClientIV(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.ivSize
+                ),
+                initialOutboundIV: self.generateClientToServerIV(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.ivSize
+                ),
+                inboundEncryptionKey: self.generateServerToClientEncryptionKey(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.encryptionKeySize
+                ),
+                outboundEncryptionKey: self.generateClientToServerEncryptionKey(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.encryptionKeySize
+                ),
+                inboundMACKey: self.generateServerToClientMACKey(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.macKeySize
+                ),
+                outboundMACKey: self.generateClientToServerMACKey(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.macKeySize
+                )
+            )
         case .server:
-            return NIOSSHSessionKeys(initialInboundIV: self.generateClientToServerIV(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.ivSize),
-                                     initialOutboundIV: self.generateServerToClientIV(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.ivSize),
-                                     inboundEncryptionKey: self.generateClientToServerEncryptionKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.encryptionKeySize),
-                                     outboundEncryptionKey: self.generateServerToClientEncryptionKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.encryptionKeySize),
-                                     inboundMACKey: self.generateClientToServerMACKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.macKeySize),
-                                     outboundMACKey: self.generateServerToClientMACKey(baseHasher: baseHasher, sessionID: sessionID, expectedKeySize: expectedKeySizes.macKeySize))
+            return NIOSSHSessionKeys(
+                initialInboundIV: self.generateClientToServerIV(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.ivSize
+                ),
+                initialOutboundIV: self.generateServerToClientIV(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.ivSize
+                ),
+                inboundEncryptionKey: self.generateClientToServerEncryptionKey(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.encryptionKeySize
+                ),
+                outboundEncryptionKey: self.generateServerToClientEncryptionKey(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.encryptionKeySize
+                ),
+                inboundMACKey: self.generateClientToServerMACKey(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.macKeySize
+                ),
+                outboundMACKey: self.generateServerToClientMACKey(
+                    baseHasher: baseHasher,
+                    sessionID: sessionID,
+                    expectedKeySize: expectedKeySizes.macKeySize
+                )
+            )
         }
     }
 
-    private func generateClientToServerIV(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> [UInt8] {
+    private func generateClientToServerIV(
+        baseHasher: PrivateKey.Hasher,
+        sessionID: ByteBuffer,
+        expectedKeySize: Int
+    ) -> [UInt8] {
         assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
-        return Array(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "A"), sessionID: sessionID).prefix(expectedKeySize))
+        return Array(
+            self.generateSpecificHash(
+                baseHasher: baseHasher,
+                discriminatorByte: UInt8(ascii: "A"),
+                sessionID: sessionID
+            ).prefix(expectedKeySize)
+        )
     }
 
-    private func generateServerToClientIV(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> [UInt8] {
+    private func generateServerToClientIV(
+        baseHasher: PrivateKey.Hasher,
+        sessionID: ByteBuffer,
+        expectedKeySize: Int
+    ) -> [UInt8] {
         assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
-        return Array(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "B"), sessionID: sessionID).prefix(expectedKeySize))
+        return Array(
+            self.generateSpecificHash(
+                baseHasher: baseHasher,
+                discriminatorByte: UInt8(ascii: "B"),
+                sessionID: sessionID
+            ).prefix(expectedKeySize)
+        )
     }
 
-    private func generateClientToServerEncryptionKey(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
+    private func generateClientToServerEncryptionKey(
+        baseHasher: PrivateKey.Hasher,
+        sessionID: ByteBuffer,
+        expectedKeySize: Int
+    ) -> SymmetricKey {
         assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
-        return SymmetricKey.truncatingDigest(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "C"), sessionID: sessionID), length: expectedKeySize)
+        return SymmetricKey.truncatingDigest(
+            self.generateSpecificHash(
+                baseHasher: baseHasher,
+                discriminatorByte: UInt8(ascii: "C"),
+                sessionID: sessionID
+            ),
+            length: expectedKeySize
+        )
     }
 
-    private func generateServerToClientEncryptionKey(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
+    private func generateServerToClientEncryptionKey(
+        baseHasher: PrivateKey.Hasher,
+        sessionID: ByteBuffer,
+        expectedKeySize: Int
+    ) -> SymmetricKey {
         assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
-        return SymmetricKey.truncatingDigest(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "D"), sessionID: sessionID), length: expectedKeySize)
+        return SymmetricKey.truncatingDigest(
+            self.generateSpecificHash(
+                baseHasher: baseHasher,
+                discriminatorByte: UInt8(ascii: "D"),
+                sessionID: sessionID
+            ),
+            length: expectedKeySize
+        )
     }
 
-    private func generateClientToServerMACKey(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
+    private func generateClientToServerMACKey(
+        baseHasher: PrivateKey.Hasher,
+        sessionID: ByteBuffer,
+        expectedKeySize: Int
+    ) -> SymmetricKey {
         assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
-        return SymmetricKey.truncatingDigest(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "E"), sessionID: sessionID), length: expectedKeySize)
+        return SymmetricKey.truncatingDigest(
+            self.generateSpecificHash(
+                baseHasher: baseHasher,
+                discriminatorByte: UInt8(ascii: "E"),
+                sessionID: sessionID
+            ),
+            length: expectedKeySize
+        )
     }
 
-    private func generateServerToClientMACKey(baseHasher: PrivateKey.Hasher, sessionID: ByteBuffer, expectedKeySize: Int) -> SymmetricKey {
+    private func generateServerToClientMACKey(
+        baseHasher: PrivateKey.Hasher,
+        sessionID: ByteBuffer,
+        expectedKeySize: Int
+    ) -> SymmetricKey {
         assert(expectedKeySize <= PrivateKey.Hasher.Digest.byteCount)
-        return SymmetricKey.truncatingDigest(self.generateSpecificHash(baseHasher: baseHasher, discriminatorByte: UInt8(ascii: "F"), sessionID: sessionID), length: expectedKeySize)
+        return SymmetricKey.truncatingDigest(
+            self.generateSpecificHash(
+                baseHasher: baseHasher,
+                discriminatorByte: UInt8(ascii: "F"),
+                sessionID: sessionID
+            ),
+            length: expectedKeySize
+        )
     }
 
-    private func generateSpecificHash(baseHasher: PrivateKey.Hasher, discriminatorByte: UInt8, sessionID: ByteBuffer) -> PrivateKey.Hasher.Digest {
+    private func generateSpecificHash(
+        baseHasher: PrivateKey.Hasher,
+        discriminatorByte: UInt8,
+        sessionID: ByteBuffer
+    ) -> PrivateKey.Hasher.Digest {
         var localHasher = baseHasher
         localHasher.update(byte: discriminatorByte)
         localHasher.update(data: sessionID.readableBytesView)
@@ -296,7 +442,9 @@ extension EllipticCurveKeyExchange {
 }
 
 extension KeyExchangeResult {
-    fileprivate init<PrivateKey: ECDHCompatiblePrivateKey>(_ innerResult: EllipticCurveKeyExchange<PrivateKey>.EllipticCurveKeyExchangeResult) {
+    fileprivate init<PrivateKey: ECDHCompatiblePrivateKey>(
+        _ innerResult: EllipticCurveKeyExchange<PrivateKey>.EllipticCurveKeyExchangeResult
+    ) {
         self.keys = innerResult.keys
         self.sessionID = innerResult.sessionID
     }
@@ -364,7 +512,7 @@ extension HashFunction {
                 secretBytesPtr = secretBytesPtr.dropFirst(numberOfZeroBytes)
                 lengthHelper.length = UInt8(secretBytesPtr.count)
                 lengthHelper.useExtraZeroByte = false
-            case(_, true):
+            case (_, true):
                 // Strip off all but one of the leading zero bytes.
                 secretBytesPtr = secretBytesPtr.dropFirst(numberOfZeroBytes - 1)
                 lengthHelper.length = UInt8(secretBytesPtr.count)

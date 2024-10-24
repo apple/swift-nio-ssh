@@ -53,20 +53,28 @@ extension UserAuthenticationStateMachine {
 
 extension UserAuthenticationStateMachine {
     /// A ServiceRequest message was received from the remote peer.
-    mutating func receiveServiceRequest(_ message: SSHMessage.ServiceRequestMessage) throws -> SSHMessage.ServiceAcceptMessage? {
+    mutating func receiveServiceRequest(
+        _ message: SSHMessage.ServiceRequestMessage
+    ) throws -> SSHMessage.ServiceAcceptMessage? {
         switch (self.delegate, self.state) {
         case (.server, .idle):
             guard message.service == Self.serviceName else {
-                throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "unexpected service request: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: Self.protocolName,
+                    violation: "unexpected service request: \(message)"
+                )
             }
 
             self.state = .awaitingServiceAcceptance
             return .init(service: Self.serviceName)
 
         case (.server, .awaitingServiceAcceptance),
-             (.server, .awaitingNextRequest),
-             (.server, .awaitingResponses):
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "unexpected state for service request: \(message)")
+            (.server, .awaitingNextRequest),
+            (.server, .awaitingResponses):
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "unexpected state for service request: \(message)"
+            )
 
         case (.server, .authenticationSucceeded):
             // We ignore messages after authentication succeeded.
@@ -78,16 +86,24 @@ extension UserAuthenticationStateMachine {
 
         case (.client, _):
             // Clients may never receive user service request messages.
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "server sent service request: \(message)")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "server sent service request: \(message)"
+            )
         }
     }
 
     /// A ServiceAccept message was received from the remote peer.
-    mutating func receiveServiceAccept(_ message: SSHMessage.ServiceAcceptMessage) throws -> EventLoopFuture<SSHMessage.UserAuthRequestMessage?>? {
+    mutating func receiveServiceAccept(
+        _ message: SSHMessage.ServiceAcceptMessage
+    ) throws -> EventLoopFuture<SSHMessage.UserAuthRequestMessage?>? {
         switch (self.delegate, self.state) {
         case (.client(let delegate), .awaitingServiceAcceptance):
             guard message.service == Self.serviceName else {
-                throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "unexpected service accept: \(message)")
+                throw NIOSSHError.protocolViolation(
+                    protocolName: Self.protocolName,
+                    violation: "unexpected service accept: \(message)"
+                )
             }
 
             // Cool, we can begin the auth dance.
@@ -98,22 +114,36 @@ extension UserAuthenticationStateMachine {
             return nil
         case (.client, .idle):
             // Server sent a service accept but we didn't ask them to!
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "unsolicited service accept message: \(message)")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "unsolicited service accept message: \(message)"
+            )
         case (.client, .awaitingNextRequest),
-             (.client, .awaitingResponses),
-             (.client, .authenticationFailed):
+            (.client, .awaitingResponses),
+            (.client, .authenticationFailed):
             // In these states we aren't expecting a service accept message
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "unsolicited service accept message: \(message)")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "unsolicited service accept message: \(message)"
+            )
         case (.server, _):
             // Servers may never receive user auth success messages.
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "client sent user auth success")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "client sent user auth success"
+            )
         }
     }
 
     /// A UserAuthRequest message was received from the remote peer.
-    mutating func receiveUserAuthRequest(_ message: SSHMessage.UserAuthRequestMessage) throws -> EventLoopFuture<NIOSSHUserAuthenticationResponseMessage>? {
+    mutating func receiveUserAuthRequest(
+        _ message: SSHMessage.UserAuthRequestMessage
+    ) throws -> EventLoopFuture<NIOSSHUserAuthenticationResponseMessage>? {
         guard message.service == Self.nextServiceName else {
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "requested unsupported service: \(message.service)")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "requested unsupported service: \(message.service)"
+            )
         }
 
         switch (self.delegate, self.state) {
@@ -126,7 +156,10 @@ extension UserAuthenticationStateMachine {
             return self.nextAuthResponse(request: message, delegate: delegate)
 
         case (.server, .idle), (.server, .awaitingServiceAcceptance):
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "user auth request before service accepted")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "user auth request before service accepted"
+            )
 
         case (.server, .authenticationSucceeded):
             // We ignore messages after authentication succeeded.
@@ -138,7 +171,10 @@ extension UserAuthenticationStateMachine {
 
         case (.client, _):
             // Clients may never receive user auth request messages.
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "server sent user auth request")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "server sent user auth request"
+            )
         }
     }
 
@@ -155,17 +191,28 @@ extension UserAuthenticationStateMachine {
             break
         case (.client, .idle), (.client, .awaitingServiceAcceptance):
             // Server sent a user auth success but we didn't ask them to!
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "unsolicited auth success message")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "unsolicited auth success message"
+            )
         case (.client, .awaitingNextRequest), (.client, .authenticationFailed):
             // In these states we believe we received all our auth responses, so this is wrong.
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "unsolicited auth success message")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "unsolicited auth success message"
+            )
         case (.server, _):
             // Servers may never receive user auth success messages.
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "client sent user auth success")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "client sent user auth success"
+            )
         }
     }
 
-    mutating func receiveUserAuthFailure(_ message: SSHMessage.UserAuthFailureMessage) throws -> EventLoopFuture<SSHMessage.UserAuthRequestMessage?>? {
+    mutating func receiveUserAuthFailure(
+        _ message: SSHMessage.UserAuthFailureMessage
+    ) throws -> EventLoopFuture<SSHMessage.UserAuthRequestMessage?>? {
         switch (self.delegate, self.state) {
         case (.client(let delegate), .awaitingResponses(let responseCount)):
             // Ok, the server didn't like that much. Let's try another one.
@@ -177,13 +224,22 @@ extension UserAuthenticationStateMachine {
             return nil
         case (.client, .idle), (.client, .awaitingServiceAcceptance):
             // Server sent a user auth success but we didn't ask them to!
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "server sent user auth failure unprompted")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "server sent user auth failure unprompted"
+            )
         case (.client, .awaitingNextRequest), (.client, .authenticationFailed):
             // In these states we believe we received all our auth responses, so this is wrong.
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "unsolicited auth failure message")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "unsolicited auth failure message"
+            )
         case (.server, _):
             // Servers may never receive user auth failure messages.
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "client sent user auth failure")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "client sent user auth failure"
+            )
         }
     }
 
@@ -191,10 +247,16 @@ extension UserAuthenticationStateMachine {
         switch (self.delegate, self.state) {
         case (.client, .idle), (.client, .authenticationSucceeded):
             // Server sent a user auth success but we didn't ask them to!
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "server sent user auth banner at the wrong time")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "server sent user auth banner at the wrong time"
+            )
         case (.server, _):
             // Servers may never receive user auth banner messages.
-            throw NIOSSHError.protocolViolation(protocolName: Self.protocolName, violation: "client sent user auth banner")
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "client sent user auth banner"
+            )
         default:
             // In all other instances, receiving user auth banner is legal and must be dealt with by client
             return
@@ -213,9 +275,9 @@ extension UserAuthenticationStateMachine {
         case (.client, .awaitingServiceAcceptance):
             preconditionFailure("Duplicate service request")
         case (.client, .awaitingNextRequest),
-             (.client, .awaitingResponses),
-             (.client, .authenticationSucceeded),
-             (.client, .authenticationFailed):
+            (.client, .awaitingResponses),
+            (.client, .authenticationSucceeded),
+            (.client, .authenticationFailed):
             preconditionFailure("May not send service request in \(self.state)")
         case (.server, _):
             preconditionFailure("Servers may not send service requests")
@@ -230,9 +292,9 @@ extension UserAuthenticationStateMachine {
         case (.server, .idle):
             preconditionFailure("Cannot accept a service that hasn't been requested")
         case (.server, .awaitingNextRequest),
-             (.server, .awaitingResponses),
-             (.server, .authenticationSucceeded),
-             (.server, .authenticationFailed):
+            (.server, .awaitingResponses),
+            (.server, .authenticationSucceeded),
+            (.server, .authenticationFailed):
             preconditionFailure("May not send service request in \(self.state)")
         case (.client, _):
             preconditionFailure("Clients may not send service acceptance")
@@ -244,11 +306,13 @@ extension UserAuthenticationStateMachine {
         case (.client, .awaitingNextRequest):
             self.state = .awaitingResponses(1)
         case (.client, .idle),
-             (.client, .awaitingServiceAcceptance):
+            (.client, .awaitingServiceAcceptance):
             preconditionFailure("Sent an auth request without asking us first")
         case (.client, .awaitingResponses):
             // TODO(cory): We could probably support parallel auth attempts if we wanted to.
-            preconditionFailure("Attempted to send a user auth request while we were waiting for a response to the last one.")
+            preconditionFailure(
+                "Attempted to send a user auth request while we were waiting for a response to the last one."
+            )
         case (.client, .authenticationSucceeded):
             preconditionFailure("Attempted to send a user auth request after auth succeeded")
         case (.client, .authenticationFailed):
@@ -262,7 +326,7 @@ extension UserAuthenticationStateMachine {
     mutating func sendUserAuthPKOK(_: SSHMessage.UserAuthPKOKMessage) {
         switch (self.delegate, self.state) {
         case (.server, .idle),
-             (.server, .awaitingServiceAcceptance):
+            (.server, .awaitingServiceAcceptance):
             preconditionFailure("Server sent an auth response prior to receiving an auth request")
         case (.server, .awaitingNextRequest):
             preconditionFailure("Too many auth responses sent")
@@ -290,15 +354,13 @@ extension UserAuthenticationStateMachine {
     }
 
     mutating func sendUserAuthBanner(_: SSHMessage.UserAuthBannerMessage) {
-        /*
-         Relevant passage from RFC 4252:
-
-         The SSH server may send an SSH_MSG_USERAUTH_BANNER message at any
-         time after this authentication protocol starts and before
-         authentication is successful.  This message contains text to be
-         displayed to the client user before authentication is attempted.  The
-         format is as follows:
-         */
+        // Relevant passage from RFC 4252:
+        //
+        // The SSH server may send an SSH_MSG_USERAUTH_BANNER message at any
+        // time after this authentication protocol starts and before
+        // authentication is successful.  This message contains text to be
+        // displayed to the client user before authentication is attempted.  The
+        // format is as follows:
         switch (self.delegate, self.state) {
         case (.server, .idle):
             preconditionFailure("Banner sent before authentication protocol start")
@@ -314,7 +376,7 @@ extension UserAuthenticationStateMachine {
     private mutating func sendUserAuthResponseMessage(success: Bool) {
         switch (self.delegate, self.state) {
         case (.server, .idle),
-             (.server, .awaitingServiceAcceptance):
+            (.server, .awaitingServiceAcceptance):
             preconditionFailure("Server sent an auth response prior to receiving an auth request")
         case (.server, .awaitingNextRequest):
             preconditionFailure("Too many auth responses sent")
@@ -345,10 +407,10 @@ extension UserAuthenticationStateMachine {
         case (.client, .idle):
             return SSHMessage.ServiceRequestMessage(service: Self.serviceName)
         case (.client, .awaitingServiceAcceptance),
-             (.client, .awaitingNextRequest),
-             (.client, .awaitingResponses),
-             (.client, .authenticationSucceeded),
-             (.client, .authenticationFailed):
+            (.client, .awaitingNextRequest),
+            (.client, .awaitingResponses),
+            (.client, .authenticationSucceeded),
+            (.client, .authenticationFailed):
             // TODO(cory): We could probably support parallel auth attempts if we wanted to.
             preconditionFailure("Cannot start authentication twice, state: \(self.state)")
         case (.server, _):
@@ -362,11 +424,11 @@ extension UserAuthenticationStateMachine {
         case (.client, .awaitingNextRequest):
             self.state = .authenticationFailed
         case (.client, .idle),
-             (.client, .awaitingServiceAcceptance):
+            (.client, .awaitingServiceAcceptance):
             preconditionFailure("Ran out of auth methods before asking for any")
         case (.client, .awaitingResponses),
-             (.client, .authenticationSucceeded),
-             (.client, .authenticationFailed):
+            (.client, .authenticationSucceeded),
+            (.client, .authenticationFailed):
             // TODO(cory): We could probably support parallel auth attempts if we wanted to.
             preconditionFailure("Request for further auth failed when no such request should be outstanding")
         case (.server, _):
@@ -378,7 +440,10 @@ extension UserAuthenticationStateMachine {
 // MARK: Interacting with client delegate
 
 extension UserAuthenticationStateMachine {
-    fileprivate func requestNextAuthRequest(methods: NIOSSHAvailableUserAuthenticationMethods, delegate: NIOSSHClientUserAuthenticationDelegate) -> EventLoopFuture<SSHMessage.UserAuthRequestMessage?> {
+    fileprivate func requestNextAuthRequest(
+        methods: NIOSSHAvailableUserAuthenticationMethods,
+        delegate: NIOSSHClientUserAuthenticationDelegate
+    ) -> EventLoopFuture<SSHMessage.UserAuthRequestMessage?> {
         let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOffer?.self)
         delegate.nextAuthenticationType(availableMethods: methods, nextChallengePromise: promise)
 
@@ -392,10 +457,17 @@ extension UserAuthenticationStateMachine {
 // MARK: Interacting with server delegate
 
 extension UserAuthenticationStateMachine {
-    fileprivate func nextAuthResponse(request: SSHMessage.UserAuthRequestMessage, delegate: NIOSSHServerUserAuthenticationDelegate) -> EventLoopFuture<NIOSSHUserAuthenticationResponseMessage> {
+    fileprivate func nextAuthResponse(
+        request: SSHMessage.UserAuthRequestMessage,
+        delegate: NIOSSHServerUserAuthenticationDelegate
+    ) -> EventLoopFuture<NIOSSHUserAuthenticationResponseMessage> {
         switch request.method {
         case .password(let password):
-            let request = NIOSSHUserAuthenticationRequest(username: request.username, serviceName: request.service, request: .password(.init(password: password)))
+            let request = NIOSSHUserAuthenticationRequest(
+                username: request.username,
+                serviceName: request.service,
+                request: .password(.init(password: password))
+            )
             let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOutcome.self)
             delegate.requestReceived(request: request, responsePromise: promise)
             let supportedMethods = delegate.supportedAuthenticationMethods
@@ -406,16 +478,27 @@ extension UserAuthenticationStateMachine {
 
         case .publicKey(.known(key: let key, signature: .some(let signature))):
             // This is a direct request to auth, just pass it through.
-            let dataToSign = UserAuthSignablePayload(sessionIdentifier: sessionID, userName: request.username, serviceName: request.service, publicKey: key)
+            let dataToSign = UserAuthSignablePayload(
+                sessionIdentifier: sessionID,
+                userName: request.username,
+                serviceName: request.service,
+                publicKey: key
+            )
             let supportedMethods = delegate.supportedAuthenticationMethods
 
             guard key.isValidSignature(signature, for: dataToSign) else {
                 // Whoops, signature not valid.
-                return self.loop.makeSucceededFuture(.failure(.init(authentications: supportedMethods.strings, partialSuccess: false)))
+                return self.loop.makeSucceededFuture(
+                    .failure(.init(authentications: supportedMethods.strings, partialSuccess: false))
+                )
             }
 
             // Signature is valid, ask if the delegate is happy.
-            let request = NIOSSHUserAuthenticationRequest(username: request.username, serviceName: request.service, request: .publicKey(.init(publicKey: key)))
+            let request = NIOSSHUserAuthenticationRequest(
+                username: request.username,
+                serviceName: request.service,
+                request: .publicKey(.init(publicKey: key))
+            )
             let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOutcome.self)
             delegate.requestReceived(request: request, responsePromise: promise)
 
@@ -430,10 +513,16 @@ extension UserAuthenticationStateMachine {
 
         case .publicKey(.unknown):
             // We don't known the algorithm, the auth attempt has failed.
-            return self.loop.makeSucceededFuture(.failure(.init(authentications: delegate.supportedAuthenticationMethods.strings, partialSuccess: false)))
+            return self.loop.makeSucceededFuture(
+                .failure(.init(authentications: delegate.supportedAuthenticationMethods.strings, partialSuccess: false))
+            )
 
         case .none:
-            let request = NIOSSHUserAuthenticationRequest(username: request.username, serviceName: request.service, request: .none)
+            let request = NIOSSHUserAuthenticationRequest(
+                username: request.username,
+                serviceName: request.service,
+                request: .none
+            )
             let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOutcome.self)
             delegate.requestReceived(request: request, responsePromise: promise)
             let supportedMethods = delegate.supportedAuthenticationMethods

@@ -19,7 +19,11 @@ public final class SimplePasswordDelegate {
     private var authRequest: NIOSSHUserAuthenticationOffer?
 
     public init(username: String, password: String) {
-        self.authRequest = NIOSSHUserAuthenticationOffer(username: username, serviceName: "", offer: .password(.init(password: password)))
+        self.authRequest = NIOSSHUserAuthenticationOffer(
+            username: username,
+            serviceName: "",
+            offer: .password(.init(password: password))
+        )
     }
 }
 
@@ -27,7 +31,10 @@ public final class SimplePasswordDelegate {
 extension SimplePasswordDelegate: Sendable {}
 
 extension SimplePasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
-    public func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
+    public func nextAuthenticationType(
+        availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+        nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+    ) {
         if let authRequest = self.authRequest, availableMethods.contains(.password) {
             // We need to nil out our copy because any future calls must return nil
             self.authRequest = nil

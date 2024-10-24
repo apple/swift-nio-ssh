@@ -39,8 +39,10 @@ extension SSHConnectionStateMachine {
         /// The user auth state machine that drives user authentication.
         var userAuthStateMachine: UserAuthenticationStateMachine
 
-        init(keyExchangeState state: KeyExchangeState,
-             loop: EventLoop) {
+        init(
+            keyExchangeState state: KeyExchangeState,
+            loop: EventLoop
+        ) {
             self.role = state.role
             self.parser = state.parser
             self.serializer = state.serializer
@@ -50,9 +52,11 @@ extension SSHConnectionStateMachine {
 
             // We force unwrap the session ID because it's programmer error to not have it at this time.
             self.sessionIdentifier = state.keyExchangeStateMachine.sessionID!
-            self.userAuthStateMachine = UserAuthenticationStateMachine(role: self.role,
-                                                                       loop: loop,
-                                                                       sessionID: self.sessionIdentifier)
+            self.userAuthStateMachine = UserAuthenticationStateMachine(
+                role: self.role,
+                loop: loop,
+                sessionID: self.sessionIdentifier
+            )
         }
 
         mutating func bufferInboundData(_ data: inout ByteBuffer) {
