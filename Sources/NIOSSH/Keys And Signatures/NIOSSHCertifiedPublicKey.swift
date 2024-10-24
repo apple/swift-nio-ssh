@@ -22,6 +22,8 @@ import Darwin
 import Glibc
 #elseif canImport(Bionic)
 import Bionic
+#elseif canImport(Musl)
+import Musl
 #endif
 
 /// A ``NIOSSHCertifiedPublicKey`` is an SSH public key combined with an SSH certificate.
