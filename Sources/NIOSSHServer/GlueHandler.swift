@@ -125,4 +125,4 @@ extension GlueHandler: ChannelDuplexHandler {
     }
 }
 
-#endif // canImport(Foundation.Process)
+#endif  // canImport(Foundation.Process)

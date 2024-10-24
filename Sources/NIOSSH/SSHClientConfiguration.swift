@@ -26,16 +26,25 @@ public struct SSHClientConfiguration {
     /// Supported data encryption algorithms
     public var transportProtectionSchemes: [NIOSSHTransportProtection.Type]
 
-    public init(userAuthDelegate: NIOSSHClientUserAuthenticationDelegate,
-                serverAuthDelegate: NIOSSHClientServerAuthenticationDelegate,
-                globalRequestDelegate: GlobalRequestDelegate? = nil) {
-        self.init(userAuthDelegate: userAuthDelegate, serverAuthDelegate: serverAuthDelegate, globalRequestDelegate: globalRequestDelegate, transportProtectionSchemes: Constants.bundledTransportProtectionSchemes)
+    public init(
+        userAuthDelegate: NIOSSHClientUserAuthenticationDelegate,
+        serverAuthDelegate: NIOSSHClientServerAuthenticationDelegate,
+        globalRequestDelegate: GlobalRequestDelegate? = nil
+    ) {
+        self.init(
+            userAuthDelegate: userAuthDelegate,
+            serverAuthDelegate: serverAuthDelegate,
+            globalRequestDelegate: globalRequestDelegate,
+            transportProtectionSchemes: Constants.bundledTransportProtectionSchemes
+        )
     }
 
-    public init(userAuthDelegate: NIOSSHClientUserAuthenticationDelegate,
-                serverAuthDelegate: NIOSSHClientServerAuthenticationDelegate,
-                globalRequestDelegate: GlobalRequestDelegate? = nil,
-                transportProtectionSchemes: [NIOSSHTransportProtection.Type]) {
+    public init(
+        userAuthDelegate: NIOSSHClientUserAuthenticationDelegate,
+        serverAuthDelegate: NIOSSHClientServerAuthenticationDelegate,
+        globalRequestDelegate: GlobalRequestDelegate? = nil,
+        transportProtectionSchemes: [NIOSSHTransportProtection.Type]
+    ) {
         self.userAuthDelegate = userAuthDelegate
         self.serverAuthDelegate = serverAuthDelegate
         self.globalRequestDelegate = globalRequestDelegate ?? DefaultGlobalRequestDelegate()

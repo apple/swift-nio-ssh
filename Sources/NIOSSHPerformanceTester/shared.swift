@@ -63,7 +63,10 @@ final class ExpectPasswordDelegate: NIOSSHServerUserAuthenticationDelegate {
         self.expectedPassword = expectedPassword
     }
 
-    func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+    func requestReceived(
+        request: NIOSSHUserAuthenticationRequest,
+        responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>
+    ) {
         guard case .password(let password) = request.request, password.password == self.expectedPassword else {
             responsePromise.succeed(.failure)
             return
@@ -79,9 +82,14 @@ final class RepeatingPasswordDelegate: NIOSSHClientUserAuthenticationDelegate {
         self.password = password
     }
 
-    func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
+    func nextAuthenticationType(
+        availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+        nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+    ) {
         if availableMethods.contains(.password) {
-            nextChallengePromise.succeed(.init(username: "foo", serviceName: "ssh-connection", offer: .password(.init(password: self.password))))
+            nextChallengePromise.succeed(
+                .init(username: "foo", serviceName: "ssh-connection", offer: .password(.init(password: self.password)))
+            )
         } else {
             nextChallengePromise.succeed(nil)
         }

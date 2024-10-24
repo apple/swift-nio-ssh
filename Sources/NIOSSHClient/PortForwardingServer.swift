@@ -23,10 +23,12 @@ final class PortForwardingServer {
     private let bindPort: Int
     private let forwardingChannelConstructor: (Channel) -> EventLoopFuture<Void>
 
-    init(group: EventLoopGroup,
-         bindHost: Substring,
-         bindPort: Int,
-         _ forwardingChannelConstructor: @escaping (Channel) -> EventLoopFuture<Void>) {
+    init(
+        group: EventLoopGroup,
+        bindHost: Substring,
+        bindPort: Int,
+        _ forwardingChannelConstructor: @escaping (Channel) -> EventLoopFuture<Void>
+    ) {
         self.serverLoop = group.next()
         self.group = group
         self.forwardingChannelConstructor = forwardingChannelConstructor

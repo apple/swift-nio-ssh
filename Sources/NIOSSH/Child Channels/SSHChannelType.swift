@@ -114,9 +114,21 @@ extension SSHChannelType {
         case .session:
             self = .session
         case .directTCPIP(let message):
-            self = .directTCPIP(.init(targetHost: message.hostToConnectTo, targetPort: message.portToConnectTo, originatorAddress: message.originatorAddress))
+            self = .directTCPIP(
+                .init(
+                    targetHost: message.hostToConnectTo,
+                    targetPort: message.portToConnectTo,
+                    originatorAddress: message.originatorAddress
+                )
+            )
         case .forwardedTCPIP(let message):
-            self = .forwardedTCPIP(.init(listeningHost: message.hostListening, listeningPort: message.portListening, originatorAddress: message.originatorAddress))
+            self = .forwardedTCPIP(
+                .init(
+                    listeningHost: message.hostListening,
+                    listeningPort: message.portListening,
+                    originatorAddress: message.originatorAddress
+                )
+            )
         }
     }
 }
@@ -127,9 +139,21 @@ extension SSHMessage.ChannelOpenMessage.ChannelType {
         case .session:
             self = .session
         case .directTCPIP(let data):
-            self = .directTCPIP(.init(hostToConnectTo: data.targetHost, portToConnectTo: data._targetPort, originatorAddress: data.originatorAddress))
+            self = .directTCPIP(
+                .init(
+                    hostToConnectTo: data.targetHost,
+                    portToConnectTo: data._targetPort,
+                    originatorAddress: data.originatorAddress
+                )
+            )
         case .forwardedTCPIP(let data):
-            self = .forwardedTCPIP(.init(hostListening: data.listeningHost, portListening: data._listeningPort, originatorAddress: data.originatorAddress))
+            self = .forwardedTCPIP(
+                .init(
+                    hostListening: data.listeningHost,
+                    portListening: data._listeningPort,
+                    originatorAddress: data.originatorAddress
+                )
+            )
         }
     }
 }

@@ -39,7 +39,7 @@ extension ChildChannelStateMachine {
 
         /// `requestedRemotely` is a channel for which the remote peer has sent a channel request, but we have not yet
         /// responded. This channel is also "active on the network" in the sense that if our initialization fails we have
-        /// to take some kind of action to kill this channel. However, this channel can't do I/O yet, so from the perspective
+        /// to take some kind of action to terminate this channel. However, this channel can't do I/O yet, so from the perspective
         /// of the user of the channel this channel isn't active yet.
         case requestedRemotely(channelID: SSHChannelIdentifier)
 
@@ -80,14 +80,17 @@ extension ChildChannelStateMachine {
         // and this is a remotely-initiated channel.
         switch self.state {
         case .idle(localChannelID: let localID):
-            self.state = .requestedRemotely(channelID: SSHChannelIdentifier(localChannelID: localID, peerChannelID: message.senderChannel))
+            self.state = .requestedRemotely(
+                channelID: SSHChannelIdentifier(localChannelID: localID, peerChannelID: message.senderChannel)
+            )
 
         case .requestedLocally:
             // We precondition here because the rest of the code should prevent this from happening: there's no way to deliver a
             // channel open request for a channel we requested, because the message cannot carry our channel ID.
             preconditionFailure("Somehow received an open request for a locally-initiated channel")
 
-        case .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedRemotely, .closedLocally, .closed:
+        case .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedRemotely,
+            .closedLocally, .closed:
             // As above, we precondition here because the rest of the code should prevent this from happening: there's no way to deliver
             // a channel open request for a channel that has a remote ID already!
             preconditionFailure("Received an open request for an active channel")
@@ -99,16 +102,27 @@ extension ChildChannelStateMachine {
         switch self.state {
         case .requestedLocally(localChannelID: let localID):
             precondition(message.recipientChannel == localID)
-            self.state = .active(channelID: SSHChannelIdentifier(localChannelID: localID, peerChannelID: message.senderChannel))
+            self.state = .active(
+                channelID: SSHChannelIdentifier(localChannelID: localID, peerChannelID: message.senderChannel)
+            )
 
         case .idle:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Open confirmation sent on idle channel")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Open confirmation sent on idle channel"
+            )
 
         case .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Open confirmation sent on remotely-initiated channel")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Open confirmation sent on remotely-initiated channel"
+            )
 
         case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Duplicate open confirmation received.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Duplicate open confirmation received."
+            )
         }
     }
 
@@ -124,7 +138,10 @@ extension ChildChannelStateMachine {
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Open failure sent on idle channel")
 
         case .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Open failure sent on remotely-initiated channel")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Open failure sent on remotely-initiated channel"
+            )
 
         case .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Duplicate open failure received.")
@@ -134,22 +151,23 @@ extension ChildChannelStateMachine {
     mutating func receiveChannelEOF(_ message: SSHMessage.ChannelEOFMessage) throws {
         // We can get channelEOF at any point after the channel is active.
         switch self.state {
-        case .active(channelID: let channelID):
+        case .active(let channelID):
             precondition(message.recipientChannel == channelID.localChannelID)
             self.state = .halfClosedRemote(channelID: channelID)
 
-        case .halfClosedLocal(channelID: let channelID):
+        case .halfClosedLocal(let channelID):
             precondition(message.recipientChannel == channelID.localChannelID)
             self.state = .quiescent(channelID: channelID)
 
-        case .closedLocally(channelID: let channelID, receivedPeerEOF: false):
+        case .closedLocally(let channelID, receivedPeerEOF: false):
             precondition(message.recipientChannel == channelID.localChannelID)
             self.state = .closedLocally(channelID: channelID, receivedPeerEOF: true)
 
         case .idle:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received EOF on idle")
 
-        case .requestedLocally, .requestedRemotely, .halfClosedRemote, .quiescent, .closedLocally(channelID: _, receivedPeerEOF: true), .closedRemotely, .closed:
+        case .requestedLocally, .requestedRemotely, .halfClosedRemote, .quiescent,
+            .closedLocally(channelID: _, receivedPeerEOF: true), .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received EOF out of sequence.")
         }
     }
@@ -157,17 +175,17 @@ extension ChildChannelStateMachine {
     mutating func receiveChannelClose(_ message: SSHMessage.ChannelCloseMessage) throws {
         // We can get channel close at any point after the channel is active.
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID):
+        case .active(let channelID),
+            .halfClosedRemote(let channelID):
             precondition(message.recipientChannel == channelID.localChannelID)
             self.state = .closedRemotely(channelID: channelID, sentEOF: false)
 
-        case .halfClosedLocal(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+        case .halfClosedLocal(let channelID),
+            .quiescent(let channelID):
             precondition(message.recipientChannel == channelID.localChannelID)
             self.state = .closedRemotely(channelID: channelID, sentEOF: true)
 
-        case .closedLocally(channelID: let channelID, receivedPeerEOF: _):
+        case .closedLocally(let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
             self.state = .closed(channelID: channelID)
 
@@ -175,7 +193,10 @@ extension ChildChannelStateMachine {
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received close on idle")
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received close before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received close before channel was open."
+            )
 
         case .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received close on closed channel.")
@@ -184,29 +205,38 @@ extension ChildChannelStateMachine {
 
     mutating func receiveChannelWindowAdjust(_ message: SSHMessage.ChannelWindowAdjustMessage) throws {
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID),
-             .closedLocally(channelID: let channelID, receivedPeerEOF: _):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID),
+            .closedLocally(let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
 
         case .idle:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel window adjust on idle")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel window adjust on idle"
+            )
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel window adjust before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel window adjust before channel was open."
+            )
 
         case .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received window adjust on closed channel.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received window adjust on closed channel."
+            )
         }
     }
 
     mutating func receiveChannelData(_ message: SSHMessage.ChannelDataMessage) throws {
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .closedLocally(channelID: let channelID, receivedPeerEOF: false):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .closedLocally(let channelID, receivedPeerEOF: false):
             // We allow data in closed locally because there may be a timing problem here.
             precondition(message.recipientChannel == channelID.localChannelID)
 
@@ -217,7 +247,10 @@ extension ChildChannelStateMachine {
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel EOF on idle")
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel data before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel data before channel was open."
+            )
 
         case .closedRemotely, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received data on closed channel.")
@@ -226,9 +259,9 @@ extension ChildChannelStateMachine {
 
     mutating func receiveChannelExtendedData(_ message: SSHMessage.ChannelExtendedDataMessage) throws {
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .closedLocally(channelID: let channelID, receivedPeerEOF: false):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .closedLocally(let channelID, receivedPeerEOF: false):
             // We allow data in closed locally because there may be a timing problem here.
             precondition(message.recipientChannel == channelID.localChannelID)
 
@@ -236,76 +269,103 @@ extension ChildChannelStateMachine {
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received message after EOF.")
 
         case .idle:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel extended data on idle")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel extended data on idle"
+            )
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel extended data before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel extended data before channel was open."
+            )
 
         case .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received extended data on closed channel.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received extended data on closed channel."
+            )
         }
     }
 
     mutating func receiveChannelRequest(_ message: SSHMessage.ChannelRequestMessage) throws {
         // We can get channel request at any point after the channel is active.
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID),
-             .closedLocally(channelID: let channelID, receivedPeerEOF: _):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID),
+            .closedLocally(let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
 
         case .idle:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel request on idle")
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel request before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel request before channel was open."
+            )
 
         case .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel request on closed channel.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel request on closed channel."
+            )
         }
     }
 
     mutating func receiveChannelSuccess(_ message: SSHMessage.ChannelSuccessMessage) throws {
         // We can get channel success at any point after the channel is active.
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID),
-             .closedLocally(channelID: let channelID, receivedPeerEOF: _):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID),
+            .closedLocally(let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
 
         case .idle:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel success on idle")
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel success before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel success before channel was open."
+            )
 
         case .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel success on closed channel.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel success on closed channel."
+            )
         }
     }
 
     mutating func receiveChannelFailure(_ message: SSHMessage.ChannelFailureMessage) throws {
         // We can get channel failure at any point after the channel is active.
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID),
-             .closedLocally(channelID: let channelID, receivedPeerEOF: _):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID),
+            .closedLocally(let channelID, receivedPeerEOF: _):
             precondition(message.recipientChannel == channelID.localChannelID)
 
         case .idle:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel failure on idle")
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel failure before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel failure before channel was open."
+            )
 
         case .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Received channel failure on closed channel.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Received channel failure on closed channel."
+            )
         }
     }
 }
@@ -321,7 +381,8 @@ extension ChildChannelStateMachine {
             precondition(localID == message.senderChannel)
             self.state = .requestedLocally(localChannelID: localID)
 
-        case .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
+        case .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent,
+            .closedLocally, .closedRemotely, .closed:
             // The code should prevent us from sending channel open twice.
             preconditionFailure("Attempted to send duplicate channel open")
         }
@@ -330,7 +391,7 @@ extension ChildChannelStateMachine {
     mutating func sendChannelOpenConfirmation(_ message: SSHMessage.ChannelOpenConfirmationMessage) {
         // Channel open confirmation is sent by us in response to the peer having requested an open channel.
         switch self.state {
-        case .requestedRemotely(channelID: let channelID):
+        case .requestedRemotely(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
             precondition(message.senderChannel == channelID.localChannelID)
             self.state = .active(channelID: channelID)
@@ -351,7 +412,7 @@ extension ChildChannelStateMachine {
         // Channel open failure is sent in response to the peer having requested an open channel. This is an immediate
         // transition to closed.
         switch self.state {
-        case .requestedRemotely(channelID: let channelID):
+        case .requestedRemotely(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
             self.state = .closed(channelID: channelID)
 
@@ -370,11 +431,11 @@ extension ChildChannelStateMachine {
     mutating func sendChannelEOF(_ message: SSHMessage.ChannelEOFMessage) throws {
         // We can send channelEOF at any point after the channel is active, so long as we don't send it twice.
         switch self.state {
-        case .active(channelID: let channelID):
+        case .active(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
             self.state = .halfClosedLocal(channelID: channelID)
 
-        case .halfClosedLocal(channelID: let channelID):
+        case .halfClosedLocal(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
             self.state = .quiescent(channelID: channelID)
 
@@ -382,7 +443,8 @@ extension ChildChannelStateMachine {
             // In the idle state we haven't either sent a channel open or received one. This is not really possible.
             preconditionFailure("Somehow sent channel EOF for idle channel")
 
-        case .requestedLocally, .requestedRemotely, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely, .closed:
+        case .requestedLocally, .requestedRemotely, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely,
+            .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent EOF out of sequence.")
         }
     }
@@ -390,17 +452,17 @@ extension ChildChannelStateMachine {
     mutating func sendChannelClose(_ message: SSHMessage.ChannelCloseMessage) throws {
         // We can send channel close at any point after the channel is active.
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
             self.state = .closedLocally(channelID: channelID, receivedPeerEOF: false)
 
-        case .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+        case .halfClosedRemote(let channelID),
+            .quiescent(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
             self.state = .closedLocally(channelID: channelID, receivedPeerEOF: true)
 
-        case .closedRemotely(channelID: let channelID, sentEOF: _):
+        case .closedRemotely(let channelID, sentEOF: _):
             precondition(message.recipientChannel == channelID.peerChannelID)
             self.state = .closed(channelID: channelID)
 
@@ -409,7 +471,10 @@ extension ChildChannelStateMachine {
             preconditionFailure("Somehow received channel EOF for idle channel")
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent close before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Sent close before channel was open."
+            )
 
         case .closedLocally, .closed:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent close on closed channel.")
@@ -418,10 +483,10 @@ extension ChildChannelStateMachine {
 
     mutating func sendChannelWindowAdjust(_ message: SSHMessage.ChannelWindowAdjustMessage) throws {
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
 
         case .idle:
@@ -435,8 +500,8 @@ extension ChildChannelStateMachine {
 
     mutating func sendChannelData(_ message: SSHMessage.ChannelDataMessage) throws {
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID):
+        case .active(let channelID),
+            .halfClosedRemote(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
 
         case .halfClosedLocal, .quiescent:
@@ -456,15 +521,18 @@ extension ChildChannelStateMachine {
 
     mutating func sendChannelExtendedData(_ message: SSHMessage.ChannelExtendedDataMessage) throws {
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID):
+        case .active(let channelID),
+            .halfClosedRemote(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
 
         case .halfClosedLocal, .quiescent:
             throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent message after EOF.")
 
         case .closedLocally, .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent extended data on closed channel.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Sent extended data on closed channel."
+            )
 
         case .idle:
             // In the idle state we haven't either sent a channel open or received one. This is not really possible.
@@ -478,10 +546,10 @@ extension ChildChannelStateMachine {
     mutating func sendChannelRequest(_ message: SSHMessage.ChannelRequestMessage) throws {
         // We can send channel request at any point after the channel is active.
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
 
         case .idle:
@@ -489,20 +557,26 @@ extension ChildChannelStateMachine {
             preconditionFailure("Somehow sent channel request for idle channel")
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel request before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Sent channel request before channel was open."
+            )
 
         case .closedLocally, .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel request on closed channel.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Sent channel request on closed channel."
+            )
         }
     }
 
     mutating func sendChannelSuccess(_ message: SSHMessage.ChannelSuccessMessage) throws {
         // We can send channel success at any point after the channel is active.
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
 
         case .idle:
@@ -510,20 +584,26 @@ extension ChildChannelStateMachine {
             preconditionFailure("Somehow sent channel success for idle channel")
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel success before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Sent channel success before channel was open."
+            )
 
         case .closedLocally, .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel success on closed channel.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Sent channel success on closed channel."
+            )
         }
     }
 
     mutating func sendChannelFailure(_ message: SSHMessage.ChannelFailureMessage) throws {
         // We can send channel failure at any point after the channel is active.
         switch self.state {
-        case .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID):
+        case .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID):
             precondition(message.recipientChannel == channelID.peerChannelID)
 
         case .idle:
@@ -531,10 +611,16 @@ extension ChildChannelStateMachine {
             preconditionFailure("Somehow sent channel success for idle channel")
 
         case .requestedLocally, .requestedRemotely:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel failure before channel was open.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Sent channel failure before channel was open."
+            )
 
         case .closedLocally, .closedRemotely, .closed:
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Sent channel failure on closed channel.")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Sent channel failure on closed channel."
+            )
         }
     }
 }
@@ -551,16 +637,16 @@ extension ChildChannelStateMachine {
             preconditionFailure("Channel already closed")
 
         case .idle(localChannelID: let localID),
-             .requestedLocally(localChannelID: let localID):
+            .requestedLocally(localChannelID: let localID):
             self.state = .closed(channelID: SSHChannelIdentifier(localChannelID: localID, peerChannelID: 0))
 
-        case .requestedRemotely(channelID: let channelID),
-             .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID),
-             .closedLocally(channelID: let channelID, receivedPeerEOF: _),
-             .closedRemotely(channelID: let channelID, sentEOF: _):
+        case .requestedRemotely(let channelID),
+            .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID),
+            .closedLocally(let channelID, receivedPeerEOF: _),
+            .closedRemotely(let channelID, sentEOF: _):
             self.state = .closed(channelID: channelID)
         }
     }
@@ -574,7 +660,8 @@ extension ChildChannelStateMachine {
         switch self.state {
         case .idle, .closed:
             return false
-        case .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely:
+        case .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent,
+            .closedLocally, .closedRemotely:
             return true
         }
     }
@@ -584,7 +671,8 @@ extension ChildChannelStateMachine {
         switch self.state {
         case .closed:
             return true
-        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedLocally, .closedRemotely:
+        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent,
+            .closedLocally, .closedRemotely:
             return false
         }
     }
@@ -604,7 +692,8 @@ extension ChildChannelStateMachine {
         switch self.state {
         case .closedLocally, .closed:
             return true
-        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent, .closedRemotely:
+        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedLocal, .halfClosedRemote, .quiescent,
+            .closedRemotely:
             return false
         }
     }
@@ -613,17 +702,17 @@ extension ChildChannelStateMachine {
     var localChannelIdentifier: UInt32 {
         switch self.state {
         case .idle(localChannelID: let localID),
-             .requestedLocally(localChannelID: let localID):
+            .requestedLocally(localChannelID: let localID):
             return localID
 
-        case .requestedRemotely(channelID: let channelID),
-             .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID),
-             .closedRemotely(channelID: let channelID, sentEOF: _),
-             .closedLocally(channelID: let channelID, receivedPeerEOF: _),
-             .closed(channelID: let channelID):
+        case .requestedRemotely(let channelID),
+            .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID),
+            .closedRemotely(let channelID, sentEOF: _),
+            .closedLocally(let channelID, receivedPeerEOF: _),
+            .closed(let channelID):
             return channelID.localChannelID
         }
     }
@@ -634,14 +723,14 @@ extension ChildChannelStateMachine {
         case .idle, .requestedLocally:
             return nil
 
-        case .requestedRemotely(channelID: let channelID),
-             .active(channelID: let channelID),
-             .halfClosedLocal(channelID: let channelID),
-             .halfClosedRemote(channelID: let channelID),
-             .quiescent(channelID: let channelID),
-             .closedRemotely(channelID: let channelID, sentEOF: _),
-             .closedLocally(channelID: let channelID, receivedPeerEOF: _),
-             .closed(channelID: let channelID):
+        case .requestedRemotely(let channelID),
+            .active(let channelID),
+            .halfClosedLocal(let channelID),
+            .halfClosedRemote(let channelID),
+            .quiescent(let channelID),
+            .closedRemotely(let channelID, sentEOF: _),
+            .closedLocally(let channelID, receivedPeerEOF: _),
+            .closed(let channelID):
             return channelID.peerChannelID
         }
     }
@@ -651,7 +740,8 @@ extension ChildChannelStateMachine {
         case .halfClosedLocal, .quiescent, .closedLocally, .closedRemotely(channelID: _, sentEOF: true), .closed:
             return true
 
-        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedRemote, .closedRemotely(channelID: _, sentEOF: false):
+        case .idle, .requestedLocally, .requestedRemotely, .active, .halfClosedRemote,
+            .closedRemotely(channelID: _, sentEOF: false):
             return false
         }
     }

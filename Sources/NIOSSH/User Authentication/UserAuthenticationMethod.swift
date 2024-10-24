@@ -289,7 +289,10 @@ extension NIOSSHUserAuthenticationResponseMessage {
             let message = SSHMessage.UserAuthFailureMessage(authentications: remaining.strings, partialSuccess: true)
             self = .failure(message)
         case .failure:
-            let message = SSHMessage.UserAuthFailureMessage(authentications: supportedMethods.strings, partialSuccess: false)
+            let message = SSHMessage.UserAuthFailureMessage(
+                authentications: supportedMethods.strings,
+                partialSuccess: false
+            )
             self = .failure(message)
         }
     }

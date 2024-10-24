@@ -553,7 +553,8 @@ extension ByteBuffer {
             guard
                 let alwaysDisplay = self.readSSHBoolean(),
                 let message = self.readSSHStringAsString(),
-                let language = self.readSSHStringAsString() else {
+                let language = self.readSSHStringAsString()
+            else {
                 return nil
             }
 
@@ -603,18 +604,20 @@ extension ByteBuffer {
                 return nil
             }
 
-            return .init(cookie: cookie,
-                         keyExchangeAlgorithms: keyExchangeAlgorithms,
-                         serverHostKeyAlgorithms: serverHostKeyAlgorithms,
-                         encryptionAlgorithmsClientToServer: encryptionAlgorithmsClientToServer,
-                         encryptionAlgorithmsServerToClient: encryptionAlgorithmsServerToClient,
-                         macAlgorithmsClientToServer: macAlgorithmsClientToServer,
-                         macAlgorithmsServerToClient: macAlgorithmsServerToClient,
-                         compressionAlgorithmsClientToServer: compressionAlgorithmsClientToServer,
-                         compressionAlgorithmsServerToClient: compressionAlgorithmsServerToClient,
-                         languagesClientToServer: languagesClientToServer,
-                         languagesServerToClient: languagesServerToClient,
-                         firstKexPacketFollows: firstKexPacketFollows)
+            return .init(
+                cookie: cookie,
+                keyExchangeAlgorithms: keyExchangeAlgorithms,
+                serverHostKeyAlgorithms: serverHostKeyAlgorithms,
+                encryptionAlgorithmsClientToServer: encryptionAlgorithmsClientToServer,
+                encryptionAlgorithmsServerToClient: encryptionAlgorithmsServerToClient,
+                macAlgorithmsClientToServer: macAlgorithmsClientToServer,
+                macAlgorithmsServerToClient: macAlgorithmsServerToClient,
+                compressionAlgorithmsClientToServer: compressionAlgorithmsClientToServer,
+                compressionAlgorithmsServerToClient: compressionAlgorithmsServerToClient,
+                languagesClientToServer: languagesClientToServer,
+                languagesServerToClient: languagesServerToClient,
+                firstKexPacketFollows: firstKexPacketFollows
+            )
         }
     }
 
@@ -684,7 +687,8 @@ extension ByteBuffer {
                     return nil
                 }
 
-                if NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(algorithmName.readableBytesView) }) {
+                if NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(algorithmName.readableBytesView) }
+                ) {
                     // This is a known algorithm, we can load the key.
                     guard let publicKey = try keyBytes.readSSHHostKey() else {
                         return nil
@@ -695,7 +699,9 @@ extension ByteBuffer {
                     }
 
                     if expectSignature {
-                        guard var signatureBytes = self.readSSHString(), let signature = try signatureBytes.readSSHSignature() else {
+                        guard var signatureBytes = self.readSSHString(),
+                            let signature = try signatureBytes.readSSHSignature()
+                        else {
                             return nil
                         }
 
@@ -755,7 +761,8 @@ extension ByteBuffer {
                 return nil
             }
 
-            guard NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(publicKeyType.readableBytesView) }) else {
+            guard NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(publicKeyType.readableBytesView) })
+            else {
                 throw NIOSSHError.invalidSSHMessage(reason: "unsupported key type in PK_OK")
             }
 
@@ -854,12 +861,20 @@ extension ByteBuffer {
                 }
 
                 guard portListening <= UInt16.max, originatorPort <= UInt16.max else {
-                    throw NIOSSHError.unknownPacketType(diagnostic: "Invalid port values: \(portListening) \(originatorPort)")
+                    throw NIOSSHError.unknownPacketType(
+                        diagnostic: "Invalid port values: \(portListening) \(originatorPort)"
+                    )
                 }
 
                 let originator = try SocketAddress(ipAddress: originatorIP, port: Int(originatorPort))
 
-                type = .forwardedTCPIP(.init(hostListening: hostListening, portListening: UInt16(portListening), originatorAddress: originator))
+                type = .forwardedTCPIP(
+                    .init(
+                        hostListening: hostListening,
+                        portListening: UInt16(portListening),
+                        originatorAddress: originator
+                    )
+                )
 
             case "direct-tcpip":
                 guard
@@ -872,18 +887,31 @@ extension ByteBuffer {
                 }
 
                 guard portToConnectTo <= UInt16.max, originatorPort <= UInt16.max else {
-                    throw NIOSSHError.unknownPacketType(diagnostic: "Invalid port values: \(portToConnectTo) \(originatorPort)")
+                    throw NIOSSHError.unknownPacketType(
+                        diagnostic: "Invalid port values: \(portToConnectTo) \(originatorPort)"
+                    )
                 }
 
                 let originator = try SocketAddress(ipAddress: originatorIP, port: Int(originatorPort))
 
-                type = .directTCPIP(.init(hostToConnectTo: hostToConnectTo, portToConnectTo: UInt16(portToConnectTo), originatorAddress: originator))
+                type = .directTCPIP(
+                    .init(
+                        hostToConnectTo: hostToConnectTo,
+                        portToConnectTo: UInt16(portToConnectTo),
+                        originatorAddress: originator
+                    )
+                )
 
             default:
                 throw NIOSSHError.unknownPacketType(diagnostic: "Channel request with \(typeRawValue)")
             }
 
-            return SSHMessage.ChannelOpenMessage(type: type, senderChannel: senderChannel, initialWindowSize: initialWindowSize, maximumPacketSize: maximumPacketSize)
+            return SSHMessage.ChannelOpenMessage(
+                type: type,
+                senderChannel: senderChannel,
+                initialWindowSize: initialWindowSize,
+                maximumPacketSize: maximumPacketSize
+            )
         }
     }
 
@@ -898,7 +926,12 @@ extension ByteBuffer {
                 return nil
             }
 
-            return SSHMessage.ChannelOpenConfirmationMessage(recipientChannel: recipientChannel, senderChannel: senderChannel, initialWindowSize: initialWindowSize, maximumPacketSize: maximumPacketSize)
+            return SSHMessage.ChannelOpenConfirmationMessage(
+                recipientChannel: recipientChannel,
+                senderChannel: senderChannel,
+                initialWindowSize: initialWindowSize,
+                maximumPacketSize: maximumPacketSize
+            )
         }
     }
 
@@ -913,7 +946,12 @@ extension ByteBuffer {
                 return nil
             }
 
-            return SSHMessage.ChannelOpenFailureMessage(recipientChannel: recipientChannel, reasonCode: reasonCode, description: description, language: language)
+            return SSHMessage.ChannelOpenFailureMessage(
+                recipientChannel: recipientChannel,
+                reasonCode: reasonCode,
+                description: description,
+                language: language
+            )
         }
     }
 
@@ -954,7 +992,11 @@ extension ByteBuffer {
                 return nil
             }
 
-            return SSHMessage.ChannelExtendedDataMessage(recipientChannel: recipientChannel, dataTypeCode: code, data: data)
+            return SSHMessage.ChannelExtendedDataMessage(
+                recipientChannel: recipientChannel,
+                dataTypeCode: code,
+                data: data
+            )
         }
     }
 
@@ -1039,12 +1081,16 @@ extension ByteBuffer {
                     return nil
                 }
 
-                type = .ptyReq(.init(termVariable: termVariable,
-                                     characterWidth: termWidth,
-                                     rowHeight: termHeight,
-                                     pixelWidth: pixelWidth,
-                                     pixelHeight: pixelHeight,
-                                     terminalModes: try encodedTerminalModes.readSSHTerminalModes()))
+                type = .ptyReq(
+                    .init(
+                        termVariable: termVariable,
+                        characterWidth: termWidth,
+                        rowHeight: termHeight,
+                        pixelWidth: pixelWidth,
+                        pixelHeight: pixelHeight,
+                        terminalModes: try encodedTerminalModes.readSSHTerminalModes()
+                    )
+                )
             case "shell":
                 type = .shell
             case "subsystem":
@@ -1062,7 +1108,14 @@ extension ByteBuffer {
                     return nil
                 }
 
-                type = .windowChange(.init(characterWidth: termWidth, rowHeight: termHeight, pixelWidth: pixelWidth, pixelHeight: pixelHeight))
+                type = .windowChange(
+                    .init(
+                        characterWidth: termWidth,
+                        rowHeight: termHeight,
+                        pixelWidth: pixelWidth,
+                        pixelHeight: pixelHeight
+                    )
+                )
             case "xon-xoff":
                 guard let clientCanDo = self.readSSHBoolean() else {
                     return nil
@@ -1078,7 +1131,11 @@ extension ByteBuffer {
                 type = .unknown
             }
 
-            return SSHMessage.ChannelRequestMessage(recipientChannel: recipientChannel, type: type, wantReply: wantReply)
+            return SSHMessage.ChannelRequestMessage(
+                recipientChannel: recipientChannel,
+                type: type,
+                wantReply: wantReply
+            )
         }
     }
 

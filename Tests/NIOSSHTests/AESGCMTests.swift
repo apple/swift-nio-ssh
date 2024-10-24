@@ -15,17 +15,20 @@
 import Crypto
 import NIOCore
 import NIOFoundationCompat
-@testable import NIOSSH
 import XCTest
+
+@testable import NIOSSH
 
 final class AESGCMTests: XCTestCase {
     private func generateKeys(keySize: SymmetricKeySize) -> NIOSSHSessionKeys {
-        NIOSSHSessionKeys(initialInboundIV: .init(randomBytes: 12),
-                          initialOutboundIV: .init(randomBytes: 12),
-                          inboundEncryptionKey: SymmetricKey(size: keySize),
-                          outboundEncryptionKey: SymmetricKey(size: keySize),
-                          inboundMACKey: SymmetricKey(size: .bits128),
-                          outboundMACKey: SymmetricKey(size: .bits128))
+        NIOSSHSessionKeys(
+            initialInboundIV: .init(randomBytes: 12),
+            initialOutboundIV: .init(randomBytes: 12),
+            inboundEncryptionKey: SymmetricKey(size: keySize),
+            outboundEncryptionKey: SymmetricKey(size: keySize),
+            inboundMACKey: SymmetricKey(size: .bits128),
+            outboundMACKey: SymmetricKey(size: .bits128)
+        )
     }
 
     private var buffer: ByteBuffer!
@@ -43,7 +46,11 @@ final class AESGCMTests: XCTestCase {
 
         let aes128Encryptor = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys))
 
-        self.buffer.writeSSHPacket(message: .newKeys, lengthEncrypted: aes128Encryptor.lengthEncrypted, blockSize: aes128Encryptor.cipherBlockSize)
+        self.buffer.writeSSHPacket(
+            message: .newKeys,
+            lengthEncrypted: aes128Encryptor.lengthEncrypted,
+            blockSize: aes128Encryptor.cipherBlockSize
+        )
         XCTAssertNoThrow(try aes128Encryptor.encryptPacket(&self.buffer, sequenceNumber: 0))
 
         // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
@@ -54,14 +61,18 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(self.buffer.readableBytes, 36)
 
         // We should be able to decrypt this now.
-        let aes128Decryptor = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys.inverted))
+        let aes128Decryptor = try assertNoThrowWithValue(
+            AES128GCMOpenSSHTransportProtection(initialKeys: initialKeys.inverted)
+        )
 
         var bufferCopy = self.buffer!
         XCTAssertNoThrow(try aes128Decryptor.decryptFirstBlock(&bufferCopy))
         XCTAssertEqual(bufferCopy, self.buffer)
 
         /// After decryption the plaintext should be a newKeys message.
-        var plaintext = try assertNoThrowWithValue(aes128Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy, sequenceNumber: 0))
+        var plaintext = try assertNoThrowWithValue(
+            aes128Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy, sequenceNumber: 0)
+        )
         XCTAssertEqual(bufferCopy.readableBytes, 0)
         XCTAssertNotEqual(plaintext, self.buffer)
         XCTAssertEqual(plaintext.readableBytes, 1)
@@ -80,7 +91,11 @@ final class AESGCMTests: XCTestCase {
 
         let aes256Encryptor = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys))
 
-        self.buffer.writeSSHPacket(message: .newKeys, lengthEncrypted: aes256Encryptor.lengthEncrypted, blockSize: aes256Encryptor.cipherBlockSize)
+        self.buffer.writeSSHPacket(
+            message: .newKeys,
+            lengthEncrypted: aes256Encryptor.lengthEncrypted,
+            blockSize: aes256Encryptor.cipherBlockSize
+        )
         XCTAssertNoThrow(try aes256Encryptor.encryptPacket(&self.buffer, sequenceNumber: 0))
 
         // The newKeys message is very straightforward: a single byte. Because of that, we expect that we will need
@@ -91,14 +106,18 @@ final class AESGCMTests: XCTestCase {
         XCTAssertEqual(self.buffer.readableBytes, 36)
 
         // We should be able to decrypt this now.
-        let aes256Decryptor = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys.inverted))
+        let aes256Decryptor = try assertNoThrowWithValue(
+            AES256GCMOpenSSHTransportProtection(initialKeys: initialKeys.inverted)
+        )
 
         var bufferCopy = self.buffer!
         XCTAssertNoThrow(try aes256Decryptor.decryptFirstBlock(&bufferCopy))
         XCTAssertEqual(bufferCopy, self.buffer)
 
         /// After decryption the plaintext should be a newKeys message.
-        var plaintext = try assertNoThrowWithValue(aes256Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy, sequenceNumber: 0))
+        var plaintext = try assertNoThrowWithValue(
+            aes256Decryptor.decryptAndVerifyRemainingPacket(&bufferCopy, sequenceNumber: 0)
+        )
         XCTAssertEqual(bufferCopy.readableBytes, 0)
         XCTAssertNotEqual(plaintext, self.buffer)
         XCTAssertEqual(plaintext.readableBytes, 1)
@@ -295,9 +314,11 @@ final class AESGCMTests: XCTestCase {
         // or if it is not 4 bytes larger than a multiple of 16 (the block size and the tag size).
         // To verify this, we check all sizes smaller than 36 bytes, and then the non-block sizes
         // up to the next multiple of the block size (52 bytes).
-        let invalidSizes = Array(0 ..< 36) + Array(37 ..< 52)
+        let invalidSizes = Array(0..<36) + Array(37..<52)
 
-        let aes128 = try assertNoThrowWithValue(AES128GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits128)))
+        let aes128 = try assertNoThrowWithValue(
+            AES128GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits128))
+        )
         var buffer = ByteBufferAllocator().buffer(capacity: 52)
 
         for ciphertextSize in invalidSizes {
@@ -315,9 +336,11 @@ final class AESGCMTests: XCTestCase {
         // or if it is not 4 bytes larger than a multiple of 16 (the block size and the tag size).
         // To verify this, we check all sizes smaller than 36 bytes, and then the non-block sizes
         // up to the next multiple of the block size (52 bytes).
-        let invalidSizes = Array(0 ..< 36) + Array(37 ..< 52)
+        let invalidSizes = Array(0..<36) + Array(37..<52)
 
-        let aes256 = try assertNoThrowWithValue(AES256GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits256)))
+        let aes256 = try assertNoThrowWithValue(
+            AES256GCMOpenSSHTransportProtection(initialKeys: self.generateKeys(keySize: .bits256))
+        )
         var buffer = ByteBufferAllocator().buffer(capacity: 52)
 
         for ciphertextSize in invalidSizes {
@@ -336,16 +359,20 @@ final class AESGCMTests: XCTestCase {
         // For the zero-data packet, we will have 15 bytes of padding (plus the padding length), and we're going
         // to claim to have 16 bytes.
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
+        buffer.writeInteger(UInt32(36))  // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(16))
         buffer.writeRepeatingByte(0, count: 15)
 
         // We now need to turn this into an SSH packet. This is sadly just reproducing the encryption logic.
         let keys = self.generateKeys(keySize: .bits128)
-        let box = try assertNoThrowWithValue(AES.GCM.seal(buffer.viewBytes(at: 4, length: 16)!,
-                                                          using: keys.inboundEncryptionKey,
-                                                          nonce: try AES.GCM.Nonce(data: keys.initialInboundIV),
-                                                          authenticating: buffer.viewBytes(at: 0, length: 4)!))
+        let box = try assertNoThrowWithValue(
+            AES.GCM.seal(
+                buffer.viewBytes(at: 4, length: 16)!,
+                using: keys.inboundEncryptionKey,
+                nonce: try AES.GCM.Nonce(data: keys.initialInboundIV),
+                authenticating: buffer.viewBytes(at: 0, length: 4)!
+            )
+        )
         let writtenBytes = buffer.setBytes(box.ciphertext, at: 4)
         XCTAssertEqual(writtenBytes, 16)
 
@@ -365,16 +392,20 @@ final class AESGCMTests: XCTestCase {
         // For the zero-data packet, we will have 15 bytes of padding (plus the padding length), and we're going
         // to claim to have 16 bytes.
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
+        buffer.writeInteger(UInt32(36))  // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(16))
         buffer.writeRepeatingByte(0, count: 15)
 
         // We now need to turn this into an SSH packet. This is sadly just reproducing the encryption logic.
         let keys = self.generateKeys(keySize: .bits256)
-        let box = try assertNoThrowWithValue(AES.GCM.seal(buffer.viewBytes(at: 4, length: 16)!,
-                                                          using: keys.inboundEncryptionKey,
-                                                          nonce: try AES.GCM.Nonce(data: keys.initialInboundIV),
-                                                          authenticating: buffer.viewBytes(at: 0, length: 4)!))
+        let box = try assertNoThrowWithValue(
+            AES.GCM.seal(
+                buffer.viewBytes(at: 4, length: 16)!,
+                using: keys.inboundEncryptionKey,
+                nonce: try AES.GCM.Nonce(data: keys.initialInboundIV),
+                authenticating: buffer.viewBytes(at: 0, length: 4)!
+            )
+        )
         let writtenBytes = buffer.setBytes(box.ciphertext, at: 4)
         XCTAssertEqual(writtenBytes, 16)
 
@@ -394,16 +425,20 @@ final class AESGCMTests: XCTestCase {
         // are going to have 12 bytes of data, a 1 byte padding length field, and 3 bytes of padding. This is one
         // block size, which is acceptable.
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
+        buffer.writeInteger(UInt32(36))  // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(3))
         buffer.writeRepeatingByte(0, count: 15)
 
         // We now need to turn this into an SSH packet. This is sadly just reproducing the encryption logic.
         let keys = self.generateKeys(keySize: .bits128)
-        let box = try assertNoThrowWithValue(AES.GCM.seal(buffer.viewBytes(at: 4, length: 16)!,
-                                                          using: keys.inboundEncryptionKey,
-                                                          nonce: try AES.GCM.Nonce(data: keys.initialInboundIV),
-                                                          authenticating: buffer.viewBytes(at: 0, length: 4)!))
+        let box = try assertNoThrowWithValue(
+            AES.GCM.seal(
+                buffer.viewBytes(at: 4, length: 16)!,
+                using: keys.inboundEncryptionKey,
+                nonce: try AES.GCM.Nonce(data: keys.initialInboundIV),
+                authenticating: buffer.viewBytes(at: 0, length: 4)!
+            )
+        )
         let writtenBytes = buffer.setBytes(box.ciphertext, at: 4)
         XCTAssertEqual(writtenBytes, 16)
 
@@ -423,16 +458,20 @@ final class AESGCMTests: XCTestCase {
         // are going to have 12 bytes of data, a 1 byte padding length field, and 3 bytes of padding. This is one
         // block size, which is acceptable.
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
-        buffer.writeInteger(UInt32(36)) // We need the length bytes in order to authenticate them.
+        buffer.writeInteger(UInt32(36))  // We need the length bytes in order to authenticate them.
         buffer.writeInteger(UInt8(3))
         buffer.writeRepeatingByte(0, count: 15)
 
         // We now need to turn this into an SSH packet. This is sadly just reproducing the encryption logic.
         let keys = self.generateKeys(keySize: .bits256)
-        let box = try assertNoThrowWithValue(AES.GCM.seal(buffer.viewBytes(at: 4, length: 16)!,
-                                                          using: keys.inboundEncryptionKey,
-                                                          nonce: try AES.GCM.Nonce(data: keys.initialInboundIV),
-                                                          authenticating: buffer.viewBytes(at: 0, length: 4)!))
+        let box = try assertNoThrowWithValue(
+            AES.GCM.seal(
+                buffer.viewBytes(at: 4, length: 16)!,
+                using: keys.inboundEncryptionKey,
+                nonce: try AES.GCM.Nonce(data: keys.initialInboundIV),
+                authenticating: buffer.viewBytes(at: 0, length: 4)!
+            )
+        )
         let writtenBytes = buffer.setBytes(box.ciphertext, at: 4)
         XCTAssertEqual(writtenBytes, 16)
 
@@ -477,17 +516,19 @@ final class AESGCMTests: XCTestCase {
 extension Array where Element == UInt8 {
     init(randomBytes: Int) {
         var rng = CSPRNG()
-        self = (0 ..< randomBytes).map { _ in rng.next() }
+        self = (0..<randomBytes).map { _ in rng.next() }
     }
 }
 
 extension NIOSSHSessionKeys {
     var inverted: NIOSSHSessionKeys {
-        NIOSSHSessionKeys(initialInboundIV: self.initialOutboundIV,
-                          initialOutboundIV: self.initialInboundIV,
-                          inboundEncryptionKey: self.outboundEncryptionKey,
-                          outboundEncryptionKey: self.inboundEncryptionKey,
-                          inboundMACKey: self.outboundMACKey,
-                          outboundMACKey: self.inboundMACKey)
+        NIOSSHSessionKeys(
+            initialInboundIV: self.initialOutboundIV,
+            initialOutboundIV: self.initialInboundIV,
+            inboundEncryptionKey: self.outboundEncryptionKey,
+            outboundEncryptionKey: self.inboundEncryptionKey,
+            inboundMACKey: self.outboundMACKey,
+            outboundMACKey: self.inboundMACKey
+        )
     }
 }

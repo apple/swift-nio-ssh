@@ -14,8 +14,9 @@
 
 import NIOCore
 import NIOEmbedded
-@testable import NIOSSH
 import XCTest
+
+@testable import NIOSSH
 
 /// The dummy delegate is used to record calls from the multiplexer to the handler.
 ///
@@ -183,7 +184,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
     private func harness(_ initializer: SSHChildChannel.Initializer? = nil) -> TestHarness {
         let delegate = DummyDelegate()
-        let multiplexer = SSHChannelMultiplexer(delegate: delegate, allocator: delegate.allocator, childChannelInitializer: initializer)
+        let multiplexer = SSHChannelMultiplexer(
+            delegate: delegate,
+            allocator: delegate.allocator,
+            childChannelInitializer: initializer
+        )
         return TestHarness(delegate: delegate, multiplexer: multiplexer)
     }
 
@@ -194,22 +199,41 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
     }
 
-    private func openRequest(channelID: UInt32, initialWindowSize: UInt32 = 1 << 24, maxPacketSize: UInt32 = 1 << 24) -> SSHMessage {
-        .channelOpen(.init(type: .session,
-                           senderChannel: channelID,
-                           initialWindowSize: initialWindowSize,
-                           maximumPacketSize: maxPacketSize))
+    private func openRequest(
+        channelID: UInt32,
+        initialWindowSize: UInt32 = 1 << 24,
+        maxPacketSize: UInt32 = 1 << 24
+    ) -> SSHMessage {
+        .channelOpen(
+            .init(
+                type: .session,
+                senderChannel: channelID,
+                initialWindowSize: initialWindowSize,
+                maximumPacketSize: maxPacketSize
+            )
+        )
     }
 
-    private func openConfirmation(originalChannelID: UInt32, peerChannelID: UInt32, initialWindowSize: UInt32 = 1 << 24, maxPacketSize: UInt32 = 1 << 24) -> SSHMessage {
-        .channelOpenConfirmation(.init(recipientChannel: originalChannelID,
-                                       senderChannel: peerChannelID,
-                                       initialWindowSize: initialWindowSize,
-                                       maximumPacketSize: maxPacketSize))
+    private func openConfirmation(
+        originalChannelID: UInt32,
+        peerChannelID: UInt32,
+        initialWindowSize: UInt32 = 1 << 24,
+        maxPacketSize: UInt32 = 1 << 24
+    ) -> SSHMessage {
+        .channelOpenConfirmation(
+            .init(
+                recipientChannel: originalChannelID,
+                senderChannel: peerChannelID,
+                initialWindowSize: initialWindowSize,
+                maximumPacketSize: maxPacketSize
+            )
+        )
     }
 
     private func openFailure(originalChannelID: UInt32, reasonCode: UInt32) -> SSHMessage {
-        .channelOpenFailure(.init(recipientChannel: originalChannelID, reasonCode: reasonCode, description: "", language: ""))
+        .channelOpenFailure(
+            .init(recipientChannel: originalChannelID, reasonCode: reasonCode, description: "", language: "")
+        )
     }
 
     private func data(peerChannelID: UInt32, data: ByteBuffer) -> SSHMessage {
@@ -289,7 +313,12 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
     }
 
-    func assertChannelExtendedData(_ message: SSHMessage?, type: SSHMessage.ChannelExtendedDataMessage.Code, data: ByteBuffer, recipientChannel: UInt32) {
+    func assertChannelExtendedData(
+        _ message: SSHMessage?,
+        type: SSHMessage.ChannelExtendedDataMessage.Code,
+        data: ByteBuffer,
+        recipientChannel: UInt32
+    ) {
         switch message {
         case .some(.channelExtendedData(let message)):
             XCTAssertEqual(message.dataTypeCode, type)
@@ -301,7 +330,12 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
     }
 
-    func assertChannelRequest(_ message: SSHMessage?, type: SSHMessage.ChannelRequestMessage.RequestType, recipientChannel: UInt32, wantReply: Bool) {
+    func assertChannelRequest(
+        _ message: SSHMessage?,
+        type: SSHMessage.ChannelRequestMessage.RequestType,
+        recipientChannel: UInt32,
+        wantReply: Bool
+    ) {
         switch message {
         case .some(.channelRequest(let message)):
             XCTAssertEqual(message.type, type)
@@ -420,7 +454,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // Now we drop in an open confirmation. This immediately triggers a close message.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
         XCTAssertFalse(didClose.value)
         XCTAssertEqual(harness.flushedMessages.count, 2)
         self.assertChannelClose(harness.flushedMessages.last, recipientChannel: 1)
@@ -459,7 +497,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
 
         // Now we drop in an open confirmation. No new messages, but the channel is open.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
         XCTAssertTrue(channel.isActive)
         XCTAssertTrue(channel.isWritable)
         XCTAssertEqual(harness.flushedMessages.count, 1)
@@ -518,7 +560,9 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // Now we drop in an open failure. This does not trigger a close message.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openFailure(originalChannelID: channelID!, reasonCode: 2)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(self.openFailure(originalChannelID: channelID!, reasonCode: 2))
+        )
         XCTAssertNotNil(closeError.value)
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
@@ -593,7 +637,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
 
         // Open the channel
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
 
         // The writes should fire
         XCTAssertEqual(harness.flushedMessages.count, 3)
@@ -610,8 +658,14 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 0)
 
         harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
-            channel.triggerUserOutboundEvent(SSHChannelRequestEvent.EnvironmentRequest(wantReply: false, name: "HOME", value: "/usr/root"), promise: nil)
-            channel.triggerUserOutboundEvent(SSHChannelRequestEvent.ExecRequest(command: "uname", wantReply: false), promise: nil)
+            channel.triggerUserOutboundEvent(
+                SSHChannelRequestEvent.EnvironmentRequest(wantReply: false, name: "HOME", value: "/usr/root"),
+                promise: nil
+            )
+            channel.triggerUserOutboundEvent(
+                SSHChannelRequestEvent.ExecRequest(command: "uname", wantReply: false),
+                promise: nil
+            )
             return channel.eventLoop.makeSucceededFuture(())
         }
 
@@ -619,12 +673,26 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
 
         // Open the channel
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
 
         // The user event should fire.
         XCTAssertEqual(harness.flushedMessages.count, 3)
-        self.assertChannelRequest(harness.flushedMessage(1), type: .env("HOME", "/usr/root"), recipientChannel: 1, wantReply: false)
-        self.assertChannelRequest(harness.flushedMessage(2), type: .exec("uname"), recipientChannel: 1, wantReply: false)
+        self.assertChannelRequest(
+            harness.flushedMessage(1),
+            type: .env("HOME", "/usr/root"),
+            recipientChannel: 1,
+            wantReply: false
+        )
+        self.assertChannelRequest(
+            harness.flushedMessage(2),
+            type: .exec("uname"),
+            recipientChannel: 1,
+            wantReply: false
+        )
     }
 
     func testReadsAreDelayedUntilRead() throws {
@@ -648,11 +716,15 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         XCTAssertEqual(harness.flushedMessages.count, 1)
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
         XCTAssertEqual(readRecorder.value.reads, [])
 
         // Now we're going to deliver some data. These should not propagate into the channel.
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
         }
 
@@ -662,27 +734,39 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Call read. The messages should be delivered.
         readRecorder.value.channel?.read()
-        XCTAssertEqual(readRecorder.value.reads, Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 5))
+        XCTAssertEqual(
+            readRecorder.value.reads,
+            Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 5)
+        )
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // Issue another read call. Nothing happens.
         readRecorder.value.channel?.read()
         readRecorder.value.channel?.read()
         readRecorder.value.channel?.read()
-        XCTAssertEqual(readRecorder.value.reads, Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 5))
+        XCTAssertEqual(
+            readRecorder.value.reads,
+            Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 5)
+        )
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // Delivering two new messages causes one read.
-        for _ in 0 ..< 2 {
+        for _ in 0..<2 {
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
             harness.multiplexer.parentChannelReadComplete()
         }
-        XCTAssertEqual(readRecorder.value.reads, Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 6))
+        XCTAssertEqual(
+            readRecorder.value.reads,
+            Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 6)
+        )
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // And get it all through now.
         readRecorder.value.channel?.read()
-        XCTAssertEqual(readRecorder.value.reads, Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 7))
+        XCTAssertEqual(
+            readRecorder.value.reads,
+            Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 7)
+        )
         XCTAssertEqual(harness.flushedMessages.count, 1)
     }
 
@@ -700,7 +784,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 0)
 
         // Create a few child channels.
-        for channelID in 1 ... 5 {
+        for channelID in 1...5 {
             let openRequest = self.openRequest(channelID: UInt32(channelID))
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(openRequest))
             XCTAssertEqual(childChannels.count, channelID)
@@ -733,13 +817,16 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 0)
 
         // Create a few child channels, and close them immediately.
-        for channelID in 1 ... 5 {
+        for channelID in 1...5 {
             let openRequest = self.openRequest(channelID: UInt32(channelID))
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(openRequest))
             XCTAssertEqual(childChannels.count, channelID)
             XCTAssertEqual(harness.flushedMessages.count, channelID)
 
-            let peerChannelID = self.assertChannelOpenConfirmation(harness.flushedMessages.last, recipientChannel: UInt32(channelID))
+            let peerChannelID = self.assertChannelOpenConfirmation(
+                harness.flushedMessages.last,
+                recipientChannel: UInt32(channelID)
+            )
             let close = self.close(peerChannelID: peerChannelID!)
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(close))
         }
@@ -748,7 +835,9 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // All channels are already inactive, but still have their inactive recorder (and so have not seen an event loop tick).
         XCTAssertTrue(childChannels.allSatisfy { !$0.isActive })
-        XCTAssertTrue(childChannels.allSatisfy { (try? $0.pipeline.handler(type: ChannelInactiveRecorder.self).wait()) != nil })
+        XCTAssertTrue(
+            childChannels.allSatisfy { (try? $0.pipeline.handler(type: ChannelInactiveRecorder.self).wait()) != nil }
+        )
 
         // Claim the parent has gone inactive. All should go inactive.
         harness.multiplexer.parentChannelInactive()
@@ -756,7 +845,9 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Now run the loop, confirm they're gone.
         harness.eventLoop.run()
         XCTAssertTrue(childChannels.allSatisfy { !$0.isActive })
-        XCTAssertTrue(childChannels.allSatisfy { (try? $0.pipeline.handler(type: ChannelInactiveRecorder.self).wait()) == nil })
+        XCTAssertTrue(
+            childChannels.allSatisfy { (try? $0.pipeline.handler(type: ChannelInactiveRecorder.self).wait()) == nil }
+        )
 
         // And they didn't say anything.
         XCTAssertEqual(harness.flushedMessages.count, 5)
@@ -782,7 +873,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Activate the channel.
         XCTAssertEqual(harness.flushedMessages.count, 1)
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // Tell the multiplexer the handler went away.
@@ -791,7 +886,8 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Issue a write to the child.
         var bytes = channel.allocator.buffer(capacity: 1024)
         bytes.writeString("Hello from the unit tests")
-        XCTAssertThrowsError(try channel.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(bytes))).wait()) { error in
+        XCTAssertThrowsError(try channel.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(bytes))).wait())
+        { error in
             XCTAssertEqual(error as? ChannelError, .ioOnClosedChannel)
         }
 
@@ -811,11 +907,19 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Activate the channel.
         XCTAssertEqual(harness.flushedMessages.count, 1)
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // Try to send a message to the next channel ID. This will be rejected.
-        XCTAssertThrowsError(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID! &+ 1, peerChannelID: 2))) { error in
+        XCTAssertThrowsError(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID! &+ 1, peerChannelID: 2)
+            )
+        ) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .some(.protocolViolation))
         }
 
@@ -824,7 +928,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         harness.eventLoop.run()
 
         // Sending a message to that channel is also rejected.
-        XCTAssertThrowsError(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1))) { error in
+        XCTAssertThrowsError(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        ) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .some(.protocolViolation))
         }
     }
@@ -865,11 +973,15 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         XCTAssertEqual(harness.flushedMessages.count, 1)
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
         XCTAssertEqual(readRecorder.value.reads, [])
 
         // Now we're going to deliver some data. These should not propagate into the channel.
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
         }
 
@@ -879,7 +991,10 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Issue a read. Everything fires through.
         readRecorder.value.channel?.read()
-        XCTAssertEqual(readRecorder.value.reads, Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 5))
+        XCTAssertEqual(
+            readRecorder.value.reads,
+            Array(repeating: .init(type: .channel, data: .byteBuffer(buffer)), count: 5)
+        )
         XCTAssertEqual(harness.flushedMessages.count, 1)
         XCTAssertTrue(eofRecorder.value.seenEOF)
     }
@@ -905,13 +1020,17 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
 
         // Ok, we're going to write 5 data frames. We won't flush them: doing an outbound close _is_ a flush.
         var buffer = channel.allocator.buffer(capacity: 1024)
         buffer.writeString("Hello from the unit tests!")
 
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             channel.write(SSHChannelData(type: .channel, data: .byteBuffer(buffer)), promise: nil)
         }
 
@@ -938,7 +1057,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // We should have seen 7 messages.
         XCTAssertEqual(harness.flushedMessages.count, 8)
-        harness.flushedMessages.dropFirst().prefix(6).forEach { message in
+        for message in harness.flushedMessages.dropFirst().prefix(6) {
             XCTAssertEqual(SSHMessage.channelData(.init(recipientChannel: 1, data: buffer)), message)
         }
         XCTAssertEqual(SSHMessage.channelEOF(.init(recipientChannel: 1)), harness.flushedMessages.last)
@@ -967,14 +1086,22 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
 
         // Write EOF.
         XCTAssertNoThrow(try channel.close(mode: .output).wait())
         XCTAssertTrue(channel.isActive)
 
         // Now write some data. This fails immediately.
-        XCTAssertThrowsError(try channel.write(SSHChannelData(type: .channel, data: .byteBuffer(channel.allocator.buffer(capacity: 1024)))).wait()) { error in
+        XCTAssertThrowsError(
+            try channel.write(
+                SSHChannelData(type: .channel, data: .byteBuffer(channel.allocator.buffer(capacity: 1024)))
+            ).wait()
+        ) { error in
             XCTAssertEqual(error as? ChannelError, .outputClosed)
         }
     }
@@ -998,7 +1125,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
 
         let first = NIOLoopBoundBox<Result<Void, Error>?>(nil, eventLoop: channel.eventLoop)
         let second = NIOLoopBoundBox<Result<Void, Error>?>(nil, eventLoop: channel.eventLoop)
@@ -1012,7 +1143,9 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.close(peerChannelID: channelID!)))
 
         guard case .success = first.value, case .success = second.value else {
-            XCTFail("Unexpected results: first \(String(describing: first.value)) second \(String(describing: second.value))")
+            XCTFail(
+                "Unexpected results: first \(String(describing: first.value)) second \(String(describing: second.value))"
+            )
             return
         }
 
@@ -1040,7 +1173,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
 
         XCTAssertThrowsError(try channel.close(mode: .input).wait()) { error in
             XCTAssertEqual(error as? ChannelError, .operationUnsupported)
@@ -1066,18 +1203,28 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel. We set a 5 byte window size just to make testing easier.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1, initialWindowSize: 5)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1, initialWindowSize: 5)
+            )
+        )
         XCTAssertTrue(channel.isWritable)
 
         var buffer = channel.allocator.buffer(capacity: 6)
-        buffer.writeBytes(0 ..< 6)
+        buffer.writeBytes(0..<6)
 
         // Ok, send 3 bytes of data. Nothing happens. However, when this completes writability will still be false.
-        channel.write(SSHChannelData(type: .channel, data: .byteBuffer(buffer.getSlice(at: buffer.readerIndex, length: 3)!)), promise: nil)
+        channel.write(
+            SSHChannelData(type: .channel, data: .byteBuffer(buffer.getSlice(at: buffer.readerIndex, length: 3)!)),
+            promise: nil
+        )
         XCTAssertTrue(channel.isWritable)
 
         // Now write 2 bytes of stderr. This flips the writability to false.
-        channel.write(SSHChannelData(type: .channel, data: .byteBuffer(buffer.getSlice(at: buffer.readerIndex, length: 2)!)), promise: nil)
+        channel.write(
+            SSHChannelData(type: .channel, data: .byteBuffer(buffer.getSlice(at: buffer.readerIndex, length: 2)!)),
+            promise: nil
+        )
         XCTAssertFalse(channel.isWritable)
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
@@ -1092,26 +1239,45 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 3)
 
         // Receiving a window increment dequeues an appropriate amount of the write.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 1))
+        )
         harness.multiplexer.parentChannelReadComplete()
         XCTAssertFalse(channel.isWritable)
         XCTAssertEqual(harness.flushedMessages.count, 4)
-        XCTAssertEqual(harness.flushedMessages.last, .channelData(.init(recipientChannel: 1, data: buffer.getSlice(at: buffer.readerIndex, length: 1)!)))
+        XCTAssertEqual(
+            harness.flushedMessages.last,
+            .channelData(.init(recipientChannel: 1, data: buffer.getSlice(at: buffer.readerIndex, length: 1)!))
+        )
 
         // Same dance again just to confirm it keeps happening.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 1))
+        )
         harness.multiplexer.parentChannelReadComplete()
         XCTAssertFalse(channel.isWritable)
         XCTAssertEqual(harness.flushedMessages.count, 5)
-        XCTAssertEqual(harness.flushedMessages.last, .channelData(.init(recipientChannel: 1, data: buffer.getSlice(at: buffer.readerIndex + 1, length: 1)!)))
+        XCTAssertEqual(
+            harness.flushedMessages.last,
+            .channelData(.init(recipientChannel: 1, data: buffer.getSlice(at: buffer.readerIndex + 1, length: 1)!))
+        )
 
         // Now we grant way more window space. The channel becomes writable.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 100)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 100))
+        )
         harness.multiplexer.parentChannelReadComplete()
         XCTAssertTrue(channel.isWritable)
         XCTAssertEqual(harness.flushedMessages.count, 6)
-        XCTAssertEqual(harness.flushedMessages.last,
-                       .channelData(.init(recipientChannel: 1, data: buffer.getSlice(at: buffer.readerIndex + 2, length: buffer.readableBytes - 2)!)))
+        XCTAssertEqual(
+            harness.flushedMessages.last,
+            .channelData(
+                .init(
+                    recipientChannel: 1,
+                    data: buffer.getSlice(at: buffer.readerIndex + 2, length: buffer.readableBytes - 2)!
+                )
+            )
+        )
     }
 
     func testWeCorrectlySpotWindowSizesOfInboundChannels() throws {
@@ -1133,15 +1299,21 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var buffer = channel.allocator.buffer(capacity: 5)
-        buffer.writeBytes(0 ..< 5)
+        buffer.writeBytes(0..<5)
 
         // Ok, we're gonna write the first 4 bytes. The channel will stay writable.
         XCTAssertTrue(channel.isWritable)
-        channel.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(buffer.getSlice(at: buffer.readerIndex, length: 4)!)), promise: nil)
+        channel.writeAndFlush(
+            SSHChannelData(type: .channel, data: .byteBuffer(buffer.getSlice(at: buffer.readerIndex, length: 4)!)),
+            promise: nil
+        )
         XCTAssertTrue(channel.isWritable)
 
         // The next byte makes the channel not writable.
-        channel.write(SSHChannelData(type: .channel, data: .byteBuffer(buffer.getSlice(at: buffer.readerIndex, length: 1)!)), promise: nil)
+        channel.write(
+            SSHChannelData(type: .channel, data: .byteBuffer(buffer.getSlice(at: buffer.readerIndex, length: 1)!)),
+            promise: nil
+        )
         XCTAssertFalse(channel.isWritable)
     }
 
@@ -1167,7 +1339,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertTrue(channel.isActive)
 
         // Now we set enough to overflow the window.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: UInt32.max - 4)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.windowAdjust(peerChannelID: channelID!, increment: UInt32.max - 4)
+            )
+        )
 
         // The channel should have been closed.
         XCTAssertFalse(channel.isActive)
@@ -1193,15 +1369,25 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
 
         // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
         let buffer = ByteBuffer.bigBuffer
 
         // We're going to write one byte short.
         XCTAssertEqual(harness.flushedMessages.count, 1)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
-                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: (1 << 23) - 1)!)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.data(
+                    peerChannelID: channelID!,
+                    data: buffer.getSlice(at: buffer.readerIndex, length: (1 << 23) - 1)!
+                )
+            )
+        )
 
         // Auto read is off, so nothing happens.
         XCTAssertEqual(harness.flushedMessages.count, 1)
@@ -1211,8 +1397,14 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // Send a 1-byte data message. Again, there's no autoread, so this does nothing.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
-                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: 1)!)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.data(
+                    peerChannelID: channelID!,
+                    data: buffer.getSlice(at: buffer.readerIndex, length: 1)!
+                )
+            )
+        )
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // Now issue a read. This triggers an outbound message.
@@ -1221,8 +1413,14 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: 1 << 23)
 
         // Now issue a really big read. Again, there's no autoread, so this does nothing.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
-                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.data(
+                    peerChannelID: channelID!,
+                    data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!
+                )
+            )
+        )
         XCTAssertEqual(harness.flushedMessages.count, 2)
 
         // Issue the read. A new outbound message with a bigger window increment.
@@ -1255,15 +1453,25 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
 
         // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
         let buffer = ByteBuffer.bigBuffer
 
         // We're going to write the whole window.
         XCTAssertEqual(harness.flushedMessages.count, 1)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!,
-                                                                          data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.data(
+                    peerChannelID: channelID!,
+                    data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!
+                )
+            )
+        )
 
         // Auto read is off, so nothing happens.
         XCTAssertEqual(harness.flushedMessages.count, 1)
@@ -1296,7 +1504,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
         // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
@@ -1307,18 +1519,22 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 2)
 
         // But, for some reason, we are still receiving data that requires a window adjustment.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(
-            self.data(
-                peerChannelID: channelID!,
-                data: buffer.getSlice(at: buffer.readerIndex, length: 1)!
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.data(
+                    peerChannelID: channelID!,
+                    data: buffer.getSlice(at: buffer.readerIndex, length: 1)!
+                )
             )
-        ))
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(
-            self.data(
-                peerChannelID: channelID!,
-                data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 23)!
+        )
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.data(
+                    peerChannelID: channelID!,
+                    data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 23)!
+                )
             )
-        ))
+        )
 
         // This should not trigger outbound messages.
         childChannel.read()
@@ -1344,11 +1560,20 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel. We set a 5 byte window size just to make testing easier.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1, initialWindowSize: 5, maxPacketSize: 3)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(
+                    originalChannelID: channelID!,
+                    peerChannelID: 1,
+                    initialWindowSize: 5,
+                    maxPacketSize: 3
+                )
+            )
+        )
         XCTAssertTrue(channel.isWritable)
 
         var buffer = channel.allocator.buffer(capacity: 6)
-        buffer.writeBytes(0 ..< 6)
+        buffer.writeBytes(0..<6)
 
         // Ok, send 6 bytes of data immediately. The writability is false.
         channel.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(buffer)), promise: nil)
@@ -1356,8 +1581,16 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Two writes should have occurred, one of size 3 and one of size 2.
         XCTAssertEqual(harness.flushedMessages.count, 3)
-        self.assertChannelData(harness.flushedMessage(1), data: buffer.getSlice(at: buffer.readerIndex, length: 3)!, recipientChannel: 1)
-        self.assertChannelData(harness.flushedMessage(2), data: buffer.getSlice(at: buffer.readerIndex + 3, length: 2)!, recipientChannel: 1)
+        self.assertChannelData(
+            harness.flushedMessage(1),
+            data: buffer.getSlice(at: buffer.readerIndex, length: 3)!,
+            recipientChannel: 1
+        )
+        self.assertChannelData(
+            harness.flushedMessage(2),
+            data: buffer.getSlice(at: buffer.readerIndex + 3, length: 2)!,
+            recipientChannel: 1
+        )
 
         // Flush the writes. Nothing changes
         channel.flush()
@@ -1370,22 +1603,45 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(harness.flushedMessages.count, 3)
 
         // Now hand back some window size. We'll say...5 bytes.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 5)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 5))
+        )
         harness.multiplexer.parentChannelReadComplete()
 
         // This issues three more writes: the remaining 1 byte of regular data, 3 bytes of extra data, and 1 byte of extra data.
         XCTAssertFalse(channel.isWritable)
         XCTAssertEqual(harness.flushedMessages.count, 6)
-        self.assertChannelData(harness.flushedMessage(3), data: buffer.getSlice(at: buffer.readerIndex + 5, length: 1)!, recipientChannel: 1)
-        self.assertChannelExtendedData(harness.flushedMessage(4), type: .stderr, data: buffer.getSlice(at: buffer.readerIndex, length: 3)!, recipientChannel: 1)
-        self.assertChannelExtendedData(harness.flushedMessage(5), type: .stderr, data: buffer.getSlice(at: buffer.readerIndex + 3, length: 1)!, recipientChannel: 1)
+        self.assertChannelData(
+            harness.flushedMessage(3),
+            data: buffer.getSlice(at: buffer.readerIndex + 5, length: 1)!,
+            recipientChannel: 1
+        )
+        self.assertChannelExtendedData(
+            harness.flushedMessage(4),
+            type: .stderr,
+            data: buffer.getSlice(at: buffer.readerIndex, length: 3)!,
+            recipientChannel: 1
+        )
+        self.assertChannelExtendedData(
+            harness.flushedMessage(5),
+            type: .stderr,
+            data: buffer.getSlice(at: buffer.readerIndex + 3, length: 1)!,
+            recipientChannel: 1
+        )
 
         // Now we hand back another 5 bytes of data, which allows everything else through.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 5)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(self.windowAdjust(peerChannelID: channelID!, increment: 5))
+        )
         harness.multiplexer.parentChannelReadComplete()
         XCTAssertTrue(channel.isWritable)
         XCTAssertEqual(harness.flushedMessages.count, 7)
-        self.assertChannelExtendedData(harness.flushedMessage(6), type: .stderr, data: buffer.getSlice(at: buffer.readerIndex + 4, length: 2)!, recipientChannel: 1)
+        self.assertChannelExtendedData(
+            harness.flushedMessage(6),
+            type: .stderr,
+            data: buffer.getSlice(at: buffer.readerIndex + 4, length: 2)!,
+            recipientChannel: 1
+        )
     }
 
     func testRespectingMaxMessageSizeOnOutboundChannel() throws {
@@ -1399,7 +1655,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
             harness.finish()
         }
 
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openRequest(channelID: 1, initialWindowSize: 5, maxPacketSize: 3)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openRequest(channelID: 1, initialWindowSize: 5, maxPacketSize: 3)
+            )
+        )
 
         guard let channel = childChannel else {
             XCTFail("Did not create child channel")
@@ -1407,13 +1667,21 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         }
 
         var buffer = channel.allocator.buffer(capacity: 5)
-        buffer.writeBytes(0 ..< 5)
+        buffer.writeBytes(0..<5)
 
         // Ok, we're gonna write 5 bytes. These will be split into two writes.
         channel.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(buffer)), promise: nil)
         XCTAssertEqual(harness.flushedMessages.count, 3)
-        self.assertChannelData(harness.flushedMessage(1), data: buffer.getSlice(at: buffer.readerIndex, length: 3)!, recipientChannel: 1)
-        self.assertChannelData(harness.flushedMessage(2), data: buffer.getSlice(at: buffer.readerIndex + 3, length: 2)!, recipientChannel: 1)
+        self.assertChannelData(
+            harness.flushedMessage(1),
+            data: buffer.getSlice(at: buffer.readerIndex, length: 3)!,
+            recipientChannel: 1
+        )
+        self.assertChannelData(
+            harness.flushedMessage(2),
+            data: buffer.getSlice(at: buffer.readerIndex + 3, length: 2)!,
+            recipientChannel: 1
+        )
     }
 
     func testPromiseCompletionDelaysUntilResponse() {
@@ -1435,7 +1703,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
 
         // Now we drop in an open confirmation. The promise completes.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1)
+            )
+        )
         XCTAssertTrue(childPromiseComplete.value)
     }
 
@@ -1458,7 +1730,9 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
 
         // Now we drop in an open failure. The promise completes.
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openFailure(originalChannelID: channelID!, reasonCode: 1)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(self.openFailure(originalChannelID: channelID!, reasonCode: 1))
+        )
         XCTAssertEqual((childPromiseError.value as? NIOSSHError?)??.type, .channelSetupRejected)
     }
 
@@ -1577,8 +1851,20 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         let channelTypes = [
             SSHChannelType.session,
-            SSHChannelType.directTCPIP(.init(targetHost: "apple.com", targetPort: 443, originatorAddress: try! .init(ipAddress: "127.0.0.1", port: 8765))),
-            SSHChannelType.forwardedTCPIP(.init(listeningHost: "localhost", listeningPort: 80, originatorAddress: try! .init(ipAddress: "fe80::1", port: 70))),
+            SSHChannelType.directTCPIP(
+                .init(
+                    targetHost: "apple.com",
+                    targetPort: 443,
+                    originatorAddress: try! .init(ipAddress: "127.0.0.1", port: 8765)
+                )
+            ),
+            SSHChannelType.forwardedTCPIP(
+                .init(
+                    listeningHost: "localhost",
+                    listeningPort: 80,
+                    originatorAddress: try! .init(ipAddress: "fe80::1", port: 70)
+                )
+            ),
         ]
 
         for channelType in channelTypes {
@@ -1609,12 +1895,31 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         let channelTypes = [
             SSHChannelType.session,
-            SSHChannelType.directTCPIP(.init(targetHost: "apple.com", targetPort: 443, originatorAddress: try! .init(ipAddress: "127.0.0.1", port: 8765))),
-            SSHChannelType.forwardedTCPIP(.init(listeningHost: "localhost", listeningPort: 80, originatorAddress: try! .init(ipAddress: "fe80::1", port: 70))),
+            SSHChannelType.directTCPIP(
+                .init(
+                    targetHost: "apple.com",
+                    targetPort: 443,
+                    originatorAddress: try! .init(ipAddress: "127.0.0.1", port: 8765)
+                )
+            ),
+            SSHChannelType.forwardedTCPIP(
+                .init(
+                    listeningHost: "localhost",
+                    listeningPort: 80,
+                    originatorAddress: try! .init(ipAddress: "fe80::1", port: 70)
+                )
+            ),
         ]
 
         for (channelID, channelType) in channelTypes.enumerated() {
-            let message = SSHMessage.channelOpen(.init(type: .init(channelType), senderChannel: UInt32(channelID), initialWindowSize: 1 << 24, maximumPacketSize: 1 << 24))
+            let message = SSHMessage.channelOpen(
+                .init(
+                    type: .init(channelType),
+                    senderChannel: UInt32(channelID),
+                    initialWindowSize: 1 << 24,
+                    maximumPacketSize: 1 << 24
+                )
+            )
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(message))
         }
 
@@ -1639,7 +1944,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeString("hello, world!")
 
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
         }
         XCTAssertEqual(readCounter.readCount, 1)
@@ -1698,7 +2003,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeString("hello, world!")
 
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
         }
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
@@ -1734,7 +2039,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeString("hello, world!")
 
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
         }
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.eof(peerChannelID: channelID!)))
@@ -1802,7 +2107,16 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         // Activate channel.
         let channelID = self.assertChannelOpen(harness.flushedMessages.first)
-        XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.openConfirmation(originalChannelID: channelID!, peerChannelID: 1, initialWindowSize: 5, maxPacketSize: 4247)))
+        XCTAssertNoThrow(
+            try harness.multiplexer.receiveMessage(
+                self.openConfirmation(
+                    originalChannelID: channelID!,
+                    peerChannelID: 1,
+                    initialWindowSize: 5,
+                    maxPacketSize: 4247
+                )
+            )
+        )
         XCTAssertTrue(channel.isWritable)
 
         XCTAssertEqual(try channel.getOption(SSHChildChannelOptions.peerMaximumMessageLength).wait(), 4247)

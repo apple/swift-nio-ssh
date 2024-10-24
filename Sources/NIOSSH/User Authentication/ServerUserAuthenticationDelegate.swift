@@ -34,5 +34,8 @@ public protocol NIOSSHServerUserAuthenticationDelegate {
     /// - parameters:
     ///     - request: The received user authentication request
     ///     - responsePromise: An `EventLoopPromise` that must be completed with the outcome of the user auth attempt.
-    func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>)
+    func requestReceived(
+        request: NIOSSHUserAuthenticationRequest,
+        responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>
+    )
 }

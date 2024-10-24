@@ -25,11 +25,19 @@ public protocol GlobalRequestDelegate {
     /// The client wants to manage TCP port forwarding.
     ///
     /// The default implementation rejects all requests to establish TCP port forwarding.
-    func tcpForwardingRequest(_: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>)
+    func tcpForwardingRequest(
+        _: GlobalRequest.TCPForwardingRequest,
+        handler: NIOSSHHandler,
+        promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>
+    )
 }
 
 extension GlobalRequestDelegate {
-    public func tcpForwardingRequest(_ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler, promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>) {
+    public func tcpForwardingRequest(
+        _ request: GlobalRequest.TCPForwardingRequest,
+        handler: NIOSSHHandler,
+        promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>
+    ) {
         // The default implementation rejects all requests.
         promise.fail(NIOSSHError.unsupportedGlobalRequest)
     }
@@ -71,9 +79,9 @@ internal struct DefaultGlobalRequestDelegate: GlobalRequestDelegate {}
 extension SSHMessage.GlobalRequestMessage.RequestType {
     internal init(_ request: GlobalRequest.TCPForwardingRequest) {
         switch request {
-        case .listen(host: let host, port: let port):
+        case .listen(let host, let port):
             self = .tcpipForward(host, UInt32(port))
-        case .cancel(host: let host, port: let port):
+        case .cancel(let host, let port):
             self = .cancelTcpipForward(host, UInt32(port))
         }
     }

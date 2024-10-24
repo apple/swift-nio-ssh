@@ -45,9 +45,15 @@ extension NIOSSHError {
 
     internal static let invalidNonceLength = NIOSSHError(type: .invalidNonceLength, diagnostics: nil)
 
-    internal static let invalidEncryptedPacketLength = NIOSSHError(type: .invalidEncryptedPacketLength, diagnostics: nil)
+    internal static let invalidEncryptedPacketLength = NIOSSHError(
+        type: .invalidEncryptedPacketLength,
+        diagnostics: nil
+    )
 
-    internal static let invalidDecryptedPlaintextLength = NIOSSHError(type: .invalidDecryptedPlaintextLength, diagnostics: nil)
+    internal static let invalidDecryptedPlaintextLength = NIOSSHError(
+        type: .invalidDecryptedPlaintextLength,
+        diagnostics: nil
+    )
 
     internal static let invalidKeySize = NIOSSHError(type: .invalidKeySize, diagnostics: nil)
 
@@ -70,7 +76,10 @@ extension NIOSSHError {
         NIOSSHError(type: .invalidDomainParametersForKey, diagnostics: parameters)
     }
 
-    internal static let invalidExchangeHashSignature = NIOSSHError(type: .invalidExchangeHashSignature, diagnostics: nil)
+    internal static let invalidExchangeHashSignature = NIOSSHError(
+        type: .invalidExchangeHashSignature,
+        diagnostics: nil
+    )
 
     internal static let invalidPacketFormat = NIOSSHError(type: .invalidPacketFormat, diagnostics: nil)
 
@@ -79,11 +88,17 @@ extension NIOSSHError {
         NIOSSHError(type: .protocolViolation, diagnostics: "Protocol \(protocolName) violated due to \(violation)")
     }
 
-    internal static let keyExchangeNegotiationFailure = NIOSSHError(type: .keyExchangeNegotiationFailure, diagnostics: nil)
+    internal static let keyExchangeNegotiationFailure = NIOSSHError(
+        type: .keyExchangeNegotiationFailure,
+        diagnostics: nil
+    )
 
     @inline(never)
     internal static func unsupportedVersion(_ version: String) -> NIOSSHError {
-        NIOSSHError(type: .unsupportedVersion, diagnostics: "Version \(version) offered by the remote peer is not supported")
+        NIOSSHError(
+            type: .unsupportedVersion,
+            diagnostics: "Version \(version) offered by the remote peer is not supported"
+        )
     }
 
     @inline(never)
@@ -93,7 +108,10 @@ extension NIOSSHError {
 
     @inline(never)
     internal static func flowControlViolation(currentWindow: UInt32, increment: UInt32) -> NIOSSHError {
-        NIOSSHError(type: .flowControlViolation, diagnostics: "Window size \(currentWindow), bad increment \(increment)")
+        NIOSSHError(
+            type: .flowControlViolation,
+            diagnostics: "Window size \(currentWindow), bad increment \(increment)"
+        )
     }
 
     internal static let creatingChannelAfterClosure = NIOSSHError(type: .creatingChannelAfterClosure, diagnostics: nil)
@@ -109,9 +127,15 @@ extension NIOSSHError {
 
     internal static let unsupportedGlobalRequest = NIOSSHError(type: .unsupportedGlobalRequest, diagnostics: nil)
 
-    internal static let unexpectedGlobalRequestResponse = NIOSSHError(type: .unexpectedGlobalRequestResponse, diagnostics: nil)
+    internal static let unexpectedGlobalRequestResponse = NIOSSHError(
+        type: .unexpectedGlobalRequestResponse,
+        diagnostics: nil
+    )
 
-    internal static let missingGlobalRequestResponse = NIOSSHError(type: .missingGlobalRequestResponse, diagnostics: nil)
+    internal static let missingGlobalRequestResponse = NIOSSHError(
+        type: .missingGlobalRequestResponse,
+        diagnostics: nil
+    )
 
     internal static let globalRequestRefused = NIOSSHError(type: .globalRequestRefused, diagnostics: nil)
 
@@ -122,7 +146,10 @@ extension NIOSSHError {
 
     @inline(never)
     internal static func invalidHostKeyForKeyExchange(expected: Substring, got actual: String.UTF8View) -> NIOSSHError {
-        NIOSSHError(type: .invalidHostKeyForKeyExchange, diagnostics: "Expected \(String(expected)), got \(String(actual))")
+        NIOSSHError(
+            type: .invalidHostKeyForKeyExchange,
+            diagnostics: "Expected \(String(expected)), got \(String(actual))"
+        )
     }
 
     @inline(never)

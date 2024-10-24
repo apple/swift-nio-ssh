@@ -80,10 +80,11 @@ func run(identifier: String) {
 
         try! clientChannel.pipeline.addHandler(
             NIOSSHHandler(
-                role: .client(.init(
-                    userAuthDelegate: HardcodedClientPasswordDelegate(),
-                    serverAuthDelegate: AcceptAllHostKeysDelegate()
-                )
+                role: .client(
+                    .init(
+                        userAuthDelegate: HardcodedClientPasswordDelegate(),
+                        serverAuthDelegate: AcceptAllHostKeysDelegate()
+                    )
                 ),
                 allocator: clientChannel.allocator,
                 inboundChildChannelInitializer: nil
@@ -91,10 +92,11 @@ func run(identifier: String) {
         ).wait()
         try! serverChannel.pipeline.addHandler(
             NIOSSHHandler(
-                role: .server(.init(
-                    hostKeys: [hostKey],
-                    userAuthDelegate: HardcodedServerPasswordDelegate()
-                )
+                role: .server(
+                    .init(
+                        hostKeys: [hostKey],
+                        userAuthDelegate: HardcodedServerPasswordDelegate()
+                    )
                 ),
                 allocator: serverChannel.allocator,
                 inboundChildChannelInitializer: { channel, _ in
@@ -106,16 +108,17 @@ func run(identifier: String) {
         try! clientChannel.connect(to: SocketAddress(ipAddress: "1.2.3.4", port: 5678)).wait()
         try! serverChannel.connect(to: SocketAddress(ipAddress: "1.2.3.4", port: 5678)).wait()
 
-        for _ in 0 ..< 1000 {
+        for _ in 0..<1000 {
             let clientHandler = ClientHandler()
 
-            let childChannelFuture: EventLoopFuture<Channel> = clientChannel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
-                let promise = clientChannel.eventLoop.makePromise(of: Channel.self)
-                sshHandler.createChannel(promise) { childChannel, _ in
-                    childChannel.pipeline.addHandlers([clientHandler])
+            let childChannelFuture: EventLoopFuture<Channel> = clientChannel.pipeline.handler(type: NIOSSHHandler.self)
+                .flatMap { sshHandler in
+                    let promise = clientChannel.eventLoop.makePromise(of: Channel.self)
+                    sshHandler.createChannel(promise) { childChannel, _ in
+                        childChannel.pipeline.addHandlers([clientHandler])
+                    }
+                    return promise.futureResult
                 }
-                return promise.futureResult
-            }
             clientChannel.embeddedEventLoop.run()
             try! interactInMemory(clientChannel, serverChannel)
 

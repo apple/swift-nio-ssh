@@ -52,7 +52,11 @@ struct SSHPacketSerializer {
         case .encrypted(let protection):
             let index = buffer.readerIndex
             buffer.moveReaderIndex(to: buffer.writerIndex)
-            buffer.writeSSHPacket(message: message, lengthEncrypted: protection.lengthEncrypted, blockSize: protection.cipherBlockSize)
+            buffer.writeSSHPacket(
+                message: message,
+                lengthEncrypted: protection.lengthEncrypted,
+                blockSize: protection.cipherBlockSize
+            )
             try protection.encryptPacket(&buffer, sequenceNumber: self.sequenceNumber)
             buffer.moveReaderIndex(to: index)
             self.sequenceNumber &+= 1

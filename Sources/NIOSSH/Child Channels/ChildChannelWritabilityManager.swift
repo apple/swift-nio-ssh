@@ -87,7 +87,9 @@ extension ChildChannelWritabilityManager {
         }
     }
 
-    private mutating func mayChangeWritability(_ body: (inout ChildChannelWritabilityManager) throws -> Void) rethrows -> WritabilityChange {
+    private mutating func mayChangeWritability(
+        _ body: (inout ChildChannelWritabilityManager) throws -> Void
+    ) rethrows -> WritabilityChange {
         let wasWritable = self.isWritable
         try body(&self)
         let isWritable = self.isWritable

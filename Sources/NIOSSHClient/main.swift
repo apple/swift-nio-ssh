@@ -49,7 +49,21 @@ defer {
 
 let bootstrap = ClientBootstrap(group: group)
     .channelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .client(.init(userAuthDelegate: InteractivePasswordPromptDelegate(username: parseResult.user, password: parseResult.password), serverAuthDelegate: AcceptAllHostKeysDelegate())), allocator: channel.allocator, inboundChildChannelInitializer: nil), ErrorHandler()])
+        channel.pipeline.addHandlers([
+            NIOSSHHandler(
+                role: .client(
+                    .init(
+                        userAuthDelegate: InteractivePasswordPromptDelegate(
+                            username: parseResult.user,
+                            password: parseResult.password
+                        ),
+                        serverAuthDelegate: AcceptAllHostKeysDelegate()
+                    )
+                ),
+                allocator: channel.allocator,
+                inboundChildChannelInitializer: nil
+            ), ErrorHandler(),
+        ])
     }
     .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
@@ -58,18 +72,24 @@ let channel = try bootstrap.connect(host: parseResult.host, port: parseResult.po
 
 if let listen = parseResult.listen {
     // We've been asked to port forward.
-    let server = PortForwardingServer(group: group,
-                                      bindHost: listen.bindHost ?? "localhost",
-                                      bindPort: listen.bindPort) { inboundChannel in
+    let server = PortForwardingServer(
+        group: group,
+        bindHost: listen.bindHost ?? "localhost",
+        bindPort: listen.bindPort
+    ) { inboundChannel in
         // This block executes whenever a new inbound channel is received. We want to forward it to the peer.
         // To do that, we have to begin by creating a new SSH channel of the appropriate type.
         channel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
             let promise = inboundChannel.eventLoop.makePromise(of: Channel.self)
-            let directTCPIP = SSHChannelType.DirectTCPIP(targetHost: String(listen.targetHost),
-                                                         targetPort: listen.targetPort,
-                                                         originatorAddress: inboundChannel.remoteAddress!)
-            sshHandler.createChannel(promise,
-                                     channelType: .directTCPIP(directTCPIP)) { childChannel, channelType in
+            let directTCPIP = SSHChannelType.DirectTCPIP(
+                targetHost: String(listen.targetHost),
+                targetPort: listen.targetPort,
+                originatorAddress: inboundChannel.remoteAddress!
+            )
+            sshHandler.createChannel(
+                promise,
+                channelType: .directTCPIP(directTCPIP)
+            ) { childChannel, channelType in
                 guard case .directTCPIP = channelType else {
                     return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
                 }
@@ -101,7 +121,10 @@ if let listen = parseResult.listen {
             guard channelType == .session else {
                 return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
             }
-            return childChannel.pipeline.addHandlers([ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise), ErrorHandler()])
+            return childChannel.pipeline.addHandlers([
+                ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise),
+                ErrorHandler(),
+            ])
         }
         return promise.futureResult
     }.wait()
