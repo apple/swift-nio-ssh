@@ -14,8 +14,9 @@
 
 import Crypto
 import NIOCore
-@testable import NIOSSH
 import XCTest
+
+@testable import NIOSSH
 
 final class HostKeyTests: XCTestCase {
     func testBasicEd25519SigningFlow() throws {
@@ -262,7 +263,7 @@ final class HostKeyTests: XCTestCase {
     func testInvalidDomainParametersForECDSAP256() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeSSHString("ecdsa-sha2-nistp256".utf8)
-        buffer.writeSSHString("nistp384".utf8) // Surprise!
+        buffer.writeSSHString("nistp384".utf8)  // Surprise!
 
         XCTAssertThrowsError(try buffer.readSSHHostKey()) { error in
             XCTAssertEqual((error as? NIOSSHError).map { $0.type }, .invalidDomainParametersForKey)
@@ -272,7 +273,7 @@ final class HostKeyTests: XCTestCase {
     func testInvalidDomainParametersForECDSAP384() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeSSHString("ecdsa-sha2-nistp384".utf8)
-        buffer.writeSSHString("nistp256".utf8) // Surprise!
+        buffer.writeSSHString("nistp256".utf8)  // Surprise!
 
         XCTAssertThrowsError(try buffer.readSSHHostKey()) { error in
             XCTAssertEqual((error as? NIOSSHError).map { $0.type }, .invalidDomainParametersForKey)
@@ -282,7 +283,7 @@ final class HostKeyTests: XCTestCase {
     func testInvalidDomainParametersForECDSAP521() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeSSHString("ecdsa-sha2-nistp521".utf8)
-        buffer.writeSSHString("nistp384".utf8) // Surprise!
+        buffer.writeSSHString("nistp384".utf8)  // Surprise!
 
         XCTAssertThrowsError(try buffer.readSSHHostKey()) { error in
             XCTAssertEqual((error as? NIOSSHError).map { $0.type }, .invalidDomainParametersForKey)
@@ -299,23 +300,35 @@ final class HostKeyTests: XCTestCase {
     }
 
     func testLoadingEd25519KeyFromFileRoundTrips() throws {
-        let keyData = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJfkNV4OS33ImTXvorZr72q4v5XhVEQKfvqsxOEJ/XaR lukasa@MacBook-Pro.local"
-        XCTAssertNoThrow(try self.roundTripKey(keyData: keyData, label: "ssh-ed25519", comment: " lukasa@MacBook-Pro.local"))
+        let keyData =
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJfkNV4OS33ImTXvorZr72q4v5XhVEQKfvqsxOEJ/XaR lukasa@MacBook-Pro.local"
+        XCTAssertNoThrow(
+            try self.roundTripKey(keyData: keyData, label: "ssh-ed25519", comment: " lukasa@MacBook-Pro.local")
+        )
     }
 
     func testLoadingP256KeyFromFileRoundTrips() throws {
-        let keyData = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBIZS1APJofiPeoATC/VC4kKi7xRPdz934nSkFLTc0whYi3A8hEKHAOX9edgL1UWxRqRGQZq2wvvAIjAO9kCeiQA= lukasa@MacBook-Pro.local"
-        XCTAssertNoThrow(try self.roundTripKey(keyData: keyData, label: "ecdsa-sha2-nistp256", comment: " lukasa@MacBook-Pro.local"))
+        let keyData =
+            "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBIZS1APJofiPeoATC/VC4kKi7xRPdz934nSkFLTc0whYi3A8hEKHAOX9edgL1UWxRqRGQZq2wvvAIjAO9kCeiQA= lukasa@MacBook-Pro.local"
+        XCTAssertNoThrow(
+            try self.roundTripKey(keyData: keyData, label: "ecdsa-sha2-nistp256", comment: " lukasa@MacBook-Pro.local")
+        )
     }
 
     func testLoadingP384KeyFromFileRoundTrips() throws {
-        let keyData = "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBJPOgAXHijSxoZBiyhSDOR3eUELUoc+hqh/SY1Wq4/562jThf6Q+tjVzZTMWZMAP4S6DD2qZswsRvisxXkcZDOw5bvyk0WmezYvjUP6TZII/0BDVTotCf4SxukEtcqBZqg== lukasa@MacBook-Pro.local"
-        XCTAssertNoThrow(try self.roundTripKey(keyData: keyData, label: "ecdsa-sha2-nistp384", comment: " lukasa@MacBook-Pro.local"))
+        let keyData =
+            "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBJPOgAXHijSxoZBiyhSDOR3eUELUoc+hqh/SY1Wq4/562jThf6Q+tjVzZTMWZMAP4S6DD2qZswsRvisxXkcZDOw5bvyk0WmezYvjUP6TZII/0BDVTotCf4SxukEtcqBZqg== lukasa@MacBook-Pro.local"
+        XCTAssertNoThrow(
+            try self.roundTripKey(keyData: keyData, label: "ecdsa-sha2-nistp384", comment: " lukasa@MacBook-Pro.local")
+        )
     }
 
     func testLoadingP521KeyFromFileRoundTrips() throws {
-        let keyData = "ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBACkfM3aZf9sgjAkncWtK6A295sdghn1GG1BKJ+hQfD2VBIJxSQDnPOocNIQQZEo3zs1kvwUXOIgWANJqbOiv77tCACxWRRYmAvM3hzgcEOhPROROG+KGvuDAWW6ZuCkaW0QnseR7Yn0+q/+/jai3tNNDWrbVLDesDj5Aq5xq1yrKDHGEA== lukasa@MacBook-Pro.local"
-        XCTAssertNoThrow(try self.roundTripKey(keyData: keyData, label: "ecdsa-sha2-nistp521", comment: " lukasa@MacBook-Pro.local"))
+        let keyData =
+            "ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBACkfM3aZf9sgjAkncWtK6A295sdghn1GG1BKJ+hQfD2VBIJxSQDnPOocNIQQZEo3zs1kvwUXOIgWANJqbOiv77tCACxWRRYmAvM3hzgcEOhPROROG+KGvuDAWW6ZuCkaW0QnseR7Yn0+q/+/jai3tNNDWrbVLDesDj5Aq5xq1yrKDHGEA== lukasa@MacBook-Pro.local"
+        XCTAssertNoThrow(
+            try self.roundTripKey(keyData: keyData, label: "ecdsa-sha2-nistp521", comment: " lukasa@MacBook-Pro.local")
+        )
     }
 
     func testMissingCommentIsTolerated() throws {
@@ -334,7 +347,8 @@ final class HostKeyTests: XCTestCase {
 
     func testKeyLiesAboutItsType() throws {
         // Secretly P384
-        let keyData = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBJPOgAXHijSxoZBiyhSDOR3eUELUoc+hqh/SY1Wq4/562jThf6Q+tjVzZTMWZMAP4S6DD2qZswsRvisxXkcZDOw5bvyk0WmezYvjUP6TZII/0BDVTotCf4SxukEtcqBZqg== lukasa@MacBook-Pro.local"
+        let keyData =
+            "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBJPOgAXHijSxoZBiyhSDOR3eUELUoc+hqh/SY1Wq4/562jThf6Q+tjVzZTMWZMAP4S6DD2qZswsRvisxXkcZDOw5bvyk0WmezYvjUP6TZII/0BDVTotCf4SxukEtcqBZqg== lukasa@MacBook-Pro.local"
         XCTAssertThrowsError(try NIOSSHPublicKey(openSSHPublicKey: keyData)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .invalidOpenSSHPublicKey)
         }
@@ -344,7 +358,8 @@ final class HostKeyTests: XCTestCase {
         let key = try assertNoThrowWithValue(NIOSSHPublicKey(openSSHPublicKey: keyData))
         var keyBuffer = ByteBufferAllocator().buffer(capacity: 1024)
         keyBuffer.writeSSHHostKey(key)
-        let expectedKeyData = "\(label) \(keyBuffer.readData(length: keyBuffer.readableBytes)!.base64EncodedString())\(comment)"
+        let expectedKeyData =
+            "\(label) \(keyBuffer.readData(length: keyBuffer.readableBytes)!.base64EncodedString())\(comment)"
         XCTAssertEqual(keyData, expectedKeyData)
     }
 }

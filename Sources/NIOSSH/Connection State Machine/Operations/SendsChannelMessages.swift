@@ -24,11 +24,17 @@ extension SendsChannelMessages {
         try self.serializer.serialize(message: .channelOpen(message), to: &buffer)
     }
 
-    mutating func writeChannelOpenConfirmation(_ message: SSHMessage.ChannelOpenConfirmationMessage, into buffer: inout ByteBuffer) throws {
+    mutating func writeChannelOpenConfirmation(
+        _ message: SSHMessage.ChannelOpenConfirmationMessage,
+        into buffer: inout ByteBuffer
+    ) throws {
         try self.serializer.serialize(message: .channelOpenConfirmation(message), to: &buffer)
     }
 
-    mutating func writeChannelOpenFailure(_ message: SSHMessage.ChannelOpenFailureMessage, into buffer: inout ByteBuffer) throws {
+    mutating func writeChannelOpenFailure(
+        _ message: SSHMessage.ChannelOpenFailureMessage,
+        into buffer: inout ByteBuffer
+    ) throws {
         try self.serializer.serialize(message: .channelOpenFailure(message), to: &buffer)
     }
 
@@ -40,7 +46,10 @@ extension SendsChannelMessages {
         try self.serializer.serialize(message: .channelClose(message), to: &buffer)
     }
 
-    mutating func writeChannelWindowAdjust(_ message: SSHMessage.ChannelWindowAdjustMessage, into buffer: inout ByteBuffer) throws {
+    mutating func writeChannelWindowAdjust(
+        _ message: SSHMessage.ChannelWindowAdjustMessage,
+        into buffer: inout ByteBuffer
+    ) throws {
         try self.serializer.serialize(message: .channelWindowAdjust(message), to: &buffer)
     }
 
@@ -48,19 +57,25 @@ extension SendsChannelMessages {
         try self.serializer.serialize(message: .channelData(message), to: &buffer)
     }
 
-    mutating func writeChannelExtendedData(_ message: SSHMessage.ChannelExtendedDataMessage, into buffer: inout ByteBuffer) throws {
+    mutating func writeChannelExtendedData(
+        _ message: SSHMessage.ChannelExtendedDataMessage,
+        into buffer: inout ByteBuffer
+    ) throws {
         try self.serializer.serialize(message: .channelExtendedData(message), to: &buffer)
     }
 
-    mutating func writeChannelRequest(_ message: SSHMessage.ChannelRequestMessage, into buffer: inout ByteBuffer) throws {
+    mutating func writeChannelRequest(_ message: SSHMessage.ChannelRequestMessage, into buffer: inout ByteBuffer) throws
+    {
         try self.serializer.serialize(message: .channelRequest(message), to: &buffer)
     }
 
-    mutating func writeChannelSuccess(_ message: SSHMessage.ChannelSuccessMessage, into buffer: inout ByteBuffer) throws {
+    mutating func writeChannelSuccess(_ message: SSHMessage.ChannelSuccessMessage, into buffer: inout ByteBuffer) throws
+    {
         try self.serializer.serialize(message: .channelSuccess(message), to: &buffer)
     }
 
-    mutating func writeChannelFailure(_ message: SSHMessage.ChannelFailureMessage, into buffer: inout ByteBuffer) throws {
+    mutating func writeChannelFailure(_ message: SSHMessage.ChannelFailureMessage, into buffer: inout ByteBuffer) throws
+    {
         try self.serializer.serialize(message: .channelFailure(message), to: &buffer)
     }
 
@@ -68,7 +83,8 @@ extension SendsChannelMessages {
         try self.serializer.serialize(message: .globalRequest(message), to: &buffer)
     }
 
-    mutating func writeRequestSuccess(_ message: SSHMessage.RequestSuccessMessage, into buffer: inout ByteBuffer) throws {
+    mutating func writeRequestSuccess(_ message: SSHMessage.RequestSuccessMessage, into buffer: inout ByteBuffer) throws
+    {
         try self.serializer.serialize(message: .requestSuccess(message), to: &buffer)
     }
 

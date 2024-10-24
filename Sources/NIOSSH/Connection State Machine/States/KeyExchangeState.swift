@@ -33,13 +33,25 @@ extension SSHConnectionStateMachine {
         /// The backing state machine.
         var keyExchangeStateMachine: SSHKeyExchangeStateMachine
 
-        init(sentVersionState state: SentVersionState, allocator: ByteBufferAllocator, loop: EventLoop, remoteVersion: String) {
+        init(
+            sentVersionState state: SentVersionState,
+            allocator: ByteBufferAllocator,
+            loop: EventLoop,
+            remoteVersion: String
+        ) {
             self.role = state.role
             self.parser = state.parser
             self.serializer = state.serializer
             self.remoteVersion = remoteVersion
             self.protectionSchemes = state.protectionSchemes
-            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(allocator: allocator, loop: loop, role: state.role, remoteVersion: remoteVersion, protectionSchemes: state.protectionSchemes, previousSessionIdentifier: nil)
+            self.keyExchangeStateMachine = SSHKeyExchangeStateMachine(
+                allocator: allocator,
+                loop: loop,
+                role: state.role,
+                remoteVersion: remoteVersion,
+                protectionSchemes: state.protectionSchemes,
+                previousSessionIdentifier: nil
+            )
         }
 
         mutating func bufferInboundData(_ data: inout ByteBuffer) {

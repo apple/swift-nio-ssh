@@ -24,7 +24,10 @@ extension DenyAllServerAuthDelegate: NIOSSHServerUserAuthenticationDelegate {
         .all
     }
 
-    public func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+    public func requestReceived(
+        request: NIOSSHUserAuthenticationRequest,
+        responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>
+    ) {
         responsePromise.succeed(.failure)
     }
 }

@@ -46,7 +46,10 @@ extension OutboundFlowController {
     mutating func outboundWindowIncremented(_ increment: UInt32) throws {
         let (newWindowSpace, overflow) = self.freeWindowSpace.addingReportingOverflow(increment)
         if overflow {
-            throw NIOSSHError.protocolViolation(protocolName: "channel", violation: "Peer incremented flow control window past UInt32.max")
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Peer incremented flow control window past UInt32.max"
+            )
         }
         self.freeWindowSpace = newWindowSpace
     }

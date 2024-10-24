@@ -25,7 +25,10 @@ final class AcceptEverythingDelegate: NIOSSHServerUserAuthenticationDelegate {
         .password
     }
 
-    func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+    func requestReceived(
+        request: NIOSSHUserAuthenticationRequest,
+        responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>
+    ) {
         responsePromise.succeed(.success)
     }
 }
@@ -39,7 +42,16 @@ final class FuzzResultTests: XCTestCase {
     ]
 
     override func setUp() {
-        let handler = try! NIOSSHHandler(role: .server(.init(hostKeys: [.init(ed25519Key: .init(rawRepresentation: Self.hostKeyBytes))], userAuthDelegate: AcceptEverythingDelegate())), allocator: ByteBufferAllocator(), inboundChildChannelInitializer: nil)
+        let handler = try! NIOSSHHandler(
+            role: .server(
+                .init(
+                    hostKeys: [.init(ed25519Key: .init(rawRepresentation: Self.hostKeyBytes))],
+                    userAuthDelegate: AcceptEverythingDelegate()
+                )
+            ),
+            allocator: ByteBufferAllocator(),
+            inboundChildChannelInitializer: nil
+        )
         self.channel = EmbeddedChannel(handler: handler)
         self.channel.connect(to: try! SocketAddress(unixDomainSocketPath: "/fake"), promise: nil)
     }
@@ -50,7 +62,7 @@ final class FuzzResultTests: XCTestCase {
     }
 
     private func runTest(base64EncodedTestData testBytes: String) {
-        var buffer = self.channel.allocator.buffer(capacity: testBytes.utf8.count) // Too big, but ok.
+        var buffer = self.channel.allocator.buffer(capacity: testBytes.utf8.count)  // Too big, but ok.
         buffer.writeContiguousBytes(Data(base64Encoded: testBytes)!)
 
         // This test must only not crash.

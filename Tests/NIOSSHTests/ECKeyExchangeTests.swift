@@ -14,8 +14,9 @@
 
 import Crypto
 import NIOCore
-@testable import NIOSSH
 import XCTest
+
+@testable import NIOSSH
 
 final class KeyExchangeTests: XCTestCase {
     private func keyExchangeAgreed(_ first: KeyExchangeResult, _ second: KeyExchangeResult) {
@@ -55,8 +56,13 @@ final class KeyExchangeTests: XCTestCase {
         try self.basicSuccessfulKeyExchangeNoPreviousSession(P521.KeyAgreement.PrivateKey.self)
     }
 
-    private func basicSuccessfulKeyExchangeNoPreviousSession<KeyType: ECDHCompatiblePrivateKey>(_: KeyType.Type = KeyType.self) throws {
-        var server = EllipticCurveKeyExchange<KeyType>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
+    private func basicSuccessfulKeyExchangeNoPreviousSession<KeyType: ECDHCompatiblePrivateKey>(
+        _: KeyType.Type = KeyType.self
+    ) throws {
+        var server = EllipticCurveKeyExchange<KeyType>(
+            ourRole: .server([.init(ed25519Key: .init())]),
+            previousSessionIdentifier: nil
+        )
         var client = EllipticCurveKeyExchange<KeyType>(ourRole: .client, previousSessionIdentifier: nil)
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
@@ -64,20 +70,24 @@ final class KeyExchangeTests: XCTestCase {
 
         let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
         let (serverKeys, serverResponse) = try assertNoThrowWithValue(
-            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
-                                                     serverHostKey: serverHostKey,
-                                                     initialExchangeBytes: &initialExchangeBytes,
-                                                     allocator: ByteBufferAllocator(),
-                                                     expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try server.completeKeyExchangeServerSide(
+                clientKeyExchangeMessage: clientMessage,
+                serverHostKey: serverHostKey,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         initialExchangeBytes.clear()
 
         let clientKeys = try assertNoThrowWithValue(
-            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
-                                                       initialExchangeBytes: &initialExchangeBytes,
-                                                       allocator: ByteBufferAllocator(),
-                                                       expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try client.receiveServerKeyExchangePayload(
+                serverKeyExchangeMessage: serverResponse,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         // Check we agree on the session ID and the keys.
@@ -100,32 +110,44 @@ final class KeyExchangeTests: XCTestCase {
         try self.basicSuccessfulKeyExchangeWithPreviousSession(P521.KeyAgreement.PrivateKey.self)
     }
 
-    func basicSuccessfulKeyExchangeWithPreviousSession<KeyType: ECDHCompatiblePrivateKey>(_: KeyType.Type = KeyType.self) throws {
+    func basicSuccessfulKeyExchangeWithPreviousSession<KeyType: ECDHCompatiblePrivateKey>(
+        _: KeyType.Type = KeyType.self
+    ) throws {
         var previousSessionIdentifier = ByteBufferAllocator().buffer(capacity: 1024)
-        previousSessionIdentifier.writeBytes(0 ... 255)
+        previousSessionIdentifier.writeBytes(0...255)
 
-        var server = EllipticCurveKeyExchange<KeyType>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: previousSessionIdentifier)
-        var client = EllipticCurveKeyExchange<KeyType>(ourRole: .client, previousSessionIdentifier: previousSessionIdentifier)
+        var server = EllipticCurveKeyExchange<KeyType>(
+            ourRole: .server([.init(ed25519Key: .init())]),
+            previousSessionIdentifier: previousSessionIdentifier
+        )
+        var client = EllipticCurveKeyExchange<KeyType>(
+            ourRole: .client,
+            previousSessionIdentifier: previousSessionIdentifier
+        )
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
         let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
         let (serverKeys, serverResponse) = try assertNoThrowWithValue(
-            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
-                                                     serverHostKey: serverHostKey,
-                                                     initialExchangeBytes: &initialExchangeBytes,
-                                                     allocator: ByteBufferAllocator(),
-                                                     expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try server.completeKeyExchangeServerSide(
+                clientKeyExchangeMessage: clientMessage,
+                serverHostKey: serverHostKey,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         initialExchangeBytes.clear()
 
         let clientKeys = try assertNoThrowWithValue(
-            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
-                                                       initialExchangeBytes: &initialExchangeBytes,
-                                                       allocator: ByteBufferAllocator(),
-                                                       expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try client.receiveServerKeyExchangePayload(
+                serverKeyExchangeMessage: serverResponse,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         // Check we agree on the session ID and the keys.
@@ -133,28 +155,38 @@ final class KeyExchangeTests: XCTestCase {
     }
 
     func testKeyExchangeWithECDSAP256Signatures() throws {
-        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .server([.init(ed25519Key: .init())]),
+            previousSessionIdentifier: nil
+        )
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .client,
+            previousSessionIdentifier: nil
+        )
         let serverHostKey = NIOSSHPrivateKey(p256Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
         let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
         let (serverKeys, serverResponse) = try assertNoThrowWithValue(
-            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
-                                                     serverHostKey: serverHostKey,
-                                                     initialExchangeBytes: &initialExchangeBytes,
-                                                     allocator: ByteBufferAllocator(),
-                                                     expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try server.completeKeyExchangeServerSide(
+                clientKeyExchangeMessage: clientMessage,
+                serverHostKey: serverHostKey,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         initialExchangeBytes.clear()
 
         let clientKeys = try assertNoThrowWithValue(
-            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
-                                                       initialExchangeBytes: &initialExchangeBytes,
-                                                       allocator: ByteBufferAllocator(),
-                                                       expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try client.receiveServerKeyExchangePayload(
+                serverKeyExchangeMessage: serverResponse,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         // Check we agree on the session ID and the keys.
@@ -162,28 +194,38 @@ final class KeyExchangeTests: XCTestCase {
     }
 
     func testKeyExchangeWithECDSAP384Signatures() throws {
-        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .server([.init(ed25519Key: .init())]),
+            previousSessionIdentifier: nil
+        )
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .client,
+            previousSessionIdentifier: nil
+        )
         let serverHostKey = NIOSSHPrivateKey(p384Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
         let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
         let (serverKeys, serverResponse) = try assertNoThrowWithValue(
-            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
-                                                     serverHostKey: serverHostKey,
-                                                     initialExchangeBytes: &initialExchangeBytes,
-                                                     allocator: ByteBufferAllocator(),
-                                                     expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try server.completeKeyExchangeServerSide(
+                clientKeyExchangeMessage: clientMessage,
+                serverHostKey: serverHostKey,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         initialExchangeBytes.clear()
 
         let clientKeys = try assertNoThrowWithValue(
-            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
-                                                       initialExchangeBytes: &initialExchangeBytes,
-                                                       allocator: ByteBufferAllocator(),
-                                                       expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try client.receiveServerKeyExchangePayload(
+                serverKeyExchangeMessage: serverResponse,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         // Check we agree on the session ID and the keys.
@@ -191,28 +233,38 @@ final class KeyExchangeTests: XCTestCase {
     }
 
     func testKeyExchangeWithECDSAP521Signatures() throws {
-        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .server([.init(ed25519Key: .init())]),
+            previousSessionIdentifier: nil
+        )
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .client,
+            previousSessionIdentifier: nil
+        )
         let serverHostKey = NIOSSHPrivateKey(p521Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
         let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
         let (serverKeys, serverResponse) = try assertNoThrowWithValue(
-            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
-                                                     serverHostKey: serverHostKey,
-                                                     initialExchangeBytes: &initialExchangeBytes,
-                                                     allocator: ByteBufferAllocator(),
-                                                     expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try server.completeKeyExchangeServerSide(
+                clientKeyExchangeMessage: clientMessage,
+                serverHostKey: serverHostKey,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         initialExchangeBytes.clear()
 
         let clientKeys = try assertNoThrowWithValue(
-            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
-                                                       initialExchangeBytes: &initialExchangeBytes,
-                                                       allocator: ByteBufferAllocator(),
-                                                       expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try client.receiveServerKeyExchangePayload(
+                serverKeyExchangeMessage: serverResponse,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         // Check we agree on the session ID and the keys.
@@ -220,28 +272,38 @@ final class KeyExchangeTests: XCTestCase {
     }
 
     func testBasicSuccessfulKeyExchangeWithWiderKeys() throws {
-        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .server([.init(ed25519Key: .init())]),
+            previousSessionIdentifier: nil
+        )
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .client,
+            previousSessionIdentifier: nil
+        )
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
         let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
         let (serverKeys, serverResponse) = try assertNoThrowWithValue(
-            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
-                                                     serverHostKey: serverHostKey,
-                                                     initialExchangeBytes: &initialExchangeBytes,
-                                                     allocator: ByteBufferAllocator(),
-                                                     expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes)
+            try server.completeKeyExchangeServerSide(
+                clientKeyExchangeMessage: clientMessage,
+                serverHostKey: serverHostKey,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         initialExchangeBytes.clear()
 
         let clientKeys = try assertNoThrowWithValue(
-            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
-                                                       initialExchangeBytes: &initialExchangeBytes,
-                                                       allocator: ByteBufferAllocator(),
-                                                       expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes)
+            try client.receiveServerKeyExchangePayload(
+                serverKeyExchangeMessage: serverResponse,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES256GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         // Check we agree on the session ID and the keys.
@@ -249,61 +311,83 @@ final class KeyExchangeTests: XCTestCase {
     }
 
     func testDisagreeingOnInitialExchangeBytesLeadsToFailedKeyExchange() throws {
-        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .server([.init(ed25519Key: .init())]),
+            previousSessionIdentifier: nil
+        )
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .client,
+            previousSessionIdentifier: nil
+        )
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var serverInitialBytes = ByteBufferAllocator().buffer(capacity: 1024)
         var clientInitialBytes = serverInitialBytes
 
-        serverInitialBytes.writeBytes(0 ..< 128)
-        clientInitialBytes.writeBytes(1 ..< 129)
+        serverInitialBytes.writeBytes(0..<128)
+        clientInitialBytes.writeBytes(1..<129)
 
         let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
         let (_, serverResponse) = try assertNoThrowWithValue(
-            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
-                                                     serverHostKey: serverHostKey,
-                                                     initialExchangeBytes: &serverInitialBytes,
-                                                     allocator: ByteBufferAllocator(),
-                                                     expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try server.completeKeyExchangeServerSide(
+                clientKeyExchangeMessage: clientMessage,
+                serverHostKey: serverHostKey,
+                initialExchangeBytes: &serverInitialBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         XCTAssertThrowsError(
-            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
-                                                       initialExchangeBytes: &clientInitialBytes,
-                                                       allocator: ByteBufferAllocator(),
-                                                       expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try client.receiveServerKeyExchangePayload(
+                serverKeyExchangeMessage: serverResponse,
+                initialExchangeBytes: &clientInitialBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         ) { error in
             XCTAssertEqual((error as? NIOSSHError).map { $0.type }, .invalidExchangeHashSignature)
         }
     }
 
     func testWeValidateTheExchangeHash() throws {
-        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .server([.init(ed25519Key: .init())]), previousSessionIdentifier: nil)
-        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(ourRole: .client, previousSessionIdentifier: nil)
+        var server = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .server([.init(ed25519Key: .init())]),
+            previousSessionIdentifier: nil
+        )
+        var client = EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>(
+            ourRole: .client,
+            previousSessionIdentifier: nil
+        )
         let serverHostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
         var initialExchangeBytes = ByteBufferAllocator().buffer(capacity: 1024)
 
         let clientMessage = client.initiateKeyExchangeClientSide(allocator: ByteBufferAllocator())
         var (_, serverResponse) = try assertNoThrowWithValue(
-            try server.completeKeyExchangeServerSide(clientKeyExchangeMessage: clientMessage,
-                                                     serverHostKey: serverHostKey,
-                                                     initialExchangeBytes: &initialExchangeBytes,
-                                                     allocator: ByteBufferAllocator(),
-                                                     expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try server.completeKeyExchangeServerSide(
+                clientKeyExchangeMessage: clientMessage,
+                serverHostKey: serverHostKey,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         )
 
         initialExchangeBytes.clear()
 
         // Ok, the server has sent a signature over the exchange hash. Let's change that signature.
-        serverResponse.signature = try assertNoThrowWithValue(serverHostKey.sign(digest: SHA256.hash(data: [1, 2, 3, 4, 5])))
+        serverResponse.signature = try assertNoThrowWithValue(
+            serverHostKey.sign(digest: SHA256.hash(data: [1, 2, 3, 4, 5]))
+        )
 
         XCTAssertThrowsError(
-            try client.receiveServerKeyExchangePayload(serverKeyExchangeMessage: serverResponse,
-                                                       initialExchangeBytes: &initialExchangeBytes,
-                                                       allocator: ByteBufferAllocator(),
-                                                       expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes)
+            try client.receiveServerKeyExchangePayload(
+                serverKeyExchangeMessage: serverResponse,
+                initialExchangeBytes: &initialExchangeBytes,
+                allocator: ByteBufferAllocator(),
+                expectedKeySizes: AES128GCMOpenSSHTransportProtection.keySizes
+            )
         ) { error in
             XCTAssertEqual((error as? NIOSSHError).map { $0.type }, .invalidExchangeHashSignature)
         }
@@ -316,5 +400,10 @@ extension SSHConnectionRole {
         .server(SSHServerConfiguration(hostKeys: hostKeys, userAuthDelegate: DenyAllServerAuthDelegate()))
     }
 
-    fileprivate static let client = SSHConnectionRole.client(SSHClientConfiguration(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate()))
+    fileprivate static let client = SSHConnectionRole.client(
+        SSHClientConfiguration(
+            userAuthDelegate: ExplodingAuthDelegate(),
+            serverAuthDelegate: AcceptAllHostKeysDelegate()
+        )
+    )
 }

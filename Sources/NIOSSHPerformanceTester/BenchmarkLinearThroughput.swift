@@ -16,8 +16,15 @@ import NIOCore
 import NIOSSH
 
 final class BenchmarkLinearThroughput: Benchmark {
-    let serverRole = SSHConnectionRole.server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: ExpectPasswordDelegate("password")))
-    let clientRole = SSHConnectionRole.client(.init(userAuthDelegate: RepeatingPasswordDelegate("password"), serverAuthDelegate: ClientAlwaysAcceptHostKeyDelegate()))
+    let serverRole = SSHConnectionRole.server(
+        .init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: ExpectPasswordDelegate("password"))
+    )
+    let clientRole = SSHConnectionRole.client(
+        .init(
+            userAuthDelegate: RepeatingPasswordDelegate("password"),
+            serverAuthDelegate: ClientAlwaysAcceptHostKeyDelegate()
+        )
+    )
     let b2b = BackToBackEmbeddedChannel()
     let messageCount: Int
     let messageSize: Int
@@ -33,14 +40,26 @@ final class BenchmarkLinearThroughput: Benchmark {
         self.b2b.client.connect(to: try .init(unixDomainSocketPath: "/foo"), promise: nil)
         self.b2b.server.connect(to: try .init(unixDomainSocketPath: "/foo"), promise: nil)
 
-        let clientHandler = NIOSSHHandler(role: self.clientRole, allocator: self.b2b.client.allocator, inboundChildChannelInitializer: nil)
+        let clientHandler = NIOSSHHandler(
+            role: self.clientRole,
+            allocator: self.b2b.client.allocator,
+            inboundChildChannelInitializer: nil
+        )
 
         try self.b2b.client.pipeline.addHandler(clientHandler).wait()
-        try self.b2b.server.pipeline.addHandler(NIOSSHHandler(role: self.serverRole, allocator: self.b2b.server.allocator, inboundChildChannelInitializer: nil)).wait()
+        try self.b2b.server.pipeline.addHandler(
+            NIOSSHHandler(
+                role: self.serverRole,
+                allocator: self.b2b.server.allocator,
+                inboundChildChannelInitializer: nil
+            )
+        ).wait()
         try self.b2b.interactInMemory()
 
         let clientChannelPromise = self.b2b.client.eventLoop.makePromise(of: Channel.self)
-        clientHandler.createChannel(clientChannelPromise, channelType: .session) { channel, _ in channel.eventLoop.makeSucceededVoidFuture() }
+        clientHandler.createChannel(clientChannelPromise, channelType: .session) { channel, _ in
+            channel.eventLoop.makeSucceededVoidFuture()
+        }
         try self.b2b.interactInMemory()
 
         self.channel = try clientChannelPromise.futureResult.wait()
@@ -53,7 +72,7 @@ final class BenchmarkLinearThroughput: Benchmark {
         let channel = self.channel!
         let message = SSHChannelData(type: .channel, data: .byteBuffer(self.message!))
 
-        for _ in 0 ..< self.messageCount {
+        for _ in 0..<self.messageCount {
             channel.writeAndFlush(message, promise: nil)
             try self.b2b.interactInMemory()
         }

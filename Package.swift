@@ -24,11 +24,11 @@ let package = Package(
         .tvOS(.v13),
     ],
     products: [
-        .library(name: "NIOSSH", targets: ["NIOSSH"]),
+        .library(name: "NIOSSH", targets: ["NIOSSH"])
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.56.0"),
-        .package(url: "https://github.com/apple/swift-crypto.git", "1.0.0" ..< "4.0.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", "1.0.0"..<"4.0.0"),
         .package(url: "https://github.com/apple/swift-atomics.git", from: "1.0.2"),
     ],
     targets: [

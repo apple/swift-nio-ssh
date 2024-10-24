@@ -37,7 +37,10 @@ final class HardcodedPasswordDelegate: NIOSSHServerUserAuthenticationDelegate {
         .password
     }
 
-    func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+    func requestReceived(
+        request: NIOSSHUserAuthenticationRequest,
+        responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>
+    ) {
         guard request.username == "nio", case .password(let passwordRequest) = request.request else {
             responsePromise.succeed(.failure)
             return
@@ -64,7 +67,11 @@ func sshChildChannelInitializer(_ channel: Channel, _ channelType: SSHChannelTyp
         let (ours, theirs) = GlueHandler.matchedPair()
 
         return channel.pipeline.addHandlers([DataToBufferCodec(), ours]).flatMap {
-            createOutboundConnection(targetHost: target.targetHost, targetPort: target.targetPort, loop: channel.eventLoop)
+            createOutboundConnection(
+                targetHost: target.targetHost,
+                targetPort: target.targetPort,
+                loop: channel.eventLoop
+            )
         }.flatMap { targetChannel in
             targetChannel.pipeline.addHandler(theirs)
         }
@@ -78,7 +85,19 @@ let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
 let bootstrap = ServerBootstrap(group: group)
     .childChannelInitializer { channel in
-        channel.pipeline.addHandlers([NIOSSHHandler(role: .server(.init(hostKeys: [hostKey], userAuthDelegate: HardcodedPasswordDelegate(), globalRequestDelegate: RemotePortForwarderGlobalRequestDelegate())), allocator: channel.allocator, inboundChildChannelInitializer: sshChildChannelInitializer(_:_:)), ErrorHandler()])
+        channel.pipeline.addHandlers([
+            NIOSSHHandler(
+                role: .server(
+                    .init(
+                        hostKeys: [hostKey],
+                        userAuthDelegate: HardcodedPasswordDelegate(),
+                        globalRequestDelegate: RemotePortForwarderGlobalRequestDelegate()
+                    )
+                ),
+                allocator: channel.allocator,
+                inboundChildChannelInitializer: sshChildChannelInitializer(_:_:)
+            ), ErrorHandler(),
+        ])
     }
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
@@ -88,8 +107,8 @@ let channel = try bootstrap.bind(host: "0.0.0.0", port: 2222).wait()
 // Run forever
 try channel.closeFuture.wait()
 
-#else // canImport(Foundation.Process)
+#else  // canImport(Foundation.Process)
 
 fatalError("NIOSSHServer is only supported on platforms with Foundation.Process")
 
-#endif // !canImport(Foundation.Process)
+#endif  // !canImport(Foundation.Process)

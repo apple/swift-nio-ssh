@@ -46,7 +46,8 @@ final class ExampleExecHandler: ChannelDuplexHandler {
         let bootstrap = NIOPipeBootstrap(group: context.eventLoop)
         context.channel.pipeline.addHandler(ours, position: .last).whenSuccess { _ in
             DispatchQueue(label: "pipe bootstrap").async {
-                bootstrap.channelOption(ChannelOptions.allowRemoteHalfClosure, value: true).channelInitializer { channel in
+                bootstrap.channelOption(ChannelOptions.allowRemoteHalfClosure, value: true).channelInitializer {
+                    channel in
                     channel.pipeline.addHandler(theirs)
                 }.takingOwnershipOfDescriptors(input: 0, output: 1).whenComplete { result in
                     switch result {

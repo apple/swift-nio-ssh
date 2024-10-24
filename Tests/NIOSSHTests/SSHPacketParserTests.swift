@@ -14,8 +14,9 @@
 
 import Crypto
 import NIOCore
-@testable import NIOSSH
 import XCTest
+
+@testable import NIOSSH
 
 final class SSHPacketParserTests: XCTestCase {
     /// Feed the SSH version to a packet parser and verify the output.
@@ -189,7 +190,10 @@ final class SSHPacketParserTests: XCTestCase {
         var parser = SSHPacketParser(isServer: false, allocator: ByteBufferAllocator())
         self.feedVersion(to: &parser)
 
-        var part1 = ByteBuffer.of(bytes: [0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207])
+        var part1 = ByteBuffer.of(bytes: [
+            0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12,
+            226, 248, 144, 175, 157, 207,
+        ])
         parser.append(bytes: &part1)
 
         switch try parser.nextPacket() {
@@ -205,7 +209,11 @@ final class SSHPacketParserTests: XCTestCase {
         var parser = SSHPacketParser(isServer: false, allocator: ByteBufferAllocator())
         self.feedVersion(to: &parser)
 
-        var part = ByteBuffer.of(bytes: [0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207, 0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207])
+        var part = ByteBuffer.of(bytes: [
+            0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12,
+            226, 248, 144, 175, 157, 207, 0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97,
+            117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207,
+        ])
         parser.append(bytes: &part)
 
         switch try parser.nextPacket() {
@@ -229,18 +237,21 @@ final class SSHPacketParserTests: XCTestCase {
         self.feedVersion(to: &parser)
         XCTAssertNoThrow(try parser.nextPacket())
 
-        let part = ByteBuffer.of(bytes: [0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12, 226, 248, 144, 175, 157, 207])
+        let part = ByteBuffer.of(bytes: [
+            0, 0, 0, 28, 10, 5, 0, 0, 0, 12, 115, 115, 104, 45, 117, 115, 101, 114, 97, 117, 116, 104, 42, 111, 216, 12,
+            226, 248, 144, 175, 157, 207,
+        ])
 
         let neededParts = 2048 / part.readableBytes
 
-        for _ in 0 ..< neededParts {
+        for _ in 0..<neededParts {
             var partCopy = part
             parser.append(bytes: &partCopy)
         }
 
         // The version field is in the buffer, and we can't really prevent it being there.
         let startingOffset = parser._discardableBytes
-        for i in 0 ..< (neededParts / 2) {
+        for i in 0..<(neededParts / 2) {
             XCTAssertEqual(parser._discardableBytes, (i * part.readableBytes) + startingOffset)
             XCTAssertNoThrow(try parser.nextPacket())
         }
@@ -279,18 +290,24 @@ final class SSHPacketParserTests: XCTestCase {
         let outboundEncryptionKey = inboundEncryptionKey
         let inboundMACKey = SymmetricKey(size: .bits128)
         let outboundMACKey = inboundMACKey
-        let protection = TestTransportProtection(initialKeys: .init(
-            initialInboundIV: [],
-            initialOutboundIV: [],
-            inboundEncryptionKey: inboundEncryptionKey,
-            outboundEncryptionKey: outboundEncryptionKey,
-            inboundMACKey: inboundMACKey,
-            outboundMACKey: outboundMACKey
-        ))
+        let protection = TestTransportProtection(
+            initialKeys: .init(
+                initialInboundIV: [],
+                initialOutboundIV: [],
+                inboundEncryptionKey: inboundEncryptionKey,
+                outboundEncryptionKey: outboundEncryptionKey,
+                inboundMACKey: inboundMACKey,
+                outboundMACKey: outboundMACKey
+            )
+        )
         parser.addEncryption(protection)
 
         part = allocator.buffer(capacity: 1024)
-        part.writeSSHPacket(message: .newKeys, lengthEncrypted: protection.lengthEncrypted, blockSize: protection.cipherBlockSize)
+        part.writeSSHPacket(
+            message: .newKeys,
+            lengthEncrypted: protection.lengthEncrypted,
+            blockSize: protection.cipherBlockSize
+        )
         XCTAssertNoThrow(try protection.encryptPacket(&part, sequenceNumber: 2))
         var subpart = part.readSlice(length: 2)!
         parser.append(bytes: &subpart)
@@ -308,7 +325,11 @@ final class SSHPacketParserTests: XCTestCase {
         }
 
         part = allocator.buffer(capacity: 1024)
-        part.writeSSHPacket(message: .newKeys, lengthEncrypted: protection.lengthEncrypted, blockSize: protection.cipherBlockSize)
+        part.writeSSHPacket(
+            message: .newKeys,
+            lengthEncrypted: protection.lengthEncrypted,
+            blockSize: protection.cipherBlockSize
+        )
         XCTAssertNoThrow(try protection.encryptPacket(&part, sequenceNumber: 2))
         parser.append(bytes: &part)
 

@@ -14,10 +14,17 @@
 
 import Crypto
 import NIOCore
-@testable import NIOSSH
 import XCTest
 
-func assertNoThrowWithValue<T>(_ body: @autoclosure () throws -> T, defaultValue: T? = nil, message: String? = nil, file: StaticString = #filePath, line: UInt = #line) throws -> T {
+@testable import NIOSSH
+
+func assertNoThrowWithValue<T>(
+    _ body: @autoclosure () throws -> T,
+    defaultValue: T? = nil,
+    message: String? = nil,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) throws -> T {
     do {
         return try body()
     } catch {
@@ -39,7 +46,8 @@ struct InsecureEncryptionAlgorithm {
         guard let k0 = key.readInteger(as: UInt32.self),
             let k1 = key.readInteger(as: UInt32.self),
             let k2 = key.readInteger(as: UInt32.self),
-            let k3 = key.readInteger(as: UInt32.self) else {
+            let k3 = key.readInteger(as: UInt32.self)
+        else {
             preconditionFailure("check key size")
         }
 
@@ -47,7 +55,8 @@ struct InsecureEncryptionAlgorithm {
             guard var v0 = block.readInteger(as: UInt32.self),
                 var v1 = block.readInteger(as: UInt32.self),
                 var v2 = block.readInteger(as: UInt32.self),
-                var v3 = block.readInteger(as: UInt32.self) else {
+                var v3 = block.readInteger(as: UInt32.self)
+            else {
                 preconditionFailure("check block size")
             }
 
@@ -71,7 +80,8 @@ struct InsecureEncryptionAlgorithm {
         guard let k0 = key.readInteger(as: UInt32.self),
             let k1 = key.readInteger(as: UInt32.self),
             let k2 = key.readInteger(as: UInt32.self),
-            let k3 = key.readInteger(as: UInt32.self) else {
+            let k3 = key.readInteger(as: UInt32.self)
+        else {
             preconditionFailure("check key size")
         }
 
@@ -79,7 +89,8 @@ struct InsecureEncryptionAlgorithm {
             guard var v0 = block.readInteger(as: UInt32.self),
                 var v1 = block.readInteger(as: UInt32.self),
                 var v2 = block.readInteger(as: UInt32.self),
-                var v3 = block.readInteger(as: UInt32.self) else {
+                var v3 = block.readInteger(as: UInt32.self)
+            else {
                 preconditionFailure("check block size")
             }
 
@@ -165,7 +176,8 @@ class TestTransportProtection: NIOSSHTransportProtection {
         let index = source.readerIndex
 
         guard let ciphertextView = source.viewBytes(at: index, length: Self.cipherBlockSize),
-            ciphertextView.count > 0, ciphertextView.count % Self.cipherBlockSize == 0 else {
+            ciphertextView.count > 0, ciphertextView.count % Self.cipherBlockSize == 0
+        else {
             // The only way this fails is if the payload doesn't match this encryption scheme.
             throw NIOSSHError.invalidEncryptedPacketLength
         }
@@ -176,7 +188,10 @@ class TestTransportProtection: NIOSSHTransportProtection {
 
         self.lastFirstBlock = ciphertextView
 
-        let plaintext = InsecureEncryptionAlgorithm.decrypt(key: self.inboundEncryptionKey, ciphertext: ByteBuffer(bytes: ciphertextView))
+        let plaintext = InsecureEncryptionAlgorithm.decrypt(
+            key: self.inboundEncryptionKey,
+            ciphertext: ByteBuffer(bytes: ciphertextView)
+        )
 
         source.setBytes(plaintext.readableBytesView, at: index)
     }
@@ -193,7 +208,8 @@ class TestTransportProtection: NIOSSHTransportProtection {
         // First block is expected to be decoded by decodeFirstBlock
         if source.readableBytes > self.macBytes {
             guard let ciphertext = source.readSlice(length: source.readableBytes - 32),
-                ciphertext.readableBytes > 0, ciphertext.readableBytes % Self.cipherBlockSize == 0 else {
+                ciphertext.readableBytes > 0, ciphertext.readableBytes % Self.cipherBlockSize == 0
+            else {
                 // The only way this fails is if the payload doesn't match this encryption scheme.
                 throw NIOSSHError.invalidEncryptedPacketLength
             }
@@ -206,7 +222,13 @@ class TestTransportProtection: NIOSSHTransportProtection {
             throw NIOSSHError.invalidEncryptedPacketLength
         }
 
-        guard HMAC<SHA256>.isValidAuthenticationCode(tagView, authenticating: plaintext.readableBytesView, using: self.inboundMACKey) else {
+        guard
+            HMAC<SHA256>.isValidAuthenticationCode(
+                tagView,
+                authenticating: plaintext.readableBytesView,
+                using: self.inboundMACKey
+            )
+        else {
             preconditionFailure("authentication failure")
         }
 
@@ -221,7 +243,10 @@ class TestTransportProtection: NIOSSHTransportProtection {
         let encryptedBufferSize = destination.readableBytes
 
         let plaintextView = destination.viewBytes(at: packetLengthIndex, length: encryptedBufferSize)!
-        let ciphertext = InsecureEncryptionAlgorithm.encrypt(key: self.outboundEncryptionKey, plaintext: ByteBuffer(bytes: plaintextView))
+        let ciphertext = InsecureEncryptionAlgorithm.encrypt(
+            key: self.outboundEncryptionKey,
+            plaintext: ByteBuffer(bytes: plaintextView)
+        )
         assert(ciphertext.readableBytes == encryptedBufferSize)
 
         var hmac = HMAC<SHA256>.init(key: self.outboundMACKey)

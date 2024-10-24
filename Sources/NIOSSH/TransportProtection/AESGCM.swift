@@ -42,7 +42,8 @@ internal class AESGCMTransportProtection {
 
     required init(initialKeys: NIOSSHSessionKeys) throws {
         guard initialKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8,
-            initialKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
+            initialKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8
+        else {
             throw NIOSSHError.invalidKeySize
         }
 
@@ -68,7 +69,8 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
 
     func updateKeys(_ newKeys: NIOSSHSessionKeys) throws {
         guard newKeys.outboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8,
-            newKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8 else {
+            newKeys.inboundEncryptionKey.bitCount == Self.keySizes.encryptionKeySize * 8
+        else {
             throw NIOSSHError.invalidKeySize
         }
 
@@ -93,7 +95,8 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
             guard let lengthView = source.readSlice(length: 4)?.readableBytesView,
                 let ciphertextView = source.readSlice(length: source.readableBytes - 16)?.readableBytesView,
                 let tagView = source.readSlice(length: 16)?.readableBytesView,
-                ciphertextView.count > 0, ciphertextView.count % Self.cipherBlockSize == 0 else {
+                ciphertextView.count > 0, ciphertextView.count % Self.cipherBlockSize == 0
+            else {
                 // The only way this fails is if the payload doesn't match this encryption scheme.
                 throw NIOSSHError.invalidEncryptedPacketLength
             }
@@ -133,10 +136,12 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
         // Now we need to encrypt the data. We pass the length field as additional authenticated data, and the encrypted
         // payload portion as the data to encrypt. We know these views will be valid, so we forcibly unwrap them: if they're invalid,
         // our math was wrong and we cannot recover.
-        let sealedBox = try AES.GCM.seal(destination.viewBytes(at: packetPaddingIndex, length: encryptedBufferSize)!,
-                                         using: self.outboundEncryptionKey,
-                                         nonce: try AES.GCM.Nonce(data: self.outboundNonce),
-                                         authenticating: destination.viewBytes(at: packetLengthIndex, length: packetLengthLength)!)
+        let sealedBox = try AES.GCM.seal(
+            destination.viewBytes(at: packetPaddingIndex, length: encryptedBufferSize)!,
+            using: self.outboundEncryptionKey,
+            nonce: try AES.GCM.Nonce(data: self.outboundNonce),
+            authenticating: destination.viewBytes(at: packetLengthIndex, length: packetLengthLength)!
+        )
 
         assert(sealedBox.ciphertext.count == encryptedBufferSize)
 
@@ -284,7 +289,10 @@ extension SSHAESGCMNonce: RandomAccessCollection {
     }
 
     subscript(position: SSHAESGCMNonce.Index) -> UInt8 {
-        precondition(position.offset >= 4 && position.offset < MemoryLayout.size(ofValue: self.baseNonceRepresentation), "Invalid index!")
+        precondition(
+            position.offset >= 4 && position.offset < MemoryLayout.size(ofValue: self.baseNonceRepresentation),
+            "Invalid index!"
+        )
 
         return Swift.withUnsafeBytes(of: self.baseNonceRepresentation) { reprPointer in
             reprPointer[position.offset]
@@ -335,11 +343,13 @@ extension Data {
         // We're going to slice out the content bytes. To do that, can simply find the end index of the content, and confirm it's
         // not walked off the front of the buffer. If it has, there's too much padding and an error has occurred.
         let contentStartIndex = self.index(after: self.startIndex)
-        guard let contentEndIndex = self.index(self.endIndex, offsetBy: -Int(paddingLength), limitedBy: contentStartIndex) else {
+        guard
+            let contentEndIndex = self.index(self.endIndex, offsetBy: -Int(paddingLength), limitedBy: contentStartIndex)
+        else {
             throw NIOSSHError.excessPadding
         }
 
-        self = self[contentStartIndex ..< contentEndIndex]
+        self = self[contentStartIndex..<contentEndIndex]
     }
 }
 

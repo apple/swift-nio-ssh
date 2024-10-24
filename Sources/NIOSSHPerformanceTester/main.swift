@@ -21,13 +21,15 @@ import NIOSSH
 // MARK: Test Harness
 
 var _warning: String = ""
-assert({
-    print("======================================================")
-    print("= YOU ARE RUNNING NIOPerformanceTester IN DEBUG MODE =")
-    print("======================================================")
-    _warning = " <<< DEBUG MODE >>>"
-    return true
-}())
+assert(
+    {
+        print("======================================================")
+        print("= YOU ARE RUNNING NIOPerformanceTester IN DEBUG MODE =")
+        print("======================================================")
+        _warning = " <<< DEBUG MODE >>>"
+        return true
+    }()
+)
 let warning = _warning
 
 public func measure(_ fn: () throws -> Int) rethrows -> [TimeInterval] {
@@ -38,9 +40,9 @@ public func measure(_ fn: () throws -> Int) rethrows -> [TimeInterval] {
         return end.timeIntervalSince(start)
     }
 
-    _ = try measureOne(fn) /* pre-heat and throw away */
+    _ = try measureOne(fn)  // pre-heat and throw away
     var measurements = Array(repeating: 0.0, count: 10)
-    for i in 0 ..< 10 {
+    for i in 0..<10 {
         measurements[i] = try measureOne(fn)
     }
 
@@ -62,5 +64,11 @@ public func measureAndPrint(desc: String, fn: () throws -> Int) rethrows {
 // MARK: Utilities
 
 try measureAndPrint(desc: "10_handshakes", benchmark: BenchmarkHandshake(loopCount: 10))
-try measureAndPrint(desc: "10000_messages_10b_throughput", benchmark: BenchmarkLinearThroughput(messageCount: 10000, messageSize: 10))
-try measureAndPrint(desc: "10000_messages_1k_throughput", benchmark: BenchmarkLinearThroughput(messageCount: 10000, messageSize: 1000))
+try measureAndPrint(
+    desc: "10000_messages_10b_throughput",
+    benchmark: BenchmarkLinearThroughput(messageCount: 10000, messageSize: 10)
+)
+try measureAndPrint(
+    desc: "10000_messages_1k_throughput",
+    benchmark: BenchmarkLinearThroughput(messageCount: 10000, messageSize: 1000)
+)

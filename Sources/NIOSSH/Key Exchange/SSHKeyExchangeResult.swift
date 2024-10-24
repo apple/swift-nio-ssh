@@ -59,7 +59,14 @@ public struct NIOSSHSessionKeys: Sendable {
 
     public var outboundMACKey: SymmetricKey
 
-    public init(initialInboundIV: [UInt8], initialOutboundIV: [UInt8], inboundEncryptionKey: SymmetricKey, outboundEncryptionKey: SymmetricKey, inboundMACKey: SymmetricKey, outboundMACKey: SymmetricKey) {
+    public init(
+        initialInboundIV: [UInt8],
+        initialOutboundIV: [UInt8],
+        inboundEncryptionKey: SymmetricKey,
+        outboundEncryptionKey: SymmetricKey,
+        inboundMACKey: SymmetricKey,
+        outboundMACKey: SymmetricKey
+    ) {
         self.initialInboundIV = initialInboundIV
         self.initialOutboundIV = initialOutboundIV
         self.inboundEncryptionKey = inboundEncryptionKey
