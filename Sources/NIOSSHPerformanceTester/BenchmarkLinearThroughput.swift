@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 import Crypto
 import NIOCore
+import NIOEmbedded
 import NIOSSH
 
 final class BenchmarkLinearThroughput: Benchmark {
