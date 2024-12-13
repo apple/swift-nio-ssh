@@ -15,6 +15,12 @@
 @preconcurrency import Crypto
 import NIOCore
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
+import Foundation
+#endif
+
 /// An SSH private key.
 ///
 /// This object identifies a single SSH entity, usually a server. It is used as part of the SSH handshake and key exchange process,

@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import NIOCore
+
 protocol AcceptsUserAuthMessages {
     var userAuthStateMachine: UserAuthenticationStateMachine { get set }
 

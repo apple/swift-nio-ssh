@@ -16,6 +16,12 @@ import Crypto
 import NIOCore
 import NIOFoundationCompat
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
+import Foundation
+#endif
+
 /// This protocol defines a container used by the key exchange state machine to manage key exchange.
 /// This type erases the specific key exchanger.
 protocol EllipticCurveKeyExchangeProtocol {

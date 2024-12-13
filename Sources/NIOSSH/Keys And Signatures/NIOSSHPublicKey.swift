@@ -15,6 +15,7 @@
 @preconcurrency import Crypto
 import Foundation
 import NIOCore
+import NIOFoundationCompat
 
 /// An SSH public key.
 ///
