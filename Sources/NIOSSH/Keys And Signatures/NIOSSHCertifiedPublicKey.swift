@@ -12,7 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(CDispatch)
 import CDispatch
+#endif
+
 import Crypto
 import Dispatch
 import NIOCore
@@ -393,22 +396,22 @@ extension NIOSSHCertifiedPublicKey: Hashable {}
 
 extension NIOSSHCertifiedPublicKey: CustomDebugStringConvertible {
     public var debugDescription: String {
-        """
-        NIOSSHCertifiedPublicKey(
-            nonce: \(self.nonce),
-            serial: \(self.serial),
-            type: \(self.type),
-            key: \(self.key),
-            keyID: \(self.keyID),
-            validPrincipals: \(self.validPrincipals),
-            validAfter: \(self.validAfter),
-            validBefore: \(self.validBefore),
-            criticalOptions: \(self.criticalOptions),
-            extensions: \(self.extensions),
-            signatureKey: \(self.signatureKey),
-            signature: \(self.signature)
-        )
-        """.replacingOccurrences(of: "\n", with: "")
+        // Slightly hacky multiline string to try to keep things
+        // clear.
+        "NIOSSHCertifiedPublicKey(" +
+            "nonce: \(self.nonce), " +
+            "serial: \(self.serial), " +
+            "type: \(self.type), " +
+            "key: \(self.key), " +
+            "keyID: \(self.keyID), " +
+            "validPrincipals: \(self.validPrincipals), " +
+            "validAfter: \(self.validAfter), " +
+            "validBefore: \(self.validBefore), " +
+            "criticalOptions: \(self.criticalOptions), " +
+            "extensions: \(self.extensions), " +
+            "signatureKey: \(self.signatureKey), " +
+            "signature: \(self.signature)" +
+        ")"
     }
 }
 
