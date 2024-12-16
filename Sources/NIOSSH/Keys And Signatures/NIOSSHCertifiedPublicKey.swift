@@ -398,20 +398,11 @@ extension NIOSSHCertifiedPublicKey: CustomDebugStringConvertible {
     public var debugDescription: String {
         // Slightly hacky multiline string to try to keep things
         // clear.
-        "NIOSSHCertifiedPublicKey(" +
-            "nonce: \(self.nonce), " +
-            "serial: \(self.serial), " +
-            "type: \(self.type), " +
-            "key: \(self.key), " +
-            "keyID: \(self.keyID), " +
-            "validPrincipals: \(self.validPrincipals), " +
-            "validAfter: \(self.validAfter), " +
-            "validBefore: \(self.validBefore), " +
-            "criticalOptions: \(self.criticalOptions), " +
-            "extensions: \(self.extensions), " +
-            "signatureKey: \(self.signatureKey), " +
-            "signature: \(self.signature)" +
-        ")"
+        "NIOSSHCertifiedPublicKey(nonce: \(self.nonce), serial: \(self.serial), type: \(self.type), "
+            + "key: \(self.key), keyID: \(self.keyID), validPrincipals: \(self.validPrincipals), "
+            + "validAfter: \(self.validAfter), validBefore: \(self.validBefore), "
+            + "criticalOptions: \(self.criticalOptions), extensions: \(self.extensions), "
+            + "signatureKey: \(self.signatureKey), signature: \(self.signature))"
     }
 }
 
