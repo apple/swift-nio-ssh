@@ -12,13 +12,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(CDispatch)
-import CDispatch
-#endif
-
 import Crypto
 import Dispatch
 import NIOCore
+
+#if canImport(CDispatch)
+import CDispatch
+#endif
 
 #if canImport(FoundationEssentials)
 import FoundationEssentials
