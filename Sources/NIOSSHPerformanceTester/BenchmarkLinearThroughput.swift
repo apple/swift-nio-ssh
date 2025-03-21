@@ -47,14 +47,15 @@ final class BenchmarkLinearThroughput: Benchmark {
             inboundChildChannelInitializer: nil
         )
 
-        try self.b2b.client.pipeline.addHandler(clientHandler).wait()
-        try self.b2b.server.pipeline.addHandler(
+        // Embedded channel, sync operations are fine.
+        try self.b2b.client.pipeline.syncOperations.addHandler(clientHandler)
+        try self.b2b.server.pipeline.syncOperations.addHandler(
             NIOSSHHandler(
                 role: self.serverRole,
                 allocator: self.b2b.server.allocator,
                 inboundChildChannelInitializer: nil
             )
-        ).wait()
+        )
         try self.b2b.interactInMemory()
 
         let clientChannelPromise = self.b2b.client.eventLoop.makePromise(of: Channel.self)
@@ -74,7 +75,8 @@ final class BenchmarkLinearThroughput: Benchmark {
         let message = SSHChannelData(type: .channel, data: .byteBuffer(self.message!))
 
         for _ in 0..<self.messageCount {
-            channel.writeAndFlush(message, promise: nil)
+            // Okay to be sync, this test uses an embedded event loop.
+            channel.pipeline.syncOperations.writeAndFlush(NIOAny(message), promise: nil)
             try self.b2b.interactInMemory()
         }
 

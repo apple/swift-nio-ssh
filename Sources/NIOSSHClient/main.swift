@@ -49,8 +49,9 @@ defer {
 
 let bootstrap = ClientBootstrap(group: group)
     .channelInitializer { channel in
-        channel.pipeline.addHandlers([
-            NIOSSHHandler(
+        channel.eventLoop.makeCompletedFuture {
+            let sync = channel.pipeline.syncOperations
+            let ssh = NIOSSHHandler(
                 role: .client(
                     .init(
                         userAuthDelegate: InteractivePasswordPromptDelegate(
@@ -62,8 +63,11 @@ let bootstrap = ClientBootstrap(group: group)
                 ),
                 allocator: channel.allocator,
                 inboundChildChannelInitializer: nil
-            ), ErrorHandler(),
-        ])
+            )
+
+            try sync.addHandler(ssh)
+            try sync.addHandler(ErrorHandler())
+        }
     }
     .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
@@ -79,34 +83,51 @@ if let listen = parseResult.listen {
     ) { inboundChannel in
         // This block executes whenever a new inbound channel is received. We want to forward it to the peer.
         // To do that, we have to begin by creating a new SSH channel of the appropriate type.
-        channel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
-            let promise = inboundChannel.eventLoop.makePromise(of: Channel.self)
-            let directTCPIP = SSHChannelType.DirectTCPIP(
-                targetHost: String(listen.targetHost),
-                targetPort: listen.targetPort,
-                originatorAddress: inboundChannel.remoteAddress!
-            )
-            sshHandler.createChannel(
-                promise,
-                channelType: .directTCPIP(directTCPIP)
-            ) { childChannel, channelType in
-                guard case .directTCPIP = channelType else {
-                    return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
-                }
+        let sync = inboundChannel.pipeline.syncOperations
+        let sshHandler: NIOSSHHandler
 
+        do {
+            sshHandler = try sync.handler(type: NIOSSHHandler.self)
+        } catch {
+            return inboundChannel.eventLoop.makeFailedFuture(error)
+        }
+
+        let promise = inboundChannel.eventLoop.makePromise(of: Channel.self)
+        let directTCPIP = SSHChannelType.DirectTCPIP(
+            targetHost: String(listen.targetHost),
+            targetPort: listen.targetPort,
+            originatorAddress: inboundChannel.remoteAddress!
+        )
+
+        sshHandler.createChannel(
+            promise,
+            channelType: .directTCPIP(directTCPIP)
+        ) { childChannel, channelType in
+            guard case .directTCPIP = channelType else {
+                return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
+            }
+
+            return childChannel.eventLoop.makeCompletedFuture {
                 // Attach a pair of glue handlers, one in the inbound channel and one in the outbound one.
                 // We also add an error handler to both channels, and a wrapper handler to the SSH child channel to
                 // encapsulate the data in SSH messages.
                 // When the glue handlers are in, we can create both channels.
                 let (ours, theirs) = GlueHandler.matchedPair()
-                return childChannel.pipeline.addHandlers([SSHWrapperHandler(), ours, ErrorHandler()]).flatMap {
-                    inboundChannel.pipeline.addHandlers([theirs, ErrorHandler()])
-                }
-            }
 
-            // We need to erase the channel here: we just want success or failure info.
-            return promise.futureResult.map { _ in }
+                let childSync = childChannel.pipeline.syncOperations
+                try childSync.addHandler(SSHWrapperHandler())
+                try childSync.addHandler(ours)
+                try childSync.addHandler(ErrorHandler())
+
+                // The child channel will be on the same event loop as t
+                let inboundSync = inboundChannel.pipeline.syncOperations
+                try inboundSync.addHandler(theirs)
+                try inboundSync.addHandler(ErrorHandler())
+            }
         }
+
+        // We need to erase the channel here: we just want success or failure info.
+        return promise.futureResult.map { _ in }
     }
 
     // Run the server until complete
@@ -121,10 +142,13 @@ if let listen = parseResult.listen {
             guard channelType == .session else {
                 return channel.eventLoop.makeFailedFuture(SSHClientError.invalidChannelType)
             }
-            return childChannel.pipeline.addHandlers([
-                ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise),
-                ErrorHandler(),
-            ])
+
+            return childChannel.eventLoop.makeCompletedFuture {
+                let sync = childChannel.pipeline.syncOperations
+                let exec = ExampleExecHandler(command: parseResult.commandString, completePromise: exitStatusPromise)
+                try sync.addHandler(exec)
+                try sync.addHandler(ErrorHandler())
+            }
         }
         return promise.futureResult
     }.wait()
