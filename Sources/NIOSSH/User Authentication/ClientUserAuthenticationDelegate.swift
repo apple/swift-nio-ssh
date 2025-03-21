@@ -26,7 +26,7 @@ import NIOCore
 public protocol NIOSSHClientUserAuthenticationDelegate {
     /// Called when ``NIOSSH`` would like to attempt to offer a new authentication method.
     ///
-    /// The callback is provided the authentictation methods that the server is willing to accept in
+    /// The callback is provided the authentication methods that the server is willing to accept in
     /// `availableMethods`. The delegate needs to provide an authentication offer by completing
     /// `nextChallengePromise`. If no further authentication offers are available (perhaps because the server
     /// has rejected them all) then this promise should be failed, which will terminate connection establishment.
