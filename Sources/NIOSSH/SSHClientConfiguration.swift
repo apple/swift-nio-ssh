@@ -51,3 +51,7 @@ public struct SSHClientConfiguration {
         self.transportProtectionSchemes = transportProtectionSchemes
     }
 }
+
+// The various delegates aren't required to be Sendable, so the config isn't sendable.
+@available(*, unavailable)
+extension SSHClientConfiguration: Sendable {}

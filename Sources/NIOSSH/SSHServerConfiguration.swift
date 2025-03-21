@@ -72,6 +72,10 @@ public struct SSHServerConfiguration {
     }
 }
 
+// The various delegates aren't required to be Sendable, so the config isn't sendable.
+@available(*, unavailable)
+extension SSHServerConfiguration: Sendable {}
+
 // MARK: - UserAuthBanner
 
 extension SSHServerConfiguration {

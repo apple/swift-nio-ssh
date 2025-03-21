@@ -44,7 +44,7 @@ extension GlobalRequestDelegate {
 }
 
 /// A namespace of ``GlobalRequest`` objects that implementations of ``GlobalRequestDelegate`` may be asked to handle.
-public enum GlobalRequest {
+public enum GlobalRequest: Sendable {
     /// A request from a client to a server for the server to listen on a port on the client's behalf. If accepted,
     /// the server will listen on a port, and will forward accepted connections to the client using the "forwarded-tcpip"
     /// channel type.

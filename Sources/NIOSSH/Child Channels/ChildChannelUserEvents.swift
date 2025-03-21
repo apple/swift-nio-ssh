@@ -15,7 +15,7 @@
 import NIOCore
 
 /// A namespace for SSH channel request events.
-public enum SSHChannelRequestEvent {
+public enum SSHChannelRequestEvent: Sendable {
     /// A request for the peer to allocate a pseudo-terminal.
     public struct PseudoTerminalRequest: Hashable, Sendable {
         /// Whether a reply to this PTY request is desired.
@@ -315,17 +315,16 @@ extension SSHChannelRequestEvent {
     /// Constructs a channel request event and wraps it up in an Any.
     ///
     /// This is usually used just prior to firing this into the pipeline.
-    internal static func fromMessage(_ message: SSHMessage.ChannelRequestMessage) -> Any? {
+    internal static func fromMessage(_ message: SSHMessage.ChannelRequestMessage) -> (any Sendable)? {
         switch message.type {
         case .env(let name, let value):
-            return EnvironmentRequest(wantReply: message.wantReply, name: name, value: value) as Any
+            return EnvironmentRequest(wantReply: message.wantReply, name: name, value: value)
         case .exec(let command):
-            return ExecRequest(command: command, wantReply: message.wantReply) as Any
+            return ExecRequest(command: command, wantReply: message.wantReply)
         case .exitStatus(let code):
-            return ExitStatus(exitStatus: code) as Any
+            return ExitStatus(exitStatus: code)
         case .exitSignal(let name, let dumpedCore, let errorMessage, let language):
             return ExitSignal(signalName: name, errorMessage: errorMessage, language: language, dumpedCore: dumpedCore)
-                as Any
         case .ptyReq(let ptyReq):
             return PseudoTerminalRequest(
                 wantReply: message.wantReply,
@@ -337,9 +336,9 @@ extension SSHChannelRequestEvent {
                 terminalModes: ptyReq.terminalModes
             )
         case .shell:
-            return ShellRequest(wantReply: message.wantReply) as Any
+            return ShellRequest(wantReply: message.wantReply)
         case .subsystem(let subsystem):
-            return SubsystemRequest(subsystem: subsystem, wantReply: message.wantReply) as Any
+            return SubsystemRequest(subsystem: subsystem, wantReply: message.wantReply)
         case .windowChange(let windowChange):
             return WindowChangeRequest(
                 terminalCharacterWidth: windowChange.characterWidth,
@@ -348,7 +347,7 @@ extension SSHChannelRequestEvent {
                 terminalPixelHeight: windowChange.pixelHeight
             )
         case .xonXoff(let clientCanDo):
-            return LocalFlowControlRequest(clientCanDo: clientCanDo) as Any
+            return LocalFlowControlRequest(clientCanDo: clientCanDo)
         case .signal(let signalName):
             return SignalRequest(signal: signalName)
         case .unknown:
