@@ -35,7 +35,7 @@ class BackToBackEmbeddedChannel {
     }
 
     var serverSSHHandler: NIOSSHHandler? {
-        try? self.client.pipeline.handler(type: NIOSSHHandler.self).wait()
+        try? self.server.pipeline.handler(type: NIOSSHHandler.self).wait()
     }
 
     init() {
