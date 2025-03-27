@@ -680,7 +680,7 @@ extension SSHChildChannel {
                 )
                 self.processOutboundMessage(.channelWindowAdjust(update), promise: nil)
             }
-            self.pipeline.fireChannelRead(NIOAny(data))
+            self.pipeline.syncOperations.fireChannelRead(NIOAny(data))
 
         case .eof:
             self.pipeline.fireUserInboundEventTriggered(ChannelEvent.inputClosed)

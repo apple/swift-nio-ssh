@@ -33,7 +33,7 @@ public struct SSHChildChannelOptions: Sendable {
 
 extension SSHChildChannelOptions {
     /// Types for the ``SSHChildChannelOptions``.
-    public enum Types {}
+    public enum Types: Sendable {}
 }
 
 extension SSHChildChannelOptions.Types {
