@@ -22,3 +22,9 @@ jobs:
         uses: apple/swift-nio/.github/workflows/benchmarks.yml@main
         with:
             benchmark_package_path: "Benchmarks"
+
+    macos-tests:
+        name: macOS tests
+        uses: apple/swift-nio/.github/workflows/macos_tests.yml@main
+        with:
+            build_scheme: swift-nio-ssh-Package
