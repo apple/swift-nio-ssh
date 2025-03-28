@@ -42,20 +42,21 @@ final class BenchmarkHandshake: Benchmark {
             b2b.client.connect(to: try .init(unixDomainSocketPath: "/foo"), promise: nil)
             b2b.server.connect(to: try .init(unixDomainSocketPath: "/foo"), promise: nil)
 
-            try b2b.client.pipeline.addHandler(
+            // Embedded channel, sync operations are fine.
+            try b2b.client.pipeline.syncOperations.addHandler(
                 NIOSSHHandler(
                     role: self.clientRole,
                     allocator: b2b.client.allocator,
                     inboundChildChannelInitializer: nil
                 )
-            ).wait()
-            try b2b.server.pipeline.addHandler(
+            )
+            try b2b.server.pipeline.syncOperations.addHandler(
                 NIOSSHHandler(
                     role: self.serverRole,
                     allocator: b2b.server.allocator,
                     inboundChildChannelInitializer: nil
                 )
-            ).wait()
+            )
             try b2b.interactInMemory()
         }
 
