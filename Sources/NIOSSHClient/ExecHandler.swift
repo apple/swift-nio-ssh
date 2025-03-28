@@ -73,6 +73,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
                 }
             }
         } catch {
+          // Catch error from adding handler which shouldn't ever happen.
         }
     }
 
