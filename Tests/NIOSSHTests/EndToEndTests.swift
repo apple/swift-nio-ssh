@@ -31,11 +31,11 @@ class BackToBackEmbeddedChannel {
     private(set) var activeServerChannels: [Channel]
 
     var clientSSHHandler: NIOSSHHandler? {
-        try? self.client.pipeline.handler(type: NIOSSHHandler.self).wait()
+        try? self.client.pipeline.syncOperations.handler(type: NIOSSHHandler.self)
     }
 
     var serverSSHHandler: NIOSSHHandler? {
-        try? self.server.pipeline.handler(type: NIOSSHHandler.self).wait()
+        try? self.server.pipeline.syncOperations.handler(type: NIOSSHHandler.self)
     }
 
     init() {
@@ -112,8 +112,8 @@ class BackToBackEmbeddedChannel {
             return channel.eventLoop.makeSucceededFuture(())
         }
 
-        try self.client.pipeline.addHandler(clientHandler).wait()
-        try self.server.pipeline.addHandler(serverHandler).wait()
+        try self.client.pipeline.syncOperations.addHandler(clientHandler)
+        try self.server.pipeline.syncOperations.addHandler(serverHandler)
     }
 
     func finish() throws {
@@ -242,11 +242,14 @@ class EndToEndTests: XCTestCase {
         }
 
         let userEventRecorder = UserEventExpecter()
-        XCTAssertNoThrow(try serverChannel.pipeline.addHandler(userEventRecorder).wait())
+        XCTAssertNoThrow(try serverChannel.pipeline.syncOperations.addHandler(userEventRecorder))
 
         func helper<Event: Equatable>(_ event: Event) {
             let clientSent = NIOLoopBoundBox(false, eventLoop: clientChannel.eventLoop)
-            clientChannel.triggerUserOutboundEvent(event).whenSuccess { clientSent.value = true }
+
+            let promise = clientChannel.eventLoop.makePromise(of: Void.self)
+            clientChannel.pipeline.syncOperations.triggerUserOutboundEvent(event, promise: promise)
+            promise.futureResult.whenSuccess { clientSent.value = true }
             XCTAssertNoThrow(try self.channel.interactInMemory())
 
             XCTAssertTrue(clientSent.value)
@@ -590,7 +593,7 @@ class EndToEndTests: XCTestCase {
 
         // Set up the connection, validate all is well.
         XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
-        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(errorCatcher).wait())
+        XCTAssertNoThrow(try self.channel.client.pipeline.syncOperations.addHandler(errorCatcher))
         XCTAssertNoThrow(try self.channel.activate())
         XCTAssertThrowsError(try self.channel.interactInMemory()) { error in
             XCTAssertEqual(error as? TestError, .bang)
@@ -615,7 +618,7 @@ class EndToEndTests: XCTestCase {
         harness.clientServerAuthDelegate = RejectDelegate()
 
         XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
-        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(ErrorClosingHandler()).wait())
+        XCTAssertNoThrow(try self.channel.client.pipeline.syncOperations.addHandler(ErrorClosingHandler()))
 
         // Get an early ref to the handler and try to create a child channel.
         let handler = self.channel.clientSSHHandler
@@ -705,7 +708,7 @@ class EndToEndTests: XCTestCase {
 
         // Set up the connection, validate all is well.
         XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
-        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(handshaker).wait())
+        XCTAssertNoThrow(try self.channel.client.pipeline.syncOperations.addHandler(handshaker))
         XCTAssertNoThrow(try self.channel.activate())
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
@@ -746,7 +749,7 @@ class EndToEndTests: XCTestCase {
 
         // Set up the connection, validate all is well.
         XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
-        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(handshaker).wait())
+        XCTAssertNoThrow(try self.channel.client.pipeline.syncOperations.addHandler(handshaker))
         XCTAssertNoThrow(try self.channel.activate())
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
@@ -793,7 +796,7 @@ class EndToEndTests: XCTestCase {
 
         // Set up the connection, validate all is well.
         XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
-        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(handshaker).wait())
+        XCTAssertNoThrow(try self.channel.client.pipeline.syncOperations.addHandler(handshaker))
         XCTAssertNoThrow(try self.channel.activate())
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
@@ -839,7 +842,7 @@ class EndToEndTests: XCTestCase {
 
         // Set up the connection, validate all is well.
         XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
-        XCTAssertNoThrow(try self.channel.client.pipeline.addHandler(handshaker).wait())
+        XCTAssertNoThrow(try self.channel.client.pipeline.syncOperations.addHandler(handshaker))
         XCTAssertNoThrow(try self.channel.activate())
         XCTAssertNoThrow(try self.channel.interactInMemory())
 
