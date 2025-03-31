@@ -34,7 +34,6 @@ public struct SSHChannelData {
 
 extension SSHChannelData: Equatable {}
 
-@available(*, unavailable)
 extension SSHChannelData: Sendable {}
 
 extension SSHChannelData {
