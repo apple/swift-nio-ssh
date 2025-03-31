@@ -395,8 +395,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         let harness = self.harness { channel, _ in
             channel.eventLoop.makeCompletedFuture {
-                let sync = channel.pipeline.syncOperations
-                try sync.addHandler(errorLogger)
+                try channel.pipeline.syncOperations.addHandler(errorLogger)
                 throw MultiplexerTestError.rejected
             }
         }
