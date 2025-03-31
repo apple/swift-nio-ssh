@@ -896,13 +896,8 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Issue a write to the child.
         var bytes = channel.allocator.buffer(capacity: 1024)
         bytes.writeString("Hello from the unit tests")
-
-        let writePromise = channel.eventLoop.makePromise(of: Void.self)
-        channel.pipeline.syncOperations.writeAndFlush(
-            NIOAny(SSHChannelData(type: .channel, data: .byteBuffer(bytes))),
-            promise: writePromise
-        )
-        XCTAssertThrowsError(try writePromise.futureResult.wait()) { error in
+        XCTAssertThrowsError(try channel.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(bytes))).wait())
+        { error in
             XCTAssertEqual(error as? ChannelError, .ioOnClosedChannel)
         }
 
@@ -1050,10 +1045,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         buffer.writeString("Hello from the unit tests!")
 
         for _ in 0..<5 {
-            channel.pipeline.syncOperations.write(
-                NIOAny(SSHChannelData(type: .channel, data: .byteBuffer(buffer))),
-                promise: nil
-            )
+            channel.pipeline.write(SSHChannelData(type: .channel, data: .byteBuffer(buffer)), promise: nil)
         }
 
         // Now we're going to add a final write: this will have a write promise. It should complete before
@@ -1061,12 +1053,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let finalWriteComplete = NIOLoopBoundBox(false, eventLoop: channel.eventLoop)
         let eofComplete = NIOLoopBoundBox(false, eventLoop: channel.eventLoop)
 
-        let writePromise = channel.eventLoop.makePromise(of: Void.self)
-        channel.pipeline.syncOperations.write(
-            NIOAny(SSHChannelData(type: .channel, data: .byteBuffer(buffer))),
-            promise: writePromise
-        )
-        writePromise.futureResult.whenSuccess {
+        channel.write(SSHChannelData(type: .channel, data: .byteBuffer(buffer))).whenSuccess {
             XCTAssertFalse(eofComplete.value)
             XCTAssertFalse(inactiveRecorder.value.seenInactive)
             finalWriteComplete.value = true
@@ -1126,12 +1113,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertTrue(channel.isActive)
 
         // Now write some data. This fails immediately.
-        let writePromise = channel.eventLoop.makePromise(of: Void.self)
-        channel.pipeline.syncOperations.write(
-            NIOAny(SSHChannelData(type: .channel, data: .byteBuffer(channel.allocator.buffer(capacity: 1024)))),
-            promise: writePromise
-        )
-        XCTAssertThrowsError(try writePromise.futureResult.wait()) { error in
+        XCTAssertThrowsError(
+            try channel.write(
+                SSHChannelData(type: .channel, data: .byteBuffer(channel.allocator.buffer(capacity: 1024)))
+            ).wait()
+        ) { error in
             XCTAssertEqual(error as? ChannelError, .outputClosed)
         }
     }
