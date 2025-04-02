@@ -113,7 +113,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
         case .stdErr:
             // We just write to stderr directly, pipe channel can't help us here.
             bytes.withUnsafeReadableBytes { str in
-                let rc = fwrite(str.baseAddress!, 1, str.count, stderr)
+                let rc = writeToFD(STDERR_FILENO, str.baseAddress!, str.count)
                 precondition(rc == str.count)
             }
 
@@ -126,6 +126,11 @@ final class ExampleExecHandler: ChannelDuplexHandler {
         let data = self.unwrapOutboundIn(data)
         context.write(self.wrapOutboundOut(SSHChannelData(type: .channel, data: .byteBuffer(data))), promise: promise)
     }
+}
+
+@inlinable
+func writeToFD(_ fd: Int32, _ buf: UnsafeRawPointer!, _ nbyte: Int) -> Int {
+    write(fd, buf, nbyte)
 }
 
 enum SSHClientError: Swift.Error {
