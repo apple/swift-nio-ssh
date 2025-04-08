@@ -27,7 +27,7 @@ let strictConcurrencySettings: [SwiftSetting] = {
     if strictConcurrencyDevelopment {
         // -warnings-as-errors here is a workaround so that IDE-based development can
         // get tripped up on -require-explicit-sendable.
-        initialSettings.append(.unsafeFlags(["-require-explicit-sendable", "-warnings-as-errors"]))
+        initialSettings.append(.unsafeFlags(["-Xfrontend", "-require-explicit-sendable", "-warnings-as-errors"]))
     }
 
     return initialSettings
