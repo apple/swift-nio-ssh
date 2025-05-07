@@ -12,15 +12,16 @@ Another good reason to provide programmatic SSH is that it is not uncommon for s
 
 The most recent versions of SwiftNIO SSH support Swift 5.9 and newer. The minimum Swift version supported by SwiftNIO SSH releases are detailed below:
 
-SwiftNIO SSH      | Minimum Swift Version
-------------------|----------------------
-`0.0.0 ..< 0.3.0` | 5.1
-`0.3.0 ..< 0.4.0` | 5.2
-`0.4.0 ..< 0.5.0` | 5.4
-`0.5.0 ..< 0.6.2` | 5.5.2
-`0.6.2 ..< 0.9.0` | 5.6
-`0.9.0 ..< 0.9.2` | 5.8
-`0.9.2 ...`       | 5.9
+SwiftNIO SSH        | Minimum Swift Version
+--------------------|----------------------
+`0.0.0  ..< 0.3.0`  | 5.1
+`0.3.0  ..< 0.4.0`  | 5.2
+`0.4.0  ..< 0.5.0`  | 5.4
+`0.5.0  ..< 0.6.2`  | 5.5.2
+`0.6.2  ..< 0.9.0`  | 5.6
+`0.9.0  ..< 0.9.2`  | 5.8
+`0.9.2  ..< 0.10.0` | 5.9
+`0.10.0 ...`        | 5.10
 
 ## What does SwiftNIO SSH support?
 
