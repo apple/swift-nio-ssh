@@ -33,7 +33,7 @@ class SSHHandlerTests: XCTestCase {
 
         _ = try channel.connect(to: .init(unixDomainSocketPath: "/foo"))
 
-        XCTAssertNoThrow(try channel.pipeline.addHandler(handler).wait())
+        XCTAssertNoThrow(try channel.pipeline.syncOperations.addHandler(handler))
         XCTAssertEqual(
             try channel.readOutbound(as: IOData.self),
             .byteBuffer(allocator.buffer(string: Constants.version + "\r\n"))
@@ -51,7 +51,7 @@ class SSHHandlerTests: XCTestCase {
             inboundChildChannelInitializer: nil
         )
 
-        XCTAssertNoThrow(try channel.pipeline.addHandler(handler).wait())
+        XCTAssertNoThrow(try channel.pipeline.syncOperations.addHandler(handler))
         XCTAssertNil(try channel.readOutbound())
 
         _ = try channel.connect(to: .init(unixDomainSocketPath: "/foo"))

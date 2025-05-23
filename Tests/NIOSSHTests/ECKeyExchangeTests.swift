@@ -400,10 +400,12 @@ extension SSHConnectionRole {
         .server(SSHServerConfiguration(hostKeys: hostKeys, userAuthDelegate: DenyAllServerAuthDelegate()))
     }
 
-    fileprivate static let client = SSHConnectionRole.client(
-        SSHClientConfiguration(
-            userAuthDelegate: ExplodingAuthDelegate(),
-            serverAuthDelegate: AcceptAllHostKeysDelegate()
+    fileprivate static var client: SSHConnectionRole {
+        .client(
+            SSHClientConfiguration(
+                userAuthDelegate: ExplodingAuthDelegate(),
+                serverAuthDelegate: AcceptAllHostKeysDelegate()
+            )
         )
-    )
+    }
 }
