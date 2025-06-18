@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if os(macOS) || os(Linux)
+
 import Crypto
 import Dispatch
 import NIOCore
@@ -115,3 +117,5 @@ let channel = try bootstrap.bind(host: "0.0.0.0", port: 2222).wait()
 
 // Run forever
 try channel.closeFuture.wait()
+
+#endif

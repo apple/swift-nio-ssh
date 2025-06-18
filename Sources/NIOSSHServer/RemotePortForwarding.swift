@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if os(macOS) || os(Linux)
+
 import Dispatch
 import Foundation
 import NIOCore
@@ -123,3 +125,5 @@ final class RemotePortForwarderGlobalRequestDelegate: GlobalRequestDelegate {
         self.forwarder?.stopListening()
     }
 }
+
+#endif

@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if os(macOS) || os(Linux)
+
 import NIOCore
 
 final class GlueHandler {
@@ -122,3 +124,5 @@ extension GlueHandler: ChannelDuplexHandler {
         }
     }
 }
+
+#endif
