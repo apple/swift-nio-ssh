@@ -12,8 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(Foundation.Process)
-
 import Dispatch
 import Foundation
 import NIOCore
@@ -21,14 +19,15 @@ import NIOFoundationCompat
 import NIOPosix
 import NIOSSH
 
-final class DataToBufferCodec: ChannelDuplexHandler {
+final class DataToBufferCodec: ChannelDuplexHandler, Sendable {
     typealias InboundIn = SSHChannelData
     typealias InboundOut = ByteBuffer
     typealias OutboundIn = ByteBuffer
     typealias OutboundOut = SSHChannelData
 
     func handlerAdded(context: ChannelHandlerContext) {
-        context.channel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true).whenFailure { error in
+        context.channel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true).assumeIsolated().whenFailure {
+            error in
             context.fireErrorCaught(error)
         }
     }
@@ -59,5 +58,3 @@ func createOutboundConnection(targetHost: String, targetPort: Int, loop: EventLo
         channel.eventLoop.makeSucceededFuture(())
     }.connect(host: targetHost, port: targetPort)
 }
-
-#endif  // canImport(Foundation.Process)
