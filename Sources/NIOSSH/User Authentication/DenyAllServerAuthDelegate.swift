@@ -17,7 +17,7 @@ import NIOCore
 /// A server user authentication delegate that denies all authentication attempts.
 ///
 /// Not really useful in and of itself, but a helpful default option.
-public final class DenyAllServerAuthDelegate {}
+public final class DenyAllServerAuthDelegate: Sendable {}
 
 extension DenyAllServerAuthDelegate: NIOSSHServerUserAuthenticationDelegate {
     public var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods {
