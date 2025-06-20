@@ -68,7 +68,7 @@ func sshChildChannelInitializer(_ channel: Channel, _ channelType: SSHChannelTyp
     case .directTCPIP(let target):
         return channel.eventLoop.makeCompletedFuture {
             let (ours, theirs) = GlueHandler.matchedPair()
-            _ = channel.pipeline.addHandler(DataToBufferCodec())
+            try channel.pipeline.syncOperations.addHandler(DataToBufferCodec())
             try channel.pipeline.syncOperations.addHandler(ours)
 
             let loopBoundHandler = NIOLoopBound(theirs, eventLoop: channel.eventLoop)
