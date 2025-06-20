@@ -26,13 +26,10 @@ import NIOSSH
 // Please note that, as with the rest of this example, there are important security features missing from
 // this demo.
 final class RemotePortForwarder {
-    private let serverChannel: Channel?
-
     private let inboundSSHHandler: NIOSSHHandler
 
     init(inboundSSHHandler: NIOSSHHandler) {
         self.inboundSSHHandler = inboundSSHHandler
-        self.serverChannel = nil
     }
 
     func beginListening(on host: String, port: Int, loop: EventLoop) -> EventLoopFuture<Int?> {
@@ -85,9 +82,7 @@ final class RemotePortForwarder {
         }
     }
 
-    func stopListening() {
-        self.serverChannel?.close(promise: nil)
-    }
+    func stopListening() { }
 }
 
 final class RemotePortForwarderGlobalRequestDelegate: GlobalRequestDelegate {
