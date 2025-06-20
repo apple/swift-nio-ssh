@@ -116,7 +116,7 @@ final class ExampleExecHandler: ChannelDuplexHandler {
         self.process = process
 
         // Kick this off to a background queue
-        self.queue.sync {
+        self.queue.async {
             do {
                 _ = try NIOPipeBootstrap(group: channel.eventLoop)
                     .channelOption(ChannelOptions.allowRemoteHalfClosure, value: true)

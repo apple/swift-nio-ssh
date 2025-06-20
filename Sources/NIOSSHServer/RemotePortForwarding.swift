@@ -82,7 +82,7 @@ final class RemotePortForwarder {
         }
     }
 
-    func stopListening() { }
+    func stopListening() {}
 }
 
 final class RemotePortForwarderGlobalRequestDelegate: GlobalRequestDelegate {
