@@ -65,7 +65,8 @@ final class RemotePortForwarder {
                 ) { sshChildChannel, _ in
                     sshChildChannel.eventLoop.makeCompletedFuture {
                         try sshChildChannel.pipeline.syncOperations.addHandlers([DataToBufferCodec(), theirs])
-                        _ = sshChildChannel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true)
+                    }.flatMap {
+                        sshChildChannel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true)
                     }
 
                 }
