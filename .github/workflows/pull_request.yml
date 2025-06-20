@@ -36,5 +36,5 @@ jobs:
         with:
             runner_pool: general
             build_scheme: swift-nio-ssh-Package
-	    xcode_16_2_build_arguments_override: "-Xswiftc -Xfrontend -Xswiftc -require-explicit-sendable"
-      	    xcode_16_3_build_arguments_override: "-Xswiftc -Xfrontend -Xswiftc -require-explicit-sendable"
+            xcode_16_2_build_arguments_override: "-Xswiftc -Xfrontend -Xswiftc -require-explicit-sendable"
+            xcode_16_3_build_arguments_override: "-Xswiftc -Xfrontend -Xswiftc -require-explicit-sendable"
