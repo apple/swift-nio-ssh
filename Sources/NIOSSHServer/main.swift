@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(Foundation.Process)
+#if os(macOS) || os(Linux)
 
 import Crypto
 import Dispatch
@@ -22,7 +22,7 @@ import NIOSSH
 
 // This file contains an example NIO SSH server. It's not intended for production use, it's not secure,
 // but it's a good example of how to
-final class ErrorHandler: ChannelInboundHandler {
+final class ErrorHandler: ChannelInboundHandler, Sendable {
     typealias InboundIn = Any
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {
@@ -62,18 +62,26 @@ defer {
 func sshChildChannelInitializer(_ channel: Channel, _ channelType: SSHChannelType) -> EventLoopFuture<Void> {
     switch channelType {
     case .session:
-        return channel.pipeline.addHandler(ExampleExecHandler())
+        return channel.eventLoop.makeCompletedFuture {
+            try channel.pipeline.syncOperations.addHandler(ExampleExecHandler())
+        }
     case .directTCPIP(let target):
         let (ours, theirs) = GlueHandler.matchedPair()
+        let loopBoundHandler = NIOLoopBound(theirs, eventLoop: channel.eventLoop)
 
-        return channel.pipeline.addHandlers([DataToBufferCodec(), ours]).flatMap {
+        return channel.eventLoop.makeCompletedFuture {
+            try channel.pipeline.syncOperations.addHandler(DataToBufferCodec())
+            try channel.pipeline.syncOperations.addHandler(ours)
+        }.flatMap {
             createOutboundConnection(
                 targetHost: target.targetHost,
                 targetPort: target.targetPort,
                 loop: channel.eventLoop
-            )
-        }.flatMap { targetChannel in
-            targetChannel.pipeline.addHandler(theirs)
+            ).flatMap { targetChannel in
+                targetChannel.eventLoop.makeCompletedFuture {
+                    try targetChannel.pipeline.syncOperations.addHandler(loopBoundHandler.value)
+                }
+            }
         }
     case .forwardedTCPIP:
         return channel.eventLoop.makeFailedFuture(SSHServerError.invalidChannelType)
@@ -85,19 +93,22 @@ let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
 
 let bootstrap = ServerBootstrap(group: group)
     .childChannelInitializer { channel in
-        channel.pipeline.addHandlers([
-            NIOSSHHandler(
-                role: .server(
-                    .init(
-                        hostKeys: [hostKey],
-                        userAuthDelegate: HardcodedPasswordDelegate(),
-                        globalRequestDelegate: RemotePortForwarderGlobalRequestDelegate()
-                    )
-                ),
-                allocator: channel.allocator,
-                inboundChildChannelInitializer: sshChildChannelInitializer(_:_:)
-            ), ErrorHandler(),
-        ])
+        channel.eventLoop.makeCompletedFuture {
+            try channel.pipeline.syncOperations.addHandlers([
+                NIOSSHHandler(
+                    role: .server(
+                        .init(
+                            hostKeys: [hostKey],
+                            userAuthDelegate: HardcodedPasswordDelegate(),
+                            globalRequestDelegate: RemotePortForwarderGlobalRequestDelegate()
+                        )
+                    ),
+                    allocator: channel.allocator,
+                    inboundChildChannelInitializer: sshChildChannelInitializer(_:_:)
+                ), ErrorHandler(),
+            ])
+        }
+
     }
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
@@ -107,8 +118,4 @@ let channel = try bootstrap.bind(host: "0.0.0.0", port: 2222).wait()
 // Run forever
 try channel.closeFuture.wait()
 
-#else  // canImport(Foundation.Process)
-
-fatalError("NIOSSHServer is only supported on platforms with Foundation.Process")
-
-#endif  // !canImport(Foundation.Process)
+#endif

@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum Constants {
+public enum Constants: Sendable {
     static let version = "SSH-2.0-SwiftNIOSSH_1.0"
 
     public static let bundledTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [

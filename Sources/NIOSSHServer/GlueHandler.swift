@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(Foundation.Process)
+#if os(macOS) || os(Linux)
 
 import NIOCore
 
@@ -125,4 +125,4 @@ extension GlueHandler: ChannelDuplexHandler {
     }
 }
 
-#endif  // canImport(Foundation.Process)
+#endif

@@ -24,6 +24,8 @@ import NIOCore
 public protocol GlobalRequestDelegate {
     /// The client wants to manage TCP port forwarding.
     ///
+    /// The eventLoop associated with the promise passed in must be the same as the one used to create the handler.
+    ///
     /// The default implementation rejects all requests to establish TCP port forwarding.
     func tcpForwardingRequest(
         _: GlobalRequest.TCPForwardingRequest,
