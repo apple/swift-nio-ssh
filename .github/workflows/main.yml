@@ -36,3 +36,7 @@ jobs:
             build_scheme: swift-nio-ssh-Package
             xcode_16_2_build_arguments_override: "-Xswiftc -Xfrontend -Xswiftc -require-explicit-sendable"
             xcode_16_3_build_arguments_override: "-Xswiftc -Xfrontend -Xswiftc -require-explicit-sendable"
+
+    release-builds:
+        name: Release builds
+        uses: apple/swift-nio/.github/workflows/release_builds.yml@main
