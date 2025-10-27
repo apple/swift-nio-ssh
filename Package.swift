@@ -1,4 +1,4 @@
-// swift-tools-version:5.10
+// swift-tools-version:6.0
 //===----------------------------------------------------------------------===//
 //
 // This source file is part of the SwiftNIO open source project
@@ -14,24 +14,6 @@
 //===----------------------------------------------------------------------===//
 
 import PackageDescription
-
-let strictConcurrencyDevelopment = false
-
-let strictConcurrencySettings: [SwiftSetting] = {
-    var initialSettings: [SwiftSetting] = []
-    initialSettings.append(contentsOf: [
-        .enableUpcomingFeature("StrictConcurrency"),
-        .enableUpcomingFeature("InferSendableFromCaptures"),
-    ])
-
-    if strictConcurrencyDevelopment {
-        // -warnings-as-errors here is a workaround so that IDE-based development can
-        // get tripped up on -require-explicit-sendable.
-        initialSettings.append(.unsafeFlags(["-Xfrontend", "-require-explicit-sendable", "-warnings-as-errors"]))
-    }
-
-    return initialSettings
-}()
 
 let package = Package(
     name: "swift-nio-ssh",
@@ -58,8 +40,7 @@ let package = Package(
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "Atomics", package: "swift-atomics"),
-            ],
-            swiftSettings: strictConcurrencySettings
+            ]
         ),
         .executableTarget(
             name: "NIOSSHClient",
@@ -68,8 +49,7 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
-            ],
-            swiftSettings: strictConcurrencySettings
+            ]
         ),
         .executableTarget(
             name: "NIOSSHServer",
@@ -79,8 +59,7 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
-            ],
-            swiftSettings: strictConcurrencySettings
+            ]
         ),
         .executableTarget(
             name: "NIOSSHPerformanceTester",
@@ -89,8 +68,7 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOEmbedded", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
-            ],
-            swiftSettings: strictConcurrencySettings
+            ]
         ),
         .testTarget(
             name: "NIOSSHTests",
@@ -99,8 +77,7 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOEmbedded", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
-            ],
-            swiftSettings: strictConcurrencySettings
+            ]
         ),
     ]
 )
