@@ -15,6 +15,16 @@
 
 import PackageDescription
 
+let strictConcurrencyDevelopment = false
+
+var swiftSettings: [SwiftSetting] = []
+
+if strictConcurrencyDevelopment {
+    // -warnings-as-errors here is a workaround so that IDE-based development can
+    // get tripped up on -require-explicit-sendable.
+    swiftSettings.append(.unsafeFlags(["-Xfrontend", "-require-explicit-sendable", "-warnings-as-errors"]))
+}
+
 let package = Package(
     name: "swift-nio-ssh",
     platforms: [
@@ -40,7 +50,8 @@ let package = Package(
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "Atomics", package: "swift-atomics"),
-            ]
+            ],
+            swiftSettings: swiftSettings
         ),
         .executableTarget(
             name: "NIOSSHClient",
@@ -49,7 +60,8 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
-            ]
+            ],
+            swiftSettings: swiftSettings
         ),
         .executableTarget(
             name: "NIOSSHServer",
@@ -59,7 +71,8 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
-            ]
+            ],
+            swiftSettings: swiftSettings
         ),
         .executableTarget(
             name: "NIOSSHPerformanceTester",
@@ -68,7 +81,8 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOEmbedded", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
-            ]
+            ],
+            swiftSettings: swiftSettings
         ),
         .testTarget(
             name: "NIOSSHTests",
@@ -77,7 +91,8 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOEmbedded", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
-            ]
+            ],
+            swiftSettings: swiftSettings
         ),
     ]
 )
