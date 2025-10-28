@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #if compiler(>=6.2)
-@_marker public protocol _NIOSSHSendableMetatype: SendableMetatype {}
+public typealias _NIOSSHSendableMetatype = SendableMetatype
 #else
-@_marker public protocol _NIOSSHSendableMetatype {}
+public typealias _NIOSSHSendableMetatype = Any
 #endif

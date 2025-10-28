@@ -15,7 +15,7 @@
 public enum Constants: Sendable {
     static let version = "SSH-2.0-SwiftNIOSSH_1.0"
 
-    public static let bundledTransportProtectionSchemes: [NIOSSHTransportProtection.Type] = [
+    public static let bundledTransportProtectionSchemes: [(NIOSSHTransportProtection & _NIOSSHSendableMetatype).Type] = [
         AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
     ]
 }
