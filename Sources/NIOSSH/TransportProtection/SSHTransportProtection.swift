@@ -44,7 +44,7 @@ import NIOCore
 /// Implementers of this protocol **must not** expose unauthenticated plaintext, except for the length field. This
 /// is required by the SSH protocol, and swift-nio-ssh does its best to treat the length field as fundamentally
 /// untrusted information.
-public protocol NIOSSHTransportProtection: AnyObject {
+public protocol NIOSSHTransportProtection: AnyObject, _NIOSSHSendableMetatype {
     /// The name of the cipher portion of this transport protection scheme as negotiated on the wire.
     static var cipherName: String { get }
 
