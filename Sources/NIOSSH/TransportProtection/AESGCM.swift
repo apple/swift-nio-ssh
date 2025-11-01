@@ -162,7 +162,7 @@ extension AESGCMTransportProtection: NIOSSHTransportProtection {
 /// algorithm, and instead by ignoring the result of the MAC negotiation.
 ///
 /// This algorithm does not encrypt the length field, instead encoding it as associated data.
-final class AES128GCMOpenSSHTransportProtection: AESGCMTransportProtection {
+final class AES128GCMOpenSSHTransportProtection: AESGCMTransportProtection, _NIOSSHSendableMetatype {
     override static var cipherName: String {
         "aes128-gcm@openssh.com"
     }
@@ -182,7 +182,7 @@ final class AES128GCMOpenSSHTransportProtection: AESGCMTransportProtection {
 /// algorithm, and instead by ignoring the result of the MAC negotiation.
 ///
 /// This algorithm does not encrypt the length field, instead encoding it as associated data.
-final class AES256GCMOpenSSHTransportProtection: AESGCMTransportProtection {
+final class AES256GCMOpenSSHTransportProtection: AESGCMTransportProtection, _NIOSSHSendableMetatype {
     override static var cipherName: String {
         "aes256-gcm@openssh.com"
     }

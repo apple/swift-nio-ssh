@@ -2,7 +2,7 @@
 //
 // This source file is part of the SwiftNIO open source project
 //
-// Copyright (c) 2019 Apple Inc. and the SwiftNIO project authors
+// Copyright (c) 2019-2020 Apple Inc. and the SwiftNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -12,11 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum Constants: Sendable {
-    static let version = "SSH-2.0-SwiftNIOSSH_1.0"
-
-    public static let bundledTransportProtectionSchemes: [(NIOSSHTransportProtection & _NIOSSHSendableMetatype).Type] =
-        [
-            AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
-        ]
-}
+#if compiler(>=6.2)
+public typealias _NIOSSHSendableMetatype = SendableMetatype
+#else
+public typealias _NIOSSHSendableMetatype = Any
+#endif

@@ -14,7 +14,7 @@
 
 import NIOCore
 
-protocol AcceptsUserAuthMessages {
+protocol AcceptsUserAuthMessages: _NIOSSHSendableMetatype {
     var userAuthStateMachine: UserAuthenticationStateMachine { get set }
 
     var role: SSHConnectionRole { get }
