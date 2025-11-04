@@ -24,7 +24,7 @@ import Foundation
 
 /// This protocol defines a container used by the key exchange state machine to manage key exchange.
 /// This type erases the specific key exchanger.
-protocol EllipticCurveKeyExchangeProtocol {
+protocol EllipticCurveKeyExchangeProtocol: _NIOSSHSendableMetatype {
     init(ourRole: SSHConnectionRole, previousSessionIdentifier: ByteBuffer?)
 
     func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage
