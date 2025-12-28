@@ -476,13 +476,14 @@ extension UserAuthenticationStateMachine {
                 .init(outcome, supportedMethods: supportedMethods)
             }
 
-        case .publicKey(.known(key: let key, signature: .some(let signature))):
+        case .publicKey(.known(key: let key, signature: .some(let signature), rsaSignatureAlgorithm: let rsaAlgorithm)):
             // This is a direct request to auth, just pass it through.
             let dataToSign = UserAuthSignablePayload(
                 sessionIdentifier: sessionID,
                 userName: request.username,
                 serviceName: request.service,
-                publicKey: key
+                publicKey: key,
+                rsaSignatureAlgorithm: rsaAlgorithm
             )
             let supportedMethods = delegate.supportedAuthenticationMethods
 
@@ -506,7 +507,7 @@ extension UserAuthenticationStateMachine {
                 .init(outcome, supportedMethods: supportedMethods)
             }
 
-        case .publicKey(.known(key: let key, signature: .none)):
+        case .publicKey(.known(key: let key, signature: .none, rsaSignatureAlgorithm: _)):
             // This is a weird wrinkle in public key auth: it's a request to ask whether a given key is valid, but not to validate that key itself.
             // For now we do a shortcut: we just say that all keys are acceptable, rather than ask the delegate.
             return self.loop.makeSucceededFuture(.publicKeyOK(.init(key: key)))
