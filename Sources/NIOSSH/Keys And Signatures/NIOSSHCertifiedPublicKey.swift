@@ -359,8 +359,37 @@ extension NIOSSHCertifiedPublicKey {
             return Self.p384KeyPrefix
         case .ecdsaP521:
             return Self.p521KeyPrefix
+        case .rsa:
+            preconditionFailure("RSA certificates are not currently supported")
         case .certified:
             preconditionFailure("base key cannot be certified")
+        }
+    }
+
+    internal var signatureAlgorithmPrefix: String.UTF8View {
+        switch self.key.backingKey {
+        case .ed25519:
+            return Self.ed25519KeyPrefix
+        case .ecdsaP256:
+            return Self.p256KeyPrefix
+        case .ecdsaP384:
+            return Self.p384KeyPrefix
+        case .ecdsaP521:
+            return Self.p521KeyPrefix
+        case .rsa:
+            preconditionFailure("RSA certificates are not currently supported")
+        case .certified:
+            preconditionFailure("base key cannot be certified")
+        }
+    }
+    
+    /// Returns the algorithm name to use for authentication, supporting RSA algorithm selection.
+    internal func algorithmName(forRSA rsaAlgorithm: RSASignatureAlgorithm) -> String.UTF8View {
+        switch self.key.backingKey {
+        case .rsa:
+            return rsaAlgorithm.wireBytes
+        default:
+            return self.signatureAlgorithmPrefix
         }
     }
 

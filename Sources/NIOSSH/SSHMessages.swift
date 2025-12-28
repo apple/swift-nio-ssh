@@ -149,7 +149,7 @@ extension SSHMessage {
         }
 
         enum PublicKeyAuthType: Equatable {
-            case known(key: NIOSSHPublicKey, signature: NIOSSHSignature?)
+            case known(key: NIOSSHPublicKey, signature: NIOSSHSignature?, rsaSignatureAlgorithm: RSASignatureAlgorithm = .sha512)
             case unknown
         }
 
@@ -698,6 +698,19 @@ extension ByteBuffer {
                         throw NIOSSHError.invalidSSHMessage(reason: "algorithm and key mismatch in user auth request")
                     }
 
+                    // Determine RSA signature algorithm from wire algorithm name
+                    let rsaAlgorithm: RSASignatureAlgorithm
+                    if algorithmName.readableBytesView.elementsEqual("rsa-sha2-512".utf8) {
+                        rsaAlgorithm = .sha512
+                    } else if algorithmName.readableBytesView.elementsEqual("rsa-sha2-256".utf8) {
+                        rsaAlgorithm = .sha256
+                    } else if algorithmName.readableBytesView.elementsEqual("ssh-rsa".utf8) {
+                        rsaAlgorithm = .sha1
+                    } else {
+                        // Default for non-RSA keys (value won't be used)
+                        rsaAlgorithm = .sha512
+                    }
+
                     if expectSignature {
                         guard var signatureBytes = self.readSSHString(),
                             let signature = try signatureBytes.readSSHSignature()
@@ -705,9 +718,9 @@ extension ByteBuffer {
                             return nil
                         }
 
-                        method = .publicKey(.known(key: publicKey, signature: signature))
+                        method = .publicKey(.known(key: publicKey, signature: signature, rsaSignatureAlgorithm: rsaAlgorithm))
                     } else {
-                        method = .publicKey(.known(key: publicKey, signature: nil))
+                        method = .publicKey(.known(key: publicKey, signature: nil, rsaSignatureAlgorithm: rsaAlgorithm))
                     }
                 } else {
                     // This is not an algorithm we know. Consume the signature if we're expecting it.
@@ -1370,10 +1383,10 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHString("password".utf8)
             writtenBytes += self.writeSSHBoolean(false)
             writtenBytes += self.writeSSHString(password.utf8)
-        case .publicKey(.known(key: let key, signature: let signature)):
+        case .publicKey(.known(key: let key, signature: let signature, rsaSignatureAlgorithm: let rsaAlgorithm)):
             writtenBytes += self.writeSSHString("publickey".utf8)
             writtenBytes += self.writeSSHBoolean(signature != nil)
-            writtenBytes += self.writeSSHString(key.keyPrefix)
+            writtenBytes += self.writeSSHString(key.algorithmName(forRSA: rsaAlgorithm))
             writtenBytes += self.writeCompositeSSHString { buffer in
                 buffer.writeSSHHostKey(key)
             }
