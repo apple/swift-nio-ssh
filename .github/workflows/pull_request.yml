@@ -25,7 +25,7 @@ jobs:
 
     benchmarks:
         name: Benchmarks
-        uses: apple/swift-nio/.github/workflows/benchmarks.yml@benchmarks_script_missing_diffs
+        uses: apple/swift-nio/.github/workflows/benchmarks.yml@main
         with:
             benchmark_package_path: "Benchmarks"
 
