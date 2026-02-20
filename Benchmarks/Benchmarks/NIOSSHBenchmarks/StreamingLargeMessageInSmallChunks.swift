@@ -18,7 +18,7 @@ import NIOSSH
 
 func runStreamingLargeMessageInSmallChunks(numberOfChunks: Int) throws {
 
-    final class ServerHandler: ChannelInboundHandler {
+    final class ServerHandler: ChannelInboundHandler, Sendable {
         typealias InboundIn = SSHChannelData
         typealias OutboundOut = SSHChannelData
 
@@ -31,7 +31,9 @@ func runStreamingLargeMessageInSmallChunks(numberOfChunks: Int) throws {
         }
     }
 
-    final class ClientHandler: ChannelInboundHandler {
+    // ClientHandler has mutable state (didSend, readBytes, chunkSize) but is
+    // only ever accessed on the EmbeddedEventLoop, which is single-threaded.
+    final class ClientHandler: ChannelInboundHandler, @unchecked Sendable {
         typealias InboundIn = SSHChannelData
         typealias OutboundOut = SSHChannelData
 
