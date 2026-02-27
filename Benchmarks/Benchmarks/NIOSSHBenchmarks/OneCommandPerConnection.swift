@@ -17,7 +17,7 @@ import NIOEmbedded
 import NIOSSH
 
 func runOneCommandPerConnection(numberOfConnections: Int) throws {
-    final class ServerHandler: ChannelInboundHandler {
+    final class ServerHandler: ChannelInboundHandler, Sendable {
         typealias InboundIn = SSHChannelData
         typealias OutboundOut = SSHChannelData
 
@@ -106,13 +106,13 @@ func runOneCommandPerConnection(numberOfConnections: Int) throws {
         try clientChannel.connect(to: SocketAddress(ipAddress: "1.2.3.4", port: 5678)).wait()
         try serverChannel.connect(to: SocketAddress(ipAddress: "1.2.3.4", port: 5678)).wait()
 
-        let clientHandler = ClientHandler()
-
         let childChannelFuture: EventLoopFuture<Channel> = clientChannel.pipeline.handler(type: NIOSSHHandler.self)
             .flatMap { sshHandler in
                 let promise = clientChannel.eventLoop.makePromise(of: Channel.self)
                 sshHandler.createChannel(promise) { childChannel, _ in
-                    childChannel.pipeline.addHandlers([clientHandler])
+                    childChannel.eventLoop.makeCompletedFuture {
+                        try childChannel.pipeline.syncOperations.addHandler(ClientHandler())
+                    }
                 }
                 return promise.futureResult
             }
