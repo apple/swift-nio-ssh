@@ -31,9 +31,7 @@ func runStreamingLargeMessageInSmallChunks(numberOfChunks: Int) throws {
         }
     }
 
-    // ClientHandler has mutable state (didSend, readBytes, chunkSize) but is
-    // only ever accessed on the EmbeddedEventLoop, which is single-threaded.
-    final class ClientHandler: ChannelInboundHandler, @unchecked Sendable {
+    final class ClientHandler: ChannelInboundHandler {
         typealias InboundIn = SSHChannelData
         typealias OutboundOut = SSHChannelData
 
@@ -125,13 +123,15 @@ func runStreamingLargeMessageInSmallChunks(numberOfChunks: Int) throws {
     try clientChannel.connect(to: SocketAddress(ipAddress: "1.2.3.4", port: 5678)).wait()
     try serverChannel.connect(to: SocketAddress(ipAddress: "1.2.3.4", port: 5678)).wait()
 
-    let clientHandler = ClientHandler(message: message, chunkSize: chunkSize)
-
     let childChannelFuture: EventLoopFuture<Channel> = clientChannel.pipeline.handler(type: NIOSSHHandler.self)
         .flatMap { sshHandler in
             let promise = clientChannel.eventLoop.makePromise(of: Channel.self)
             sshHandler.createChannel(promise) { childChannel, _ in
-                childChannel.pipeline.addHandlers([clientHandler])
+                childChannel.eventLoop.makeCompletedFuture {
+                    try childChannel.pipeline.syncOperations.addHandler(
+                        ClientHandler(message: message, chunkSize: chunkSize)
+                    )
+                }
             }
             return promise.futureResult
         }
