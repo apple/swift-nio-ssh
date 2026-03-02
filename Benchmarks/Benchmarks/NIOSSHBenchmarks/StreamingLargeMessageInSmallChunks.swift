@@ -18,7 +18,7 @@ import NIOSSH
 
 func runStreamingLargeMessageInSmallChunks(numberOfChunks: Int) throws {
 
-    final class ServerHandler: ChannelInboundHandler {
+    final class ServerHandler: ChannelInboundHandler, Sendable {
         typealias InboundIn = SSHChannelData
         typealias OutboundOut = SSHChannelData
 
@@ -123,13 +123,15 @@ func runStreamingLargeMessageInSmallChunks(numberOfChunks: Int) throws {
     try clientChannel.connect(to: SocketAddress(ipAddress: "1.2.3.4", port: 5678)).wait()
     try serverChannel.connect(to: SocketAddress(ipAddress: "1.2.3.4", port: 5678)).wait()
 
-    let clientHandler = ClientHandler(message: message, chunkSize: chunkSize)
-
     let childChannelFuture: EventLoopFuture<Channel> = clientChannel.pipeline.handler(type: NIOSSHHandler.self)
         .flatMap { sshHandler in
             let promise = clientChannel.eventLoop.makePromise(of: Channel.self)
             sshHandler.createChannel(promise) { childChannel, _ in
-                childChannel.pipeline.addHandlers([clientHandler])
+                childChannel.eventLoop.makeCompletedFuture {
+                    try childChannel.pipeline.syncOperations.addHandler(
+                        ClientHandler(message: message, chunkSize: chunkSize)
+                    )
+                }
             }
             return promise.futureResult
         }

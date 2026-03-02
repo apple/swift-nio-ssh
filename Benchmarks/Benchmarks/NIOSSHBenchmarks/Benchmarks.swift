@@ -17,7 +17,7 @@ import NIOCore
 import NIOEmbedded
 import NIOSSH
 
-let benchmarks = {
+let benchmarks: @Sendable () -> Void = {
     let defaultMetrics: [BenchmarkMetric] = [
         .mallocCountTotal
     ]
