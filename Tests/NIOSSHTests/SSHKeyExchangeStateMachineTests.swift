@@ -887,11 +887,11 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         var keys = [NIOSSHPrivateKey(p256Key: .init()), NIOSSHPrivateKey(ed25519Key: .init())]
 
         let serverKeyAlgorithms = keys.flatMap { $0.hostKeyAlgorithms }
-        XCTAssertEqual(serverKeyAlgorithms.count, 2)
+        XCTAssertEqual(serverKeyAlgorithms.count, 4)  // 2 keys × (cert + base) = 4 algorithms
         let clientKeyAlgorithms = SSHKeyExchangeStateMachine.supportedServerHostKeyAlgorithms.filter {
             serverKeyAlgorithms.contains($0)
         }
-        XCTAssertEqual(clientKeyAlgorithms.count, 2)
+        XCTAssertEqual(clientKeyAlgorithms.count, 2)  // Client still only knows base algorithms
 
         // We force these out of order so that there's no way they agree.
         if serverKeyAlgorithms.first == clientKeyAlgorithms.first {
@@ -936,9 +936,9 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         let serverOutboundProtection = server.sendNewKeys()
 
         // At this time, both parties have negotiated the algorithm in question, so we check it here. This should be
-        // the one that was _last_ in the server' list.
+        // the base algorithm (not cert) from the last key, since the client doesn't advertise cert support yet.
         XCTAssertEqual(client._testOnly_negotiatedHostKeyAlgorithm, server._testOnly_negotiatedHostKeyAlgorithm)
-        XCTAssertEqual(client._testOnly_negotiatedHostKeyAlgorithm, keys.last.flatMap { $0.hostKeyAlgorithms.first })
+        XCTAssertEqual(client._testOnly_negotiatedHostKeyAlgorithm, keys.last.flatMap { $0.hostKeyAlgorithms.last })
 
         // Now the client receives the reply and newKeys, and generates a newKeys message.
         try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
