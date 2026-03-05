@@ -220,7 +220,7 @@ final class SSHMessagesTests: XCTestCase {
             .init(
                 username: "test",
                 service: "ssh-connection",
-                method: .publicKey(.known(key: key.publicKey, signature: nil))
+                method: .publicKey(.known(key: key.publicKey, signature: nil, rsaSignatureAlgorithm: .sha512))
             )
         )
         buffer.writeSSHMessage(message)
@@ -238,7 +238,7 @@ final class SSHMessagesTests: XCTestCase {
             .init(
                 username: "test",
                 service: "ssh-connection",
-                method: .publicKey(.known(key: key.publicKey, signature: signature))
+                method: .publicKey(.known(key: key.publicKey, signature: signature, rsaSignatureAlgorithm: .sha512))
             )
         )
         buffer.writeSSHMessage(message)

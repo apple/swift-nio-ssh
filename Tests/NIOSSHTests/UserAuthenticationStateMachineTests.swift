@@ -185,8 +185,8 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
         // For signed methods we need to be a bit careful: we can't assume that the signature will have a bitwise match, so we have to validate it
         // instead.
-        if case .some(.publicKey(.known(let expectedKey, _))) = expectedMessage.map({ $0.method }),
-            case .some(.publicKey(.known(let actualKey, let actualSignature))) = request.value.map({ $0.method }),
+        if case .some(.publicKey(.known(let expectedKey, _, _))) = expectedMessage.map({ $0.method }),
+            case .some(.publicKey(.known(let actualKey, let actualSignature, _))) = request.value.map({ $0.method }),
             let userAuthPayload = userAuthPayload
         {
             XCTAssertEqual(expectedMessage!.username, request.value!.username)
@@ -224,8 +224,8 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
         // For signed methods we need to be a bit careful: we can't assume that the signature will have a bitwise match, so we have to validate it
         // instead.
-        if case .some(.publicKey(.known(let expectedKey, _))) = expectedMessage.map({ $0.method }),
-            case .some(.publicKey(.known(let actualKey, let actualSignature))) = request.value.map({ $0.method }),
+        if case .some(.publicKey(.known(let expectedKey, _, _))) = expectedMessage.map({ $0.method }),
+            case .some(.publicKey(.known(let actualKey, let actualSignature, _))) = request.value.map({ $0.method }),
             let userAuthPayload = userAuthPayload
         {
             XCTAssertEqual(expectedMessage!.username, request.value!.username)
@@ -991,7 +991,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let query = SSHMessage.UserAuthRequestMessage(
             username: "foo",
             service: "ssh-connection",
-            method: .publicKey(.known(key: self.hostKey.publicKey, signature: nil))
+            method: .publicKey(.known(key: self.hostKey.publicKey, signature: nil, rsaSignatureAlgorithm: .sha512))
         )
         let response = SSHMessage.UserAuthPKOKMessage(key: self.hostKey.publicKey)
         try self.expectAuthRequestToReturnPKOKSynchronously(
@@ -1012,7 +1012,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let request = SSHMessage.UserAuthRequestMessage(
             username: "foo",
             service: "ssh-connection",
-            method: .publicKey(.known(key: self.hostKey.publicKey, signature: signature))
+            method: .publicKey(.known(key: self.hostKey.publicKey, signature: signature, rsaSignatureAlgorithm: .sha512))
         )
         try self.expectAuthRequestToFailSynchronously(
             request: request,
@@ -1038,7 +1038,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let request2 = SSHMessage.UserAuthRequestMessage(
             username: "foo",
             service: "ssh-connection",
-            method: .publicKey(.known(key: newKey.publicKey, signature: newSignature))
+            method: .publicKey(.known(key: newKey.publicKey, signature: newSignature, rsaSignatureAlgorithm: .sha512))
         )
         try self.expectAuthRequestToSucceedSynchronously(request: request2, stateMachine: &stateMachine)
         stateMachine.sendUserAuthSuccess()
@@ -1065,7 +1065,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let request = SSHMessage.UserAuthRequestMessage(
             username: "foo",
             service: "ssh-connection",
-            method: .publicKey(.known(key: self.hostKey.publicKey, signature: signature))
+            method: .publicKey(.known(key: self.hostKey.publicKey, signature: signature, rsaSignatureAlgorithm: .sha512))
         )
         try self.expectAuthRequestToFailSynchronously(
             request: request,
@@ -1101,7 +1101,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let firstMessage = SSHMessage.UserAuthRequestMessage(
             username: "foo",
             service: "ssh-connection",
-            method: .publicKey(.known(key: delegate.key.publicKey, signature: signature))
+            method: .publicKey(.known(key: delegate.key.publicKey, signature: signature, rsaSignatureAlgorithm: .sha512))
         )
         XCTAssertNoThrow(
             try self.serviceAccepted(
@@ -1149,7 +1149,7 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         let firstMessage = SSHMessage.UserAuthRequestMessage(
             username: "foo",
             service: "ssh-connection",
-            method: .publicKey(.known(key: NIOSSHPublicKey(delegate.certifiedKey), signature: signature))
+            method: .publicKey(.known(key: NIOSSHPublicKey(delegate.certifiedKey), signature: signature, rsaSignatureAlgorithm: .sha512))
         )
         XCTAssertNoThrow(
             try self.serviceAccepted(
