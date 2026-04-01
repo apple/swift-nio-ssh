@@ -22,7 +22,7 @@ SwiftNIO SSH        | Minimum Swift Version
 `0.9.0  ..< 0.9.2`  | 5.8
 `0.9.2  ..< 0.10.0` | 5.9
 `0.10.0 ... 0.12.0` | 5.10
-`0.12.0 ...`        | 6.0
+`0.12.0 ..<`        | 6.0  **TODO:** Update version table
 
 ## What does SwiftNIO SSH support?
 
