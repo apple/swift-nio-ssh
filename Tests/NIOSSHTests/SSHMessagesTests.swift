@@ -748,8 +748,13 @@ final class SSHMessagesTests: XCTestCase {
 
         XCTAssertNil(try buffer.readSSHMessage())
 
+        // Unknown message types should be ignored, not throw (per RFC 4253 Section 11.1)
         buffer.writeBytes([127])
-        XCTAssertThrowsError(try buffer.readSSHMessage())
+        let message = try buffer.readSSHMessage()
+        guard case .some(.ignore) = message else {
+            XCTFail("Expected .ignore for unknown message type")
+            return
+        }
     }
 
     func testRequestSuccess() throws {
@@ -796,5 +801,54 @@ final class SSHMessagesTests: XCTestCase {
         XCTAssertEqual(try buffer.readSSHMessage(), message)
 
         try self.assertCorrectlyManagesPartialRead(message)
+    }
+
+    func testUnknownMessageTypeReturnsIgnore() throws {
+        // This test verifies that unknown SSH message types are handled gracefully
+        // by returning .ignore() instead of throwing an error (per RFC 4253 Section 11.1).
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+
+        // Use message ID 127 (reserved for local/private use per RFC 4253)
+        buffer.writeInteger(UInt8(127))
+        buffer.writeSSHString("extension-data".utf8)
+
+        let message = try buffer.readSSHMessage()
+
+        guard case .some(.ignore) = message else {
+            XCTFail("Expected .ignore for unknown message type, got \(String(describing: message))")
+            return
+        }
+
+        // Verify buffer is fully consumed
+        XCTAssertEqual(buffer.readableBytes, 0, "Parser should consume all bytes for unknown message type")
+    }
+
+    func testParserStateAfterUnknownMessageType() throws {
+        // This test verifies that the parser state remains valid after encountering
+        // an unknown message type, ensuring no corruption of sequence numbers or
+        // encryption state.
+        var buffer = ByteBufferAllocator().buffer(capacity: 200)
+
+        // Write unknown message type (ID 125 - reserved for local use)
+        buffer.writeInteger(UInt8(125))
+        buffer.writeBytes([1, 2, 3, 4])  // Some payload
+
+        // Read unknown message (should return .ignore)
+        let message1 = try buffer.readSSHMessage()
+        guard case .some(.ignore) = message1 else {
+            XCTFail("Expected .ignore for unknown message type")
+            return
+        }
+
+        // Write known message
+        buffer.writeInteger(SSHMessage.ChannelSuccessMessage.id)
+        buffer.writeInteger(UInt32(0))
+
+        // Verify parser continues correctly
+        let message2 = try buffer.readSSHMessage()
+        guard case .some(.channelSuccess) = message2 else {
+            XCTFail("Parser state corrupted after unknown message type - expected channelSuccess")
+            return
+        }
     }
 }
