@@ -28,7 +28,7 @@ if strictConcurrencyDevelopment {
 let package = Package(
     name: "swift-nio-ssh",
     platforms: [
-        .macOS(.v10_15),
+        .macOS(.v14),
         .iOS(.v13),
         .watchOS(.v6),
         .tvOS(.v13),
@@ -112,3 +112,4 @@ for target in package.targets {
     }
 }
 // --- END: STANDARD CROSS-REPO SETTINGS DO NOT EDIT --- //
+
