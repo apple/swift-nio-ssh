@@ -58,6 +58,19 @@ public struct NIOSSHPrivateKey: Sendable {
     }
     #endif
 
+    /// Creates a private key backed by a signing delegate.
+    ///
+    /// This initializer enables integration with SSH agents, hardware security modules,
+    /// or other secure key management systems by delegating signing operations to an
+    /// external system.
+    ///
+    /// - Parameter publicKey: The public key corresponding to the private key managed by the delegate
+    /// - Parameter signingCallback: The delegated signing operation callback
+    public init(publicKey: NIOSSHPublicKey,
+                signingCallback: @escaping @Sendable (ByteBufferView) throws -> NIOSSHSignature) {
+        self.backingKey = .signingDelegate(signingCallback, publicKey)
+    }
+
     // The algorithms that apply to this host key.
     internal var hostKeyAlgorithms: [Substring] {
         switch self.backingKey {
@@ -69,6 +82,8 @@ public struct NIOSSHPrivateKey: Sendable {
             return ["ecdsa-sha2-nistp384"]
         case .ecdsaP521:
             return ["ecdsa-sha2-nistp521"]
+        case .signingDelegate(_, let publicKey):
+            return [String(publicKey.keyPrefix)[...]]
         #if canImport(Darwin)
         case .secureEnclaveP256:
             return ["ecdsa-sha2-nistp256"]
@@ -79,11 +94,12 @@ public struct NIOSSHPrivateKey: Sendable {
 
 extension NIOSSHPrivateKey {
     /// The various key types that can be used with NIOSSH.
-    internal enum BackingKey {
+    internal enum BackingKey: Sendable {
         case ed25519(Curve25519.Signing.PrivateKey)
         case ecdsaP256(P256.Signing.PrivateKey)
         case ecdsaP384(P384.Signing.PrivateKey)
         case ecdsaP521(P521.Signing.PrivateKey)
+        case signingDelegate(@Sendable (ByteBufferView) throws -> NIOSSHSignature, NIOSSHPublicKey)
 
         #if canImport(Darwin)
         case secureEnclaveP256(SecureEnclave.P256.Signing.PrivateKey)
@@ -115,6 +131,11 @@ extension NIOSSHPrivateKey {
             }
             return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
 
+        case .signingDelegate:
+            // Signing delegates are not supported for digest-based signing
+            // This method is used for host key authentication, not user auth
+            throw NIOSSHError.unknownPublicKey(algorithm: "signingDelegate")
+
         #if canImport(Darwin)
         case .secureEnclaveP256(let key):
             let signature = try digest.withUnsafeBytes { ptr in
@@ -139,6 +160,9 @@ extension NIOSSHPrivateKey {
         case .ecdsaP521(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
             return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
+        case .signingDelegate(let sign, _):
+            let sshSignature = try sign(payload.bytes.readableBytesView)
+            return sshSignature
         #if canImport(Darwin)
         case .secureEnclaveP256(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
@@ -160,6 +184,8 @@ extension NIOSSHPrivateKey {
             return NIOSSHPublicKey(backingKey: .ecdsaP384(privateKey.publicKey))
         case .ecdsaP521(let privateKey):
             return NIOSSHPublicKey(backingKey: .ecdsaP521(privateKey.publicKey))
+        case .signingDelegate(_, let publicKey):
+            return publicKey
         #if canImport(Darwin)
         case .secureEnclaveP256(let privateKey):
             return NIOSSHPublicKey(backingKey: .ecdsaP256(privateKey.publicKey))

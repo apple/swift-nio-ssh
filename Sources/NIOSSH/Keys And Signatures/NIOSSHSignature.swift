@@ -395,3 +395,50 @@ extension P384.Signing.ECDSASignature: ECDSASignatureProtocol {
 extension P521.Signing.ECDSASignature: ECDSASignatureProtocol {
     static var pointSize: Int { 66 }
 }
+
+// MARK: - Public constructors for signing delegates
+
+extension NIOSSHSignature {
+    /// Create an ed25519 signature from raw signature data.
+    ///
+    /// This is used by signing delegates, such as SSH agents,
+    /// to create an an ed25519 signature from raw signature data.
+    /// - Parameter signature: The raw ed25519 signature data.
+    /// - Returns: The created NIOSSH signature.
+    public static func ed25519(signature: Data) -> NIOSSHSignature {
+        return NIOSSHSignature(backingSignature: .ed25519(.data(signature)))
+    }
+
+    /// Create an ECDSA P-256 signature from raw signature data.
+    ///
+    /// This is used by signing delegates, such as SSH agents,
+    /// to create an ECDSA P-256 signature from raw signature data.
+    /// - Parameter signature: The raw ECDSA P-256 signature data.
+    /// - Returns: The created NIOSSH signature.
+    public static func ecdsaP256(signature: Data) throws -> NIOSSHSignature {
+        let ecdsaSignature = try P256.Signing.ECDSASignature(rawRepresentation: signature)
+        return NIOSSHSignature(backingSignature: .ecdsaP256(ecdsaSignature))
+    }
+
+    /// Create an ECDSA P-384 signature from raw signature data.
+    ///
+    /// This is used by signing delegates, such as SSH agents,
+    /// to create an ECDSA P-384 signature from raw signature data.
+    /// - Parameter signature: The raw ECDSA P-384 signature data.
+    /// - Returns: The created NIOSSH signature.
+    public static func ecdsaP384(signature: Data) throws -> NIOSSHSignature {
+        let ecdsaSignature = try P384.Signing.ECDSASignature(rawRepresentation: signature)
+        return NIOSSHSignature(backingSignature: .ecdsaP384(ecdsaSignature))
+    }
+
+    /// Create an ECDSA P-521 signature from raw signature data.
+    ///
+    /// This is used by signing delegates, such as SSH agents,
+    /// to create an ECDSA P-521 signature from raw signature data.
+    /// - Parameter signature: The raw ECDSA P-521 signature data.
+    /// - Returns: The created NIOSSH signature.
+    public static func ecdsaP521(signature: Data) throws -> NIOSSHSignature {
+        let ecdsaSignature = try P521.Signing.ECDSASignature(rawRepresentation: signature)
+        return NIOSSHSignature(backingSignature: .ecdsaP521(ecdsaSignature))
+    }
+}
