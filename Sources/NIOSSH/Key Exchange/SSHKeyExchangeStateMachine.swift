@@ -507,9 +507,9 @@ struct SSHKeyExchangeStateMachine {
                 continue
             }
 
-            let candidateSchemes = self.protectionSchemes.filter { $0.cipherName == encryption }
-
-            if let aeadScheme = candidateSchemes.first(where: { $0.macName == nil }) {
+            if let aeadScheme = self.protectionSchemes.first(where: {
+                $0.cipherName == encryption && $0.macName == nil
+            }) {
                 return aeadScheme
             }
 
@@ -520,7 +520,9 @@ struct SSHKeyExchangeStateMachine {
             // MAC negotiation is independent in RFC 4253. Once the first mutual MAC is selected, both
             // peers will use it, so do not skip ahead to a later MAC just because this side lacks a
             // registered scheme for the selected cipher/MAC pair.
-            guard let scheme = candidateSchemes.first(where: { $0.macName == String(mac) }) else {
+            guard let scheme = self.protectionSchemes.first(where: {
+                $0.cipherName == encryption && $0.macName == String(mac)
+            }) else {
                 throw NIOSSHError.keyExchangeNegotiationFailure
             }
 
