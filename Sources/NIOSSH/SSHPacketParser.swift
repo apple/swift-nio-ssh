@@ -130,8 +130,14 @@ struct SSHPacketParser {
             // Looking for a string ending with \r\n
             let slice = self.buffer.readableBytesView
             if let lfIndex = slice.firstIndex(of: lineFeed), lfIndex < slice.endIndex {
-                let versionEndIndex =
-                    slice[lfIndex.advanced(by: -1)] == carriageReturn ? lfIndex.advanced(by: -1) : lfIndex
+                // Guard the `-1` lookup: when the LF is the very first byte of
+                // the slice (e.g., a client sends a bare LF as its first byte
+                // after the TCP handshake), `lfIndex.advanced(by: -1)` would
+                // index before the buffer start and trap.
+                let endsWithCR =
+                    lfIndex > slice.startIndex
+                    && slice[lfIndex.advanced(by: -1)] == carriageReturn
+                let versionEndIndex = endsWithCR ? lfIndex.advanced(by: -1) : lfIndex
                 let version = String(decoding: slice[slice.startIndex..<versionEndIndex], as: UTF8.self)
                 self.buffer.moveReaderIndex(forwardBy: slice.startIndex.distance(to: lfIndex).advanced(by: 1))
                 return version
