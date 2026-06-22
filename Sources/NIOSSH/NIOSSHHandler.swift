@@ -83,7 +83,8 @@ public final class NIOSSHHandler {
         self.multiplexer = SSHChannelMultiplexer(
             delegate: self,
             allocator: allocator,
-            childChannelInitializer: inboundChildChannelInitializer
+            childChannelInitializer: inboundChildChannelInitializer,
+            maximumPacketSize: role.maximumPacketSize
         )
     }
 }

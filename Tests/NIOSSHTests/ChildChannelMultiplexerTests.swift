@@ -187,7 +187,8 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         let multiplexer = SSHChannelMultiplexer(
             delegate: delegate,
             allocator: delegate.allocator,
-            childChannelInitializer: initializer
+            childChannelInitializer: initializer,
+            maximumPacketSize: UInt32(Constants.defaultMaximumChannelPacketSize)
         )
         return TestHarness(delegate: delegate, multiplexer: multiplexer)
     }
@@ -202,7 +203,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
     private func openRequest(
         channelID: UInt32,
         initialWindowSize: UInt32 = 1 << 24,
-        maxPacketSize: UInt32 = 1 << 24
+        maxPacketSize: UInt32 = UInt32(Constants.defaultMaximumChannelPacketSize)
     ) -> SSHMessage {
         .channelOpen(
             .init(
@@ -218,7 +219,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         originalChannelID: UInt32,
         peerChannelID: UInt32,
         initialWindowSize: UInt32 = 1 << 24,
-        maxPacketSize: UInt32 = 1 << 24
+        maxPacketSize: UInt32 = UInt32(Constants.defaultMaximumChannelPacketSize)
     ) -> SSHMessage {
         .channelOpenConfirmation(
             .init(
@@ -256,8 +257,8 @@ final class ChildChannelMultiplexerTests: XCTestCase {
     func assertChannelOpen(_ message: SSHMessage?) -> UInt32? {
         switch message {
         case .some(.channelOpen(let message)):
-            XCTAssertEqual(message.maximumPacketSize, 1 << 24)
-            XCTAssertEqual(message.initialWindowSize, 1 << 24)
+            XCTAssertEqual(message.maximumPacketSize, UInt32(Constants.defaultMaximumChannelPacketSize))
+            XCTAssertEqual(message.initialWindowSize, UInt32(Constants.defaultMaximumChannelPacketSize) * UInt32(Constants.channelWindowSizePacketMultiple))
             return message.senderChannel
 
         case let fallback:
@@ -271,8 +272,8 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         switch message {
         case .some(.channelOpenConfirmation(let message)):
             XCTAssertEqual(message.recipientChannel, recipientChannel)
-            XCTAssertEqual(message.maximumPacketSize, 1 << 24)
-            XCTAssertEqual(message.initialWindowSize, 1 << 24)
+            XCTAssertEqual(message.maximumPacketSize, UInt32(Constants.defaultMaximumChannelPacketSize))
+            XCTAssertEqual(message.initialWindowSize, UInt32(Constants.defaultMaximumChannelPacketSize) * UInt32(Constants.channelWindowSizePacketMultiple))
             return message.senderChannel
 
         case let fallback:
@@ -1402,7 +1403,9 @@ final class ChildChannelMultiplexerTests: XCTestCase {
             )
         )
 
-        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        // The default window size is based on the `Constants`. Sadly, we need a buffer that size.
+        let defaultWindowSize = UInt32(Constants.defaultMaximumChannelPacketSize * Constants.channelWindowSizePacketMultiple)
+        let defaultWindowSizeHalf = defaultWindowSize / 2
         let buffer = ByteBuffer.bigBuffer
 
         // We're going to write one byte short.
@@ -1411,7 +1414,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
             try harness.multiplexer.receiveMessage(
                 self.data(
                     peerChannelID: channelID!,
-                    data: buffer.getSlice(at: buffer.readerIndex, length: (1 << 23) - 1)!
+                    data: buffer.getSlice(at: buffer.readerIndex, length: Int(defaultWindowSizeHalf - 1))!
                 )
             )
         )
@@ -1437,14 +1440,14 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Now issue a read. This triggers an outbound message.
         channel.read()
         XCTAssertEqual(harness.flushedMessages.count, 2)
-        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: 1 << 23)
+        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: defaultWindowSizeHalf)
 
         // Now issue a really big read. Again, there's no autoread, so this does nothing.
         XCTAssertNoThrow(
             try harness.multiplexer.receiveMessage(
                 self.data(
                     peerChannelID: channelID!,
-                    data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!
+                    data: buffer.getSlice(at: buffer.readerIndex, length: Int(defaultWindowSize))!
                 )
             )
         )
@@ -1453,7 +1456,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         // Issue the read. A new outbound message with a bigger window increment.
         channel.read()
         XCTAssertEqual(harness.flushedMessages.count, 3)
-        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: 1 << 24)
+        self.assertWindowAdjust(harness.flushedMessages.last, recipientChannel: 1, delta: defaultWindowSize)
 
         // Finally, issue an excessively large read. This should cause an error.
         XCTAssertNoThrow(try harness.multiplexer.receiveMessage(self.data(peerChannelID: channelID!, data: buffer)))
@@ -1486,7 +1489,8 @@ final class ChildChannelMultiplexerTests: XCTestCase {
             )
         )
 
-        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        // The default window size is based on Constants. Sadly, we need a buffer that size.
+        let defaultWindowSize = Constants.defaultMaximumChannelPacketSize * Constants.channelWindowSizePacketMultiple
         let buffer = ByteBuffer.bigBuffer
 
         // We're going to write the whole window.
@@ -1495,7 +1499,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
             try harness.multiplexer.receiveMessage(
                 self.data(
                     peerChannelID: channelID!,
-                    data: buffer.getSlice(at: buffer.readerIndex, length: 1 << 24)!
+                    data: buffer.getSlice(at: buffer.readerIndex, length: defaultWindowSize)!
                 )
             )
         )
@@ -2171,10 +2175,11 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 }
 
 extension ByteBuffer {
-    /// A buffer `(1 << 24) + 1` bytes large.
+    /// A buffer `Constants.defaultMaximumChannelPacketSize * Constants.channelWindowSizePacketMultiple + 1` bytes large.
     fileprivate static let bigBuffer: ByteBuffer = {
-        // The default window size is 1<<24 bytes. Sadly, we need a buffer that size.
+        let size = Constants.defaultMaximumChannelPacketSize * Constants.channelWindowSizePacketMultiple
+        // The default window size is `size` bytes. Sadly, we need a buffer that size.
         // We store it in a static so that we don't have to re-create it for every test.
-        ByteBuffer(repeating: 0, count: (1 << 24) + 1)
+        return ByteBuffer(repeating: 0, count: size + 1)
     }()
 }

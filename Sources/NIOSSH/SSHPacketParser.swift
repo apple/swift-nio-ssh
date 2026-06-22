@@ -36,14 +36,15 @@ struct SSHPacketParser {
     /// exchange. The encrypted path negotiates its own (larger) packet bound.
     static var maximumPlaintextPacketLength: UInt32 { 256 * 1024 }
 
-    /// The maximum length of an encrypted packet, i.e. its `packet_length` field once key
-    /// exchange has completed. Includes headroom for the SSH framing and padding (RFC 4253 §6).
-    static var maximumEncryptedPacketLength: UInt32 { Constants.maximumChannelPacketSize + 1024 }
-
     private let isServer: Bool
     private var buffer: ByteBuffer
     private var state: State
     private(set) var sequenceNumber: UInt32
+
+    /// The maximum length of an encrypted packet, i.e. its `packet_length` field once key exchange
+    /// has completed. This is the connection's configured maximum channel packet size plus headroom
+    /// for the SSH framing and padding (RFC 4253 §6) that wraps a maximum-size channel data payload.
+    private let maximumEncryptedPacketLength: UInt32
 
     /// The number of preamble lines a client has discarded while waiting for the identification
     /// string, bounded by `maximumPreambleLineCount`.
@@ -54,11 +55,21 @@ struct SSHPacketParser {
         self.buffer.readerIndex
     }
 
-    init(isServer: Bool, allocator: ByteBufferAllocator) {
+    init(
+        isServer: Bool,
+        allocator: ByteBufferAllocator,
+        maximumPacketSize: UInt32 = UInt32(Constants.defaultMaximumChannelPacketSize)
+    ) {
+        precondition(
+            maximumPacketSize >= Constants.minimumChannelPacketSize,
+            "maximumPacketSize must be at least \(Constants.minimumChannelPacketSize) bytes (RFC 4253 §6.1)"
+        )
         self.isServer = isServer
         self.buffer = allocator.buffer(capacity: 0)
         self.state = .initialized
         self.sequenceNumber = 0
+        // Add headroom for the SSH framing and padding (RFC 4253 §6).
+        self.maximumEncryptedPacketLength = maximumPacketSize + 1024
         self.preambleLineCount = 0
     }
 
@@ -287,10 +298,10 @@ struct SSHPacketParser {
         let length = self.buffer.getInteger(at: self.buffer.readerIndex, as: UInt32.self)!
 
         // Reject an oversized encrypted packet before we commit to buffering toward it.
-        guard length <= Self.maximumEncryptedPacketLength else {
+        guard length <= self.maximumEncryptedPacketLength else {
             throw NIOSSHError.protocolViolation(
                 protocolName: "transport",
-                violation: "encrypted packet length \(length) exceeds \(Self.maximumEncryptedPacketLength) bytes"
+                violation: "encrypted packet length \(length) exceeds \(self.maximumEncryptedPacketLength) bytes"
             )
         }
 
@@ -298,11 +309,11 @@ struct SSHPacketParser {
     }
 
     private mutating func parsePlaintext(length: UInt32) throws -> SSHMessage? {
-        // Reject an oversized cleartext packet before committing to buffering it.
+        // Reject an oversized plaintext packet before committing to buffering it.
         guard length <= Self.maximumPlaintextPacketLength else {
             throw NIOSSHError.protocolViolation(
                 protocolName: "transport",
-                violation: "cleartext packet length \(length) exceeds \(Self.maximumPlaintextPacketLength) bytes"
+                violation: "plaintext packet length \(length) exceeds \(Self.maximumPlaintextPacketLength) bytes"
             )
         }
 

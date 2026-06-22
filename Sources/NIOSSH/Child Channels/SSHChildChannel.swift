@@ -82,6 +82,9 @@ final class SSHChildChannel {
     /// The max message size set by the peer. We initialize it to zero to begin with.
     private var peerMaxMessageSize: UInt32
 
+    /// The maximum channel data payload size we advertise to the peer when opening this channel.
+    private let maximumPacketSize: UInt32
+
     private var activationState: ActivationState
 
     // MARK: Stored properties for channel/channelcore conformance.
@@ -114,7 +117,8 @@ final class SSHChildChannel {
         initializer: Initializer?,
         localChannelID: UInt32,
         targetWindowSize: Int32,
-        initialOutboundWindowSize: UInt32
+        initialOutboundWindowSize: UInt32,
+        maximumPacketSize: UInt32
     ) {
         self.init(
             allocator: allocator,
@@ -123,7 +127,8 @@ final class SSHChildChannel {
             initializer: initializer,
             initialState: .init(localChannelID: localChannelID),
             targetWindowSize: targetWindowSize,
-            initialOutboundWindowSize: initialOutboundWindowSize
+            initialOutboundWindowSize: initialOutboundWindowSize,
+            maximumPacketSize: maximumPacketSize
         )
     }
 
@@ -134,7 +139,8 @@ final class SSHChildChannel {
         initializer: Initializer?,
         initialState: ChildChannelStateMachine,
         targetWindowSize: Int32,
-        initialOutboundWindowSize: UInt32
+        initialOutboundWindowSize: UInt32,
+        maximumPacketSize: UInt32
     ) {
         self.allocator = allocator
         self.closePromise = parent.eventLoop.makePromise()
@@ -151,6 +157,7 @@ final class SSHChildChannel {
             parentIsWritable: parent.isWritable
         )
         self.peerMaxMessageSize = 0
+        self.maximumPacketSize = maximumPacketSize
 
         // To begin with we initialize autoRead and halfClosure to false, but we are going to fetch it from our parent before we
         // go much further.
@@ -490,7 +497,7 @@ extension SSHChildChannel: Channel, ChannelCore {
                 recipientChannel: self.state.remoteChannelIdentifier!,
                 senderChannel: self.state.localChannelIdentifier,
                 initialWindowSize: self.windowManager.targetWindowSize,
-                maximumPacketSize: Constants.maximumChannelPacketSize
+                maximumPacketSize: self.maximumPacketSize
             )
             self.processOutboundMessage(.channelOpenConfirmation(message), promise: nil)
             self.writePendingToMultiplexer()
@@ -500,7 +507,7 @@ extension SSHChildChannel: Channel, ChannelCore {
                 type: .init(self.type!),
                 senderChannel: self.state.localChannelIdentifier,
                 initialWindowSize: self.windowManager.targetWindowSize,
-                maximumPacketSize: Constants.maximumChannelPacketSize
+                maximumPacketSize: self.maximumPacketSize
             )
             self.processOutboundMessage(.channelOpen(message), promise: nil)
             self.writePendingToMultiplexer()

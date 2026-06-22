@@ -29,6 +29,26 @@ public struct SSHServerConfiguration {
     /// Supported data encryption algorithms
     public var transportProtectionSchemes: [NIOSSHTransportProtection.Type]
 
+    /// The maximum size, in bytes, of a channel data payload this peer is willing to receive (the
+    /// "maximum packet size" of an SSH channel, RFC 4254 §5.1). It is advertised to the remote peer
+    /// when opening channels and bounds inbound encrypted packets. Defaults to
+    /// ``Constants/defaultMaximumChannelPacketSize``.
+    ///
+    /// The per-channel receive window we advertise is a fixed multiple of this value (64x), so raising
+    /// this value raises the window proportionally. The window is stored as an `Int32`, meaning
+    /// values above ~33 MiB (`Int32.max / 64`) saturate the window.
+    ///
+    /// - Precondition: Must be at least ``Constants/minimumChannelPacketSize`` (32768 bytes), the
+    ///   uncompressed payload size RFC 4253 §6.1 requires every implementation to support.
+    public var maximumPacketSize: Int = Constants.defaultMaximumChannelPacketSize {
+        didSet {
+            precondition(
+                self.maximumPacketSize >= Constants.minimumChannelPacketSize,
+                "maximumPacketSize must be at least \(Constants.minimumChannelPacketSize) bytes (RFC 4253 §6.1)"
+            )
+        }
+    }
+
     public init(
         hostKeys: [NIOSSHPrivateKey],
         userAuthDelegate: NIOSSHServerUserAuthenticationDelegate,
