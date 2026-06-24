@@ -134,6 +134,27 @@ final class SSHPacketParserTests: XCTestCase {
         }
     }
 
+    func testReadVersionLineFeedFirstByteOnServer() throws {
+        // Regression test for the crash described in #237. SSHPacketParser
+        // previously accessed `slice[lfIndex.advanced(by: -1)]` without
+        // checking that `lfIndex > slice.startIndex`, so a client sending a
+        // bare LF as its first byte after the TCP handshake trapped the
+        // process. Per the existing server-branch semantics (everything
+        // before the first LF is the version line), a leading LF should
+        // simply yield an empty version string and not crash.
+        var parser = SSHPacketParser(isServer: true, allocator: ByteBufferAllocator())
+
+        var part1 = ByteBuffer.of(string: "\n")
+        parser.append(bytes: &part1)
+
+        switch try parser.nextPacket() {
+        case .version(let string):
+            XCTAssertEqual(string, "")
+        default:
+            XCTFail("Expecting .version")
+        }
+    }
+
     func testReadVersionWithExtraLinesWithoutCarriageReturnOnServer() throws {
         var parser = SSHPacketParser(isServer: true, allocator: ByteBufferAllocator())
 
