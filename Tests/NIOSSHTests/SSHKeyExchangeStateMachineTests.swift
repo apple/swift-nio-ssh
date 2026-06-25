@@ -20,6 +20,26 @@ import XCTest
 @testable import NIOSSH
 
 final class SSHKeyExchangeStateMachineTests: XCTestCase {
+    final class ReviewSelectedCipherSupportedMACTransportProtection: TestTransportProtection {
+        override class var cipherName: String {
+            "review-selected-cipher"
+        }
+
+        override class var macName: String? {
+            "review-supported-mac"
+        }
+    }
+
+    final class ReviewOtherCipherFirstMACTransportProtection: TestTransportProtection {
+        override class var cipherName: String {
+            "review-other-cipher"
+        }
+
+        override class var macName: String? {
+            "review-first-mac"
+        }
+    }
+
     enum AssertionFailure: Error {
         case invalidMessageType
         case unexpectedMultipleMessages
@@ -689,6 +709,125 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
 
         // The same happens when the client receives the server's.
         XCTAssertThrowsError(try client.handle(keyExchange: serverMessage)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .keyExchangeNegotiationFailure)
+        }
+    }
+
+    func testAEADOnlyKeyExchangeAdvertisesCompatibilityMACs() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+
+        let client = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .client(
+                .init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())
+            ),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+
+        let clientMessage = client.createKeyExchangeMessage()
+        XCTAssertEqual(["aes128-gcm@openssh.com"], clientMessage.encryptionAlgorithmsClientToServer)
+        XCTAssertEqual(["aes128-gcm@openssh.com"], clientMessage.encryptionAlgorithmsServerToClient)
+        XCTAssertEqual(["hmac-sha2-256"], clientMessage.macAlgorithmsClientToServer)
+        XCTAssertEqual(["hmac-sha2-256"], clientMessage.macAlgorithmsServerToClient)
+    }
+
+    func testAEADNegotiatesWhenPeerOffersOnlyUnusedMACs() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+
+        var client = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .client(
+                .init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())
+            ),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+        var server = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES128GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+
+        var serverMessage = server.createKeyExchangeMessage()
+        serverMessage.macAlgorithmsClientToServer = ["hmac-sha2-512-etm@openssh.com", "hmac-sha2-256-etm@openssh.com"]
+        serverMessage.macAlgorithmsServerToClient = ["hmac-sha2-512-etm@openssh.com", "hmac-sha2-256-etm@openssh.com"]
+
+        let clientMessage = client.createKeyExchangeMessage()
+        server.send(keyExchange: serverMessage)
+        client.send(keyExchange: clientMessage)
+
+        try self.assertGeneratesNoMessage(server.handle(keyExchange: clientMessage))
+        let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
+        client.send(keyExchangeInit: ecdhInit)
+
+        let ecdhReply = try assertGeneratesECDHKeyExchangeReplyAndNewKeys(server.handle(keyExchangeInit: ecdhInit))
+        XCTAssertNoThrow(try server.send(keyExchangeReply: ecdhReply))
+        let serverOutboundProtection = server.sendNewKeys()
+
+        try self.assertGeneratesNewKeysSynchronously(client.handle(keyExchangeReply: ecdhReply))
+        let clientOutboundProtection = client.sendNewKeys()
+
+        let clientInboundProtection = try assertNoThrowWithValue(client.handleNewKeys())
+        let serverInboundProtection = try assertNoThrowWithValue(server.handleNewKeys())
+
+        XCTAssertTrue(clientInboundProtection === clientOutboundProtection)
+        XCTAssertTrue(serverInboundProtection === serverOutboundProtection)
+
+        self.assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
+        XCTAssertTrue(clientInboundProtection is AES128GCMOpenSSHTransportProtection)
+    }
+
+    func testMACNegotiationFailsWhenFirstMutualMACHasNoSchemeForSelectedCipher() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        let protectionSchemes: [NIOSSHTransportProtection.Type] = [
+            ReviewSelectedCipherSupportedMACTransportProtection.self,
+            ReviewOtherCipherFirstMACTransportProtection.self,
+        ]
+
+        var client = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .client(
+                .init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())
+            ),
+            remoteVersion: Constants.version,
+            protectionSchemes: protectionSchemes,
+            previousSessionIdentifier: nil
+        )
+        var server = SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .server(.init(hostKeys: [.init(ed25519Key: .init())], userAuthDelegate: DenyAllServerAuthDelegate())),
+            remoteVersion: Constants.version,
+            protectionSchemes: protectionSchemes,
+            previousSessionIdentifier: nil
+        )
+
+        var serverMessage = server.createKeyExchangeMessage()
+        var clientMessage = client.createKeyExchangeMessage()
+        serverMessage.macAlgorithmsClientToServer = ["review-first-mac", "review-supported-mac"]
+        serverMessage.macAlgorithmsServerToClient = ["review-first-mac", "review-supported-mac"]
+        clientMessage.macAlgorithmsClientToServer = ["review-first-mac", "review-supported-mac"]
+        clientMessage.macAlgorithmsServerToClient = ["review-first-mac", "review-supported-mac"]
+        server.send(keyExchange: serverMessage)
+        client.send(keyExchange: clientMessage)
+
+        XCTAssertEqual("review-selected-cipher", clientMessage.encryptionAlgorithmsClientToServer.first)
+        XCTAssertEqual("review-first-mac", clientMessage.macAlgorithmsClientToServer.first)
+        XCTAssertEqual("review-supported-mac", clientMessage.macAlgorithmsClientToServer.dropFirst().first)
+
+        XCTAssertThrowsError(try server.handle(keyExchange: clientMessage)) { error in
             XCTAssertEqual((error as? NIOSSHError)?.type, .keyExchangeNegotiationFailure)
         }
     }
