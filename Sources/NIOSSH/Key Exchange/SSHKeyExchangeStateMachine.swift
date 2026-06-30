@@ -152,7 +152,7 @@ struct SSHKeyExchangeStateMachine {
 
                 // verify algorithms
                 let negotiated = try self.negotiatedAlgorithms(message)
-                let exchanger = try self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
+                var exchanger = try self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
                 // Ok, we need to send the key exchange message.
                 let message = SSHMessage.keyExchangeInit(
@@ -188,7 +188,7 @@ struct SSHKeyExchangeStateMachine {
             }
 
             let negotiated = try self.negotiatedAlgorithms(message)
-            let exchanger = try self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
+            var exchanger = try self.exchangerForAlgorithm(negotiated.negotiatedKeyExchangeAlgorithm)
 
             let result: SSHMultiMessage
             switch self.role {
@@ -589,12 +589,22 @@ struct SSHKeyExchangeStateMachine {
 
 extension SSHKeyExchangeStateMachine {
     // For now this is a static list.
-    static let supportedKeyExchangeImplementations: [EllipticCurveKeyExchangeProtocol.Type] = [
-        EllipticCurveKeyExchange<P384.KeyAgreement.PrivateKey>.self,
-        EllipticCurveKeyExchange<P256.KeyAgreement.PrivateKey>.self,
-        EllipticCurveKeyExchange<P521.KeyAgreement.PrivateKey>.self,
-        EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>.self,
-    ]
+    static let supportedKeyExchangeImplementations: [EllipticCurveKeyExchangeProtocol.Type] = {
+        let classical: [EllipticCurveKeyExchangeProtocol.Type] = [
+            EllipticCurveKeyExchange<P384.KeyAgreement.PrivateKey>.self,
+            EllipticCurveKeyExchange<P256.KeyAgreement.PrivateKey>.self,
+            EllipticCurveKeyExchange<P521.KeyAgreement.PrivateKey>.self,
+            EllipticCurveKeyExchange<Curve25519.KeyAgreement.PrivateKey>.self,
+        ]
+        if #available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, macCatalyst 26.0, visionOS 26.0, *) {
+            // Post-quantum hybrid first: OpenSSH 9.9+ peers prefer it, and
+            // classical-only peers will fall through to curve25519-sha256
+            // via standard SSH algorithm negotiation.
+            return [MLKEM768X25519KeyExchange.self] + classical
+        } else {
+            return classical
+        }
+    }()
 
     static let supportedKeyExchangeAlgorithms: [Substring] = supportedKeyExchangeImplementations.flatMap {
         $0.keyExchangeAlgorithmNames
