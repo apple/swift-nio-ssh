@@ -310,6 +310,14 @@ struct SSHConnectionStateMachine {
             case .userAuthentication(var state):
                 do {
                     // In this state we tolerate receiving user auth messages.
+                    //
+                    // Message identifier 60 is overloaded: it is SSH_MSG_USERAUTH_INFO_REQUEST
+                    // during a keyboard-interactive attempt and SSH_MSG_USERAUTH_PK_OK otherwise.
+                    // Tell the parser which one to expect based on the authoritative auth state,
+                    // re-synced on every read so it is always correct regardless of write ordering.
+                    state.parser.keyboardInteractiveInfoRequestExpected =
+                        state.userAuthStateMachine.expectingKeyboardInteractiveInfoRequest
+
                     guard let message = try state.parser.nextPacket() else {
                         self = .userAuthentication(state)
                         return nil
@@ -964,21 +972,12 @@ struct SSHConnectionStateMachine {
                 self.state = .userAuthentication(state)
 
             case .userAuthRequest(let message):
-                // Identifier 60 is overloaded: it means SSH_MSG_USERAUTH_INFO_REQUEST during a
-                // keyboard-interactive attempt, and SSH_MSG_USERAUTH_PK_OK otherwise. Tell the
-                // parser how to decode the server's response to this request.
-                if case .keyboardInteractive = message.method {
-                    state.parser.keyboardInteractiveInfoRequestExpected = true
-                } else {
-                    state.parser.keyboardInteractiveInfoRequestExpected = false
-                }
+                // The parser is told how to decode the overloaded identifier 60 based on the auth
+                // state machine (see the inbound handler), so no parser bookkeeping is needed here.
                 try state.writeUserAuthRequest(message, into: &buffer)
                 self.state = .userAuthentication(state)
 
             case .userAuthInfoResponse(let message):
-                // We remain within a keyboard-interactive attempt, so further identifier-60
-                // messages continue to be info requests.
-                state.parser.keyboardInteractiveInfoRequestExpected = true
                 try state.writeUserAuthInfoResponse(message, into: &buffer)
                 self.state = .userAuthentication(state)
 

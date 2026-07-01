@@ -20,12 +20,36 @@ struct UserAuthenticationStateMachine {
     private let loop: EventLoop
     private var sessionID: ByteBuffer
 
+    /// Whether the most recently sent authentication request used the `keyboard-interactive` method.
+    ///
+    /// This is used to disambiguate message identifier 60, which the server may use for either
+    /// `SSH_MSG_USERAUTH_PK_OK` or `SSH_MSG_USERAUTH_INFO_REQUEST`. See
+    /// ``expectingKeyboardInteractiveInfoRequest``.
+    private var lastSentMethodWasKeyboardInteractive: Bool = false
+
     // TODO: The server SHOULD limit the number of authentication attempts the client may make.
     init(role: SSHConnectionRole, loop: EventLoop, sessionID: ByteBuffer) {
         self.state = .idle
         self.delegate = UserAuthDelegate(role: role)
         self.loop = loop
         self.sessionID = sessionID
+    }
+
+    /// Whether an inbound message with identifier 60 should be decoded as
+    /// `SSH_MSG_USERAUTH_INFO_REQUEST` (rather than `SSH_MSG_USERAUTH_PK_OK`).
+    ///
+    /// This is `true` exactly when the client is awaiting the outcome of a `keyboard-interactive`
+    /// authentication attempt. Deriving it from the authoritative auth state (rather than setting it
+    /// speculatively when a request is written) means the packet parser is always told how to
+    /// interpret identifier 60 correctly, independent of any ordering between writes and reads.
+    var expectingKeyboardInteractiveInfoRequest: Bool {
+        switch self.state {
+        case .awaitingResponses:
+            return self.lastSentMethodWasKeyboardInteractive
+        case .idle, .awaitingServiceAcceptance, .awaitingNextRequest, .authenticationSucceeded,
+            .authenticationFailed:
+            return false
+        }
     }
 
     fileprivate static let serviceName: String = "ssh-userauth"
@@ -336,9 +360,16 @@ extension UserAuthenticationStateMachine {
         }
     }
 
-    mutating func sendUserAuthRequest(_: SSHMessage.UserAuthRequestMessage) {
+    mutating func sendUserAuthRequest(_ message: SSHMessage.UserAuthRequestMessage) {
         switch (self.delegate, self.state) {
         case (.client, .awaitingNextRequest):
+            // Record whether this attempt is keyboard-interactive so we can correctly decode a
+            // server response carrying the overloaded message identifier 60.
+            if case .keyboardInteractive = message.method {
+                self.lastSentMethodWasKeyboardInteractive = true
+            } else {
+                self.lastSentMethodWasKeyboardInteractive = false
+            }
             self.state = .awaitingResponses(1)
         case (.client, .idle),
             (.client, .awaitingServiceAcceptance):

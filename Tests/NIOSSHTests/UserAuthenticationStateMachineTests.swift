@@ -1215,10 +1215,17 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
             service: "ssh-connection",
             method: .keyboardInteractive(.init(languageTag: "", submethods: ""))
         )
+        // Before offering keyboard-interactive, identifier 60 must decode as PK_OK.
+        XCTAssertFalse(stateMachine.expectingKeyboardInteractiveInfoRequest)
+
         XCTAssertNoThrow(
             try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, stateMachine: &stateMachine)
         )
         stateMachine.sendUserAuthRequest(firstMessage)
+
+        // Now that a keyboard-interactive attempt is in flight, identifier 60 must decode as an
+        // info request. This is what drives the packet parser in the connection state machine.
+        XCTAssertTrue(stateMachine.expectingKeyboardInteractiveInfoRequest)
 
         // The server sends a challenge.
         let infoRequest = SSHMessage.UserAuthInfoRequestMessage(
@@ -1234,8 +1241,37 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
         stateMachine.sendUserAuthInfoResponse(response!)
 
+        // Still in flight until the server concludes the attempt.
+        XCTAssertTrue(stateMachine.expectingKeyboardInteractiveInfoRequest)
+
         // Server is happy.
         XCTAssertNoThrow(try stateMachine.receiveUserAuthSuccess())
+        XCTAssertFalse(stateMachine.expectingKeyboardInteractiveInfoRequest)
+    }
+
+    func testExpectingInfoRequestIsFalseForPasswordAuth() throws {
+        let delegate = InfinitePasswordDelegate()
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .client(.init(userAuthDelegate: delegate, serverAuthDelegate: AcceptAllHostKeysDelegate())),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
+        stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
+
+        let firstMessage = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .password("bar")
+        )
+        XCTAssertNoThrow(
+            try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, stateMachine: &stateMachine)
+        )
+        stateMachine.sendUserAuthRequest(firstMessage)
+
+        // A password attempt must leave identifier 60 decoding as PK_OK.
+        XCTAssertFalse(stateMachine.expectingKeyboardInteractiveInfoRequest)
     }
 
     func testKeyboardInteractiveMultipleRounds() throws {
