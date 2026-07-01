@@ -106,9 +106,11 @@ extension UserAuthenticationStateMachine {
                 )
             }
 
-            // Cool, we can begin the auth dance.
+            // Cool, we can begin the auth dance. We haven't been told which methods the server
+            // accepts yet, so we optimistically offer the full set the client can drive (including
+            // keyboard-interactive). The server will tell us what it really accepts if it rejects us.
             self.state = .awaitingNextRequest
-            return self.requestNextAuthRequest(methods: .all, delegate: delegate)
+            return self.requestNextAuthRequest(methods: .all.union(.keyboardInteractive), delegate: delegate)
         case (.client, .authenticationSucceeded):
             // We should ignore all further auth messages in this state.
             return nil
@@ -243,6 +245,39 @@ extension UserAuthenticationStateMachine {
         }
     }
 
+    /// A UserAuthInfoRequest message (a keyboard-interactive challenge) was received from the server.
+    mutating func receiveUserAuthInfoRequest(
+        _ message: SSHMessage.UserAuthInfoRequestMessage
+    ) throws -> EventLoopFuture<SSHMessage.UserAuthInfoResponseMessage?>? {
+        switch (self.delegate, self.state) {
+        case (.client(let delegate), .awaitingResponses(let responseCount)):
+            // A keyboard-interactive attempt may involve any number of challenge/response rounds.
+            // We remain in `.awaitingResponses` throughout: the server will eventually send a
+            // success or failure to conclude the attempt.
+            precondition(responseCount == 1, "We don't support parallel authentication attempts yet!")
+            return self.requestKeyboardInteractiveResponse(request: message, delegate: delegate)
+        case (.client, .authenticationSucceeded):
+            // We should ignore all further auth messages in this state.
+            return nil
+        case (.client, .idle), (.client, .awaitingServiceAcceptance):
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "server sent keyboard-interactive info request unprompted"
+            )
+        case (.client, .awaitingNextRequest), (.client, .authenticationFailed):
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "unsolicited keyboard-interactive info request"
+            )
+        case (.server, _):
+            // Servers may never receive info request messages.
+            throw NIOSSHError.protocolViolation(
+                protocolName: Self.protocolName,
+                violation: "client sent keyboard-interactive info request"
+            )
+        }
+    }
+
     mutating func receiveUserAuthBanner(_: SSHMessage.UserAuthBannerMessage) throws {
         switch (self.delegate, self.state) {
         case (.client, .idle), (.client, .authenticationSucceeded):
@@ -319,6 +354,26 @@ extension UserAuthenticationStateMachine {
             preconditionFailure("Attempted to send a user auth request after auth failed")
         case (.server, _):
             // Servers may never send user auth request messages.
+            preconditionFailure("Servers may not authenticate")
+        }
+    }
+
+    mutating func sendUserAuthInfoResponse(_: SSHMessage.UserAuthInfoResponseMessage) {
+        switch (self.delegate, self.state) {
+        case (.client, .awaitingResponses):
+            // We're responding to a keyboard-interactive challenge. We stay in `.awaitingResponses`:
+            // the server may send further challenges, or conclude with success/failure.
+            break
+        case (.client, .idle),
+            (.client, .awaitingServiceAcceptance),
+            (.client, .awaitingNextRequest):
+            preconditionFailure("Sent an info response without a challenge outstanding")
+        case (.client, .authenticationSucceeded):
+            preconditionFailure("Attempted to send an info response after auth succeeded")
+        case (.client, .authenticationFailed):
+            preconditionFailure("Attempted to send an info response after auth failed")
+        case (.server, _):
+            // Servers may never send info response messages.
             preconditionFailure("Servers may not authenticate")
         }
     }
@@ -452,6 +507,25 @@ extension UserAuthenticationStateMachine {
             try request.map { try SSHMessage.UserAuthRequestMessage(request: $0, sessionID: sessionID) }
         }
     }
+
+    fileprivate func requestKeyboardInteractiveResponse(
+        request: SSHMessage.UserAuthInfoRequestMessage,
+        delegate: NIOSSHClientUserAuthenticationDelegate
+    ) -> EventLoopFuture<SSHMessage.UserAuthInfoResponseMessage?> {
+        let challenge = NIOSSHKeyboardInteractiveChallenge(request)
+        let promise = self.loop.makePromise(of: [String].self)
+        delegate.respondToKeyboardInteractiveChallenge(challenge, responsePromise: promise)
+
+        let expectedResponses = request.prompts.count
+        return promise.futureResult.flatMapThrowing { responses in
+            guard responses.count == expectedResponses else {
+                throw NIOSSHError.invalidKeyboardInteractiveResponse(
+                    "expected \(expectedResponses) response(s), delegate provided \(responses.count)"
+                )
+            }
+            return SSHMessage.UserAuthInfoResponseMessage(responses: responses)
+        }
+    }
 }
 
 // MARK: Interacting with server delegate
@@ -513,6 +587,13 @@ extension UserAuthenticationStateMachine {
 
         case .publicKey(.unknown):
             // We don't known the algorithm, the auth attempt has failed.
+            return self.loop.makeSucceededFuture(
+                .failure(.init(authentications: delegate.supportedAuthenticationMethods.strings, partialSuccess: false))
+            )
+
+        case .keyboardInteractive:
+            // Server-side keyboard-interactive authentication is not implemented. Reject the
+            // attempt by reporting the methods we do support, so the client can try another.
             return self.loop.makeSucceededFuture(
                 .failure(.init(authentications: delegate.supportedAuthenticationMethods.strings, partialSuccess: false))
             )

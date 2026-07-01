@@ -253,6 +253,61 @@ final class SSHPacketParserTests: XCTestCase {
         }
     }
 
+    /// Serialize a message into a cleartext SSH packet frame, ready to feed to a parser that has
+    /// already consumed a version string.
+    private func serializedPacket(_ message: SSHMessage) throws -> ByteBuffer {
+        var serializer = SSHPacketSerializer()
+        var buffer = ByteBufferAllocator().buffer(capacity: 128)
+        try serializer.serialize(message: .version("SSH-2.0-TestPeer"), to: &buffer)
+        buffer.clear()
+        try serializer.serialize(message: message, to: &buffer)
+        return buffer
+    }
+
+    func testIdentifier60DecodesAsPKOKByDefault() throws {
+        var parser = SSHPacketParser(isServer: false, allocator: ByteBufferAllocator())
+        self.feedVersion(to: &parser)
+
+        let key = NIOSSHPrivateKey(ed25519Key: .init()).publicKey
+        var packet = try self.serializedPacket(.userAuthPKOK(.init(key: key)))
+        parser.append(bytes: &packet)
+
+        switch try parser.nextPacket() {
+        case .userAuthPKOK(let message):
+            XCTAssertEqual(message.key, key)
+        default:
+            XCTFail("Expecting .userAuthPKOK")
+        }
+    }
+
+    func testIdentifier60DecodesAsInfoRequestWhenExpected() throws {
+        var parser = SSHPacketParser(isServer: false, allocator: ByteBufferAllocator())
+        self.feedVersion(to: &parser)
+
+        // Simulate the connection state machine flagging that a keyboard-interactive attempt is in
+        // flight, which makes identifier 60 an info request rather than a PK_OK.
+        parser.keyboardInteractiveInfoRequestExpected = true
+
+        let infoRequest = SSHMessage.UserAuthInfoRequestMessage(
+            name: "PAM",
+            instruction: "Authenticate",
+            languageTag: "",
+            prompts: [
+                .init(prompt: "Password: ", echo: false),
+                .init(prompt: "Verification code: ", echo: false),
+            ]
+        )
+        var packet = try self.serializedPacket(.userAuthInfoRequest(infoRequest))
+        parser.append(bytes: &packet)
+
+        switch try parser.nextPacket() {
+        case .userAuthInfoRequest(let message):
+            XCTAssertEqual(message, infoRequest)
+        default:
+            XCTFail("Expecting .userAuthInfoRequest")
+        }
+    }
+
     func testWeReclaimStorage() throws {
         var parser = SSHPacketParser(isServer: false, allocator: ByteBufferAllocator())
         self.feedVersion(to: &parser)

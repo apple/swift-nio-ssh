@@ -97,6 +97,52 @@ final class InfiniteCertificateDelegate: NIOSSHClientUserAuthenticationDelegate 
     }
 }
 
+/// An authentication delegate that offers keyboard-interactive authentication and answers challenges
+/// by echoing back one canned response per prompt.
+final class KeyboardInteractiveDelegate: NIOSSHClientUserAuthenticationDelegate {
+    /// The response to provide for each prompt in a challenge. If `nil`, one response is generated
+    /// per prompt (so the count always matches).
+    var cannedResponses: [String]?
+
+    /// Records the challenges received, for assertion purposes.
+    private(set) var receivedChallenges: [NIOSSHKeyboardInteractiveChallenge] = []
+
+    init(cannedResponses: [String]? = nil) {
+        self.cannedResponses = cannedResponses
+    }
+
+    func nextAuthenticationType(
+        availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+        nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+    ) {
+        guard availableMethods.contains(.keyboardInteractive) else {
+            nextChallengePromise.succeed(nil)
+            return
+        }
+
+        nextChallengePromise.succeed(
+            NIOSSHUserAuthenticationOffer(
+                username: "foo",
+                serviceName: "",
+                offer: .keyboardInteractive(.init())
+            )
+        )
+    }
+
+    func respondToKeyboardInteractiveChallenge(
+        _ challenge: NIOSSHKeyboardInteractiveChallenge,
+        responsePromise: EventLoopPromise<[String]>
+    ) {
+        self.receivedChallenges.append(challenge)
+
+        if let cannedResponses = self.cannedResponses {
+            responsePromise.succeed(cannedResponses)
+        } else {
+            responsePromise.succeed(challenge.prompts.map { "response-to-\($0.prompt)" })
+        }
+    }
+}
+
 /// An authentication delegate that denies some number of requests and then accepts exactly one and fails the rest.
 final class DenyThenAcceptDelegate: NIOSSHServerUserAuthenticationDelegate {
     let supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods = .all
@@ -1125,6 +1171,258 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
         // Let's say we got a success. Happy path!
         XCTAssertNoThrow(try stateMachine.receiveUserAuthSuccess())
+    }
+
+    /// Drives an inbound keyboard-interactive info request through the state machine and returns the
+    /// resulting info response message (or nil).
+    private func receiveInfoRequest(
+        _ message: SSHMessage.UserAuthInfoRequestMessage,
+        stateMachine: inout UserAuthenticationStateMachine
+    ) throws -> SSHMessage.UserAuthInfoResponseMessage? {
+        let future = try assertNoThrowWithValue(stateMachine.receiveUserAuthInfoRequest(message))
+        XCTAssertNotNil(future)
+        guard let future = future else {
+            return nil
+        }
+
+        let response = NIOLoopBoundBox<SSHMessage.UserAuthInfoResponseMessage?>(nil, eventLoop: future.eventLoop)
+        future.whenComplete {
+            switch $0 {
+            case .success(let message):
+                response.value = message
+            case .failure(let error):
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+        self.loop.run()
+        return response.value
+    }
+
+    func testKeyboardInteractiveSingleRound() throws {
+        let delegate = KeyboardInteractiveDelegate()
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .client(.init(userAuthDelegate: delegate, serverAuthDelegate: AcceptAllHostKeysDelegate())),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
+        stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
+
+        // The server offers keyboard-interactive, so the client should offer it back.
+        let firstMessage = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .keyboardInteractive(.init(languageTag: "", submethods: ""))
+        )
+        XCTAssertNoThrow(
+            try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, stateMachine: &stateMachine)
+        )
+        stateMachine.sendUserAuthRequest(firstMessage)
+
+        // The server sends a challenge.
+        let infoRequest = SSHMessage.UserAuthInfoRequestMessage(
+            name: "PAM",
+            instruction: "",
+            languageTag: "",
+            prompts: [.init(prompt: "Password: ", echo: false)]
+        )
+        let response = try self.receiveInfoRequest(infoRequest, stateMachine: &stateMachine)
+        XCTAssertEqual(response, .init(responses: ["response-to-Password: "]))
+        XCTAssertEqual(delegate.receivedChallenges.count, 1)
+        XCTAssertEqual(delegate.receivedChallenges.first?.prompts.first?.echo, false)
+
+        stateMachine.sendUserAuthInfoResponse(response!)
+
+        // Server is happy.
+        XCTAssertNoThrow(try stateMachine.receiveUserAuthSuccess())
+    }
+
+    func testKeyboardInteractiveMultipleRounds() throws {
+        let delegate = KeyboardInteractiveDelegate()
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .client(.init(userAuthDelegate: delegate, serverAuthDelegate: AcceptAllHostKeysDelegate())),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
+        stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
+
+        let firstMessage = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .keyboardInteractive(.init(languageTag: "", submethods: ""))
+        )
+        XCTAssertNoThrow(
+            try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, stateMachine: &stateMachine)
+        )
+        stateMachine.sendUserAuthRequest(firstMessage)
+
+        // Round 1: password.
+        let round1 = SSHMessage.UserAuthInfoRequestMessage(
+            name: "",
+            instruction: "",
+            languageTag: "",
+            prompts: [.init(prompt: "Password: ", echo: false)]
+        )
+        let response1 = try self.receiveInfoRequest(round1, stateMachine: &stateMachine)
+        XCTAssertEqual(response1, .init(responses: ["response-to-Password: "]))
+        stateMachine.sendUserAuthInfoResponse(response1!)
+
+        // Round 2: a zero-prompt info request (valid, must produce an empty response).
+        let round2 = SSHMessage.UserAuthInfoRequestMessage(
+            name: "",
+            instruction: "Please wait...",
+            languageTag: "",
+            prompts: []
+        )
+        let response2 = try self.receiveInfoRequest(round2, stateMachine: &stateMachine)
+        XCTAssertEqual(response2, .init(responses: []))
+        stateMachine.sendUserAuthInfoResponse(response2!)
+
+        // Round 3: OTP.
+        let round3 = SSHMessage.UserAuthInfoRequestMessage(
+            name: "",
+            instruction: "",
+            languageTag: "",
+            prompts: [.init(prompt: "Verification code: ", echo: false)]
+        )
+        let response3 = try self.receiveInfoRequest(round3, stateMachine: &stateMachine)
+        XCTAssertEqual(response3, .init(responses: ["response-to-Verification code: "]))
+        stateMachine.sendUserAuthInfoResponse(response3!)
+
+        XCTAssertEqual(delegate.receivedChallenges.count, 3)
+
+        // Success at last.
+        XCTAssertNoThrow(try stateMachine.receiveUserAuthSuccess())
+    }
+
+    func testKeyboardInteractiveFailureTriesNextMethod() throws {
+        let delegate = KeyboardInteractiveDelegate()
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .client(.init(userAuthDelegate: delegate, serverAuthDelegate: AcceptAllHostKeysDelegate())),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
+        stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
+
+        let firstMessage = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .keyboardInteractive(.init(languageTag: "", submethods: ""))
+        )
+        XCTAssertNoThrow(
+            try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, stateMachine: &stateMachine)
+        )
+        stateMachine.sendUserAuthRequest(firstMessage)
+
+        // Server rejects and no longer offers keyboard-interactive, so the client gives up.
+        let failure = SSHMessage.UserAuthFailureMessage(authentications: ["publickey"], partialSuccess: false)
+        try self.authFailed(failure: failure, nextMessage: nil, stateMachine: &stateMachine)
+        stateMachine.noFurtherMethods()
+    }
+
+    func testKeyboardInteractiveResponseCountMismatchFails() throws {
+        // Delegate returns two responses for a single-prompt challenge.
+        let delegate = KeyboardInteractiveDelegate(cannedResponses: ["one", "two"])
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .client(.init(userAuthDelegate: delegate, serverAuthDelegate: AcceptAllHostKeysDelegate())),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
+        stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
+
+        let firstMessage = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .keyboardInteractive(.init(languageTag: "", submethods: ""))
+        )
+        XCTAssertNoThrow(
+            try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, stateMachine: &stateMachine)
+        )
+        stateMachine.sendUserAuthRequest(firstMessage)
+
+        let infoRequest = SSHMessage.UserAuthInfoRequestMessage(
+            name: "",
+            instruction: "",
+            languageTag: "",
+            prompts: [.init(prompt: "Password: ", echo: false)]
+        )
+        let future = try assertNoThrowWithValue(stateMachine.receiveUserAuthInfoRequest(infoRequest))
+        XCTAssertNotNil(future)
+
+        let error = NIOLoopBoundBox<Error?>(nil, eventLoop: future!.eventLoop)
+        future!.whenComplete {
+            switch $0 {
+            case .success:
+                XCTFail("Expected failure due to response count mismatch")
+            case .failure(let e):
+                error.value = e
+            }
+        }
+        self.loop.run()
+
+        XCTAssertEqual((error.value as? NIOSSHError)?.type, .invalidKeyboardInteractiveResponse)
+    }
+
+    func testKeyboardInteractiveDefaultDelegateFailsCleanly() throws {
+        // A delegate that offers keyboard-interactive but does not override the challenge callback
+        // must fail the challenge with a clear error via the default implementation.
+        final class OffersButDoesNotAnswer: NIOSSHClientUserAuthenticationDelegate {
+            func nextAuthenticationType(
+                availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+                nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+            ) {
+                nextChallengePromise.succeed(
+                    .init(username: "foo", serviceName: "", offer: .keyboardInteractive(.init()))
+                )
+            }
+        }
+
+        let delegate = OffersButDoesNotAnswer()
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .client(.init(userAuthDelegate: delegate, serverAuthDelegate: AcceptAllHostKeysDelegate())),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        XCTAssertNoThrow(try self.beginAuthentication(stateMachine: &stateMachine))
+        stateMachine.sendServiceRequest(.init(service: "ssh-userauth"))
+
+        let firstMessage = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .keyboardInteractive(.init(languageTag: "", submethods: ""))
+        )
+        XCTAssertNoThrow(
+            try self.serviceAccepted(service: "ssh-userauth", nextMessage: firstMessage, stateMachine: &stateMachine)
+        )
+        stateMachine.sendUserAuthRequest(firstMessage)
+
+        let infoRequest = SSHMessage.UserAuthInfoRequestMessage(
+            name: "",
+            instruction: "",
+            languageTag: "",
+            prompts: [.init(prompt: "Password: ", echo: false)]
+        )
+        let future = try assertNoThrowWithValue(stateMachine.receiveUserAuthInfoRequest(infoRequest))
+        let error = NIOLoopBoundBox<Error?>(nil, eventLoop: future!.eventLoop)
+        future!.whenComplete {
+            switch $0 {
+            case .success:
+                XCTFail("Expected failure from default keyboard-interactive implementation")
+            case .failure(let e):
+                error.value = e
+            }
+        }
+        self.loop.run()
+
+        XCTAssertEqual((error.value as? NIOSSHError)?.type, .unsupportedUserAuthenticationMethod)
     }
 
     func testCertificateClientAuthFlow() throws {
