@@ -28,6 +28,14 @@ struct SSHPacketParser {
     private var state: State
     private(set) var sequenceNumber: UInt32
 
+    /// Whether the next message with identifier 60 should be decoded as
+    /// `SSH_MSG_USERAUTH_INFO_REQUEST` rather than `SSH_MSG_USERAUTH_PK_OK`.
+    ///
+    /// Identifier 60 is overloaded in the user-authentication protocol. The connection state
+    /// machine sets this to `true` while a `keyboard-interactive` attempt is outstanding so that the
+    /// parser interprets identifier 60 correctly.
+    var keyboardInteractiveInfoRequestExpected: Bool = false
+
     /// Testing only: the number of bytes we can discard from this buffer.
     internal var _discardableBytes: Int {
         self.buffer.readerIndex
@@ -183,7 +191,10 @@ struct SSHPacketParser {
             buffer.moveReaderIndex(forwardBy: MemoryLayout<UInt32>.size)
 
             var content = try buffer.sliceContentFromPadding()
-            guard let message = try content.readSSHMessage(), content.readableBytes == 0, buffer.readableBytes == 0
+            guard
+                let message = try content.readSSHMessage(
+                    keyboardInteractiveInfoRequestExpected: self.keyboardInteractiveInfoRequestExpected
+                ), content.readableBytes == 0, buffer.readableBytes == 0
             else {
                 // Throw this error if the content wasn't exactly the right length for the message.
                 throw NIOSSHError.invalidPacketFormat
@@ -200,7 +211,10 @@ struct SSHPacketParser {
             }
 
             var content = try protection.decryptAndVerifyRemainingPacket(&buffer, sequenceNumber: self.sequenceNumber)
-            guard let message = try content.readSSHMessage(), content.readableBytes == 0, buffer.readableBytes == 0
+            guard
+                let message = try content.readSSHMessage(
+                    keyboardInteractiveInfoRequestExpected: self.keyboardInteractiveInfoRequestExpected
+                ), content.readableBytes == 0, buffer.readableBytes == 0
             else {
                 // Throw this error if the content wasn't exactly the right length for the message.
                 throw NIOSSHError.invalidPacketFormat

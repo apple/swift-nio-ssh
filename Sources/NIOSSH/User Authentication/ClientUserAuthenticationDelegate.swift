@@ -38,4 +38,43 @@ public protocol NIOSSHClientUserAuthenticationDelegate {
         availableMethods: NIOSSHAvailableUserAuthenticationMethods,
         nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
     )
+
+    /// Called when the server issues a keyboard-interactive challenge (RFC 4256) in response to a
+    /// ``NIOSSHUserAuthenticationOffer/Offer-swift.enum/keyboardInteractive(_:)`` offer.
+    ///
+    /// The delegate must complete `responsePromise` with exactly one response per prompt in
+    /// `challenge`, in order. A single authentication attempt may involve multiple challenges, so
+    /// this may be called several times for one offer. If the challenge carries no prompts the
+    /// delegate must succeed the promise with an empty array.
+    ///
+    /// If the delegate fails `responsePromise`, or provides a number of responses that does not
+    /// match the number of prompts, the authentication attempt fails.
+    ///
+    /// - Important: Prompts whose ``NIOSSHKeyboardInteractivePrompt/echo`` is `false` are sensitive.
+    ///   Implementations must not log the prompts' responses.
+    ///
+    /// - parameters:
+    ///     - challenge: The challenge issued by the server.
+    ///     - responsePromise: An `EventLoopPromise` to be fulfilled with one response per prompt.
+    func respondToKeyboardInteractiveChallenge(
+        _ challenge: NIOSSHKeyboardInteractiveChallenge,
+        responsePromise: EventLoopPromise<[String]>
+    )
+}
+
+extension NIOSSHClientUserAuthenticationDelegate {
+    /// Default implementation for delegates that do not support keyboard-interactive authentication.
+    ///
+    /// This fails the authentication attempt, preserving source compatibility for existing
+    /// delegates that were written before keyboard-interactive support existed.
+    public func respondToKeyboardInteractiveChallenge(
+        _ challenge: NIOSSHKeyboardInteractiveChallenge,
+        responsePromise: EventLoopPromise<[String]>
+    ) {
+        responsePromise.fail(
+            NIOSSHError.unsupportedUserAuthenticationMethod(
+                "keyboard-interactive is not supported by this authentication delegate"
+            )
+        )
+    }
 }

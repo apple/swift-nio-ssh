@@ -253,6 +253,118 @@ final class SSHPacketParserTests: XCTestCase {
         }
     }
 
+    /// Serialize a message into a cleartext SSH packet frame, ready to feed to a parser that has
+    /// already consumed a version string.
+    private func serializedPacket(_ message: SSHMessage) throws -> ByteBuffer {
+        var serializer = SSHPacketSerializer()
+        var buffer = ByteBufferAllocator().buffer(capacity: 128)
+        try serializer.serialize(message: .version("SSH-2.0-TestPeer"), to: &buffer)
+        buffer.clear()
+        try serializer.serialize(message: message, to: &buffer)
+        return buffer
+    }
+
+    func testIdentifier60DecodesAsPKOKByDefault() throws {
+        var parser = SSHPacketParser(isServer: false, allocator: ByteBufferAllocator())
+        self.feedVersion(to: &parser)
+
+        let key = NIOSSHPrivateKey(ed25519Key: .init()).publicKey
+        var packet = try self.serializedPacket(.userAuthPKOK(.init(key: key)))
+        parser.append(bytes: &packet)
+
+        switch try parser.nextPacket() {
+        case .userAuthPKOK(let message):
+            XCTAssertEqual(message.key, key)
+        default:
+            XCTFail("Expecting .userAuthPKOK")
+        }
+    }
+
+    func testIdentifier60DecodesAsInfoRequestWhenExpected() throws {
+        var parser = SSHPacketParser(isServer: false, allocator: ByteBufferAllocator())
+        self.feedVersion(to: &parser)
+
+        // Simulate the connection state machine flagging that a keyboard-interactive attempt is in
+        // flight, which makes identifier 60 an info request rather than a PK_OK.
+        parser.keyboardInteractiveInfoRequestExpected = true
+
+        let infoRequest = SSHMessage.UserAuthInfoRequestMessage(
+            name: "PAM",
+            instruction: "Authenticate",
+            languageTag: "",
+            prompts: [
+                .init(prompt: "Password: ", echo: false),
+                .init(prompt: "Verification code: ", echo: false),
+            ]
+        )
+        var packet = try self.serializedPacket(.userAuthInfoRequest(infoRequest))
+        parser.append(bytes: &packet)
+
+        switch try parser.nextPacket() {
+        case .userAuthInfoRequest(let message):
+            XCTAssertEqual(message, infoRequest)
+        default:
+            XCTFail("Expecting .userAuthInfoRequest")
+        }
+    }
+
+    func testEncryptedIdentifier60DecodesAsInfoRequestWhenExpected() throws {
+        // Mirror a real connection: encryption is negotiated, and identifier 60 arrives encrypted
+        // while a keyboard-interactive attempt is in flight.
+        let allocator = ByteBufferAllocator()
+        var parser = SSHPacketParser(isServer: false, allocator: allocator)
+        self.feedVersion(to: &parser)
+
+        let key = SymmetricKey(size: .bits128)
+        let macKey = SymmetricKey(size: .bits128)
+        func makeProtection() -> TestTransportProtection {
+            TestTransportProtection(
+                initialKeys: .init(
+                    initialInboundIV: [],
+                    initialOutboundIV: [],
+                    inboundEncryptionKey: key,
+                    outboundEncryptionKey: key,
+                    inboundMACKey: macKey,
+                    outboundMACKey: macKey
+                )
+            )
+        }
+
+        // Advance the parser to sequence number 1 so it matches the packet we encrypt below, then
+        // enable encryption.
+        var newKeysPacket = try self.serializedPacket(.newKeys)
+        parser.append(bytes: &newKeysPacket)
+        XCTAssertEqual(try parser.nextPacket(), .newKeys)
+        parser.addEncryption(makeProtection())
+
+        // The server is doing keyboard-interactive, so identifier 60 must decode as an info request.
+        parser.keyboardInteractiveInfoRequestExpected = true
+
+        let infoRequest = SSHMessage.UserAuthInfoRequestMessage(
+            name: "PAM",
+            instruction: "Authenticate",
+            languageTag: "",
+            prompts: [.init(prompt: "Password: ", echo: false)]
+        )
+
+        var encrypted = allocator.buffer(capacity: 256)
+        let protection = makeProtection()
+        encrypted.writeSSHPacket(
+            message: .userAuthInfoRequest(infoRequest),
+            lengthEncrypted: protection.lengthEncrypted,
+            blockSize: protection.cipherBlockSize
+        )
+        XCTAssertNoThrow(try protection.encryptPacket(&encrypted, sequenceNumber: 1))
+        parser.append(bytes: &encrypted)
+
+        switch try parser.nextPacket() {
+        case .userAuthInfoRequest(let message):
+            XCTAssertEqual(message, infoRequest)
+        default:
+            XCTFail("Expecting .userAuthInfoRequest over encrypted transport")
+        }
+    }
+
     func testWeReclaimStorage() throws {
         var parser = SSHPacketParser(isServer: false, allocator: ByteBufferAllocator())
         self.feedVersion(to: &parser)

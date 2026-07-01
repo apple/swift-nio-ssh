@@ -33,7 +33,14 @@ public struct NIOSSHAvailableUserAuthenticationMethods: OptionSet, Sendable {
     /// Host-based authentication is acceptable.
     public static let hostBased: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 2)
 
-    /// A short-hand for all supported authentication types.
+    /// Keyboard-interactive authentication (RFC 4256) is acceptable.
+    ///
+    /// - Note: This is only supported for the client role: ``NIOSSH`` cannot yet act as the server
+    ///   for keyboard-interactive authentication, so this method is deliberately excluded from
+    ///   ``all``.
+    public static let keyboardInteractive: NIOSSHAvailableUserAuthenticationMethods = .init(rawValue: 1 << 3)
+
+    /// A short-hand for all authentication types ``NIOSSH`` can accept as a server.
     public static let all: NIOSSHAvailableUserAuthenticationMethods = [.publicKey, .password, .hostBased]
 }
 
@@ -49,6 +56,8 @@ extension NIOSSHAvailableUserAuthenticationMethods {
                 self.insert(.password)
             case "hostbased":
                 self.insert(.hostBased)
+            case "keyboard-interactive":
+                self.insert(.keyboardInteractive)
             default:
                 // This is an unknown method, which we ignore.
                 break
@@ -63,7 +72,7 @@ extension NIOSSHAvailableUserAuthenticationMethods {
 
         // We need an array.
         var methods = [Substring]()
-        methods.reserveCapacity(3)
+        methods.reserveCapacity(4)
 
         if self.contains(.password) {
             methods.append("password")
@@ -73,6 +82,9 @@ extension NIOSSHAvailableUserAuthenticationMethods {
         }
         if self.contains(.hostBased) {
             methods.append("hostbased")
+        }
+        if self.contains(.keyboardInteractive) {
+            methods.append("keyboard-interactive")
         }
 
         return methods
@@ -185,6 +197,9 @@ extension NIOSSHUserAuthenticationOffer {
         /// This method is currently unsupported by ``NIOSSH``.
         case hostBased(HostBased)
 
+        /// The client would like to perform keyboard-interactive authentication (RFC 4256).
+        case keyboardInteractive(KeyboardInteractive)
+
         /// The client believes it does not need authentication.
         case none
     }
@@ -232,6 +247,26 @@ extension NIOSSHUserAuthenticationOffer.Offer {
             fatalError("PublicKeyRequest is currently unimplemented")
         }
     }
+
+    /// Information provided by the client when attempting to perform keyboard-interactive
+    /// authentication (RFC 4256).
+    ///
+    /// The individual challenge/response rounds are handled by
+    /// ``NIOSSHClientUserAuthenticationDelegate/respondToKeyboardInteractiveChallenge(_:responsePromise:)``,
+    /// so this offer only carries the initial request parameters.
+    public struct KeyboardInteractive: Sendable {
+        /// An optional language tag, per RFC 4256. Usually empty.
+        public var languageTag: String
+
+        /// An optional, comma-separated list of preferred submethods the client would like the
+        /// server to use. Per RFC 4256 this is advisory and usually empty.
+        public var submethods: String
+
+        public init(languageTag: String = "", submethods: String = "") {
+            self.languageTag = languageTag
+            self.submethods = submethods
+        }
+    }
 }
 
 extension SSHMessage.UserAuthRequestMessage {
@@ -252,6 +287,13 @@ extension SSHMessage.UserAuthRequestMessage {
             self.method = .publicKey(.known(key: privateKeyRequest.publicKey, signature: signature))
         case .password(let passwordRequest):
             self.method = .password(passwordRequest.password)
+        case .keyboardInteractive(let keyboardInteractiveRequest):
+            self.method = .keyboardInteractive(
+                .init(
+                    languageTag: keyboardInteractiveRequest.languageTag,
+                    submethods: keyboardInteractiveRequest.submethods
+                )
+            )
         case .hostBased:
             fatalError("Unsupported")
         case .none:
