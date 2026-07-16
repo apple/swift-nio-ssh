@@ -403,6 +403,187 @@ final class SSHKeyExchangeStateMachineTests: XCTestCase {
         self.assertCompatibleProtection(client: clientInboundProtection, server: serverInboundProtection)
     }
 
+    // MARK: - MAC advertisement / negotiation against hardened servers (#236)
+
+    /// Build a client state machine using only AEAD protection (AES256-GCM), matching how
+    /// swift-nio-ssh clients are actually configured. AEAD schemes report `macName == nil`,
+    /// so the client's advertised MAC list is the cosmetic fallback list.
+    private func makeAEADClient(loop: EmbeddedEventLoop, allocator: ByteBufferAllocator)
+        -> SSHKeyExchangeStateMachine
+    {
+        SSHKeyExchangeStateMachine(
+            allocator: allocator,
+            loop: loop,
+            role: .client(
+                .init(userAuthDelegate: ExplodingAuthDelegate(), serverAuthDelegate: AcceptAllHostKeysDelegate())
+            ),
+            remoteVersion: Constants.version,
+            protectionSchemes: [AES256GCMOpenSSHTransportProtection.self],
+            previousSessionIdentifier: nil
+        )
+    }
+
+    /// A KEXINIT proposal that reproduces what a hardened OpenSSH 10.x server (NixOS-style)
+    /// actually offers. Captured verbatim from `ssh -vv` against a production machine
+    /// (openclaw-large, OpenSSH 10.2): AEAD ciphers only, encrypt-then-MAC MACs only,
+    /// ed25519 host key. Only the MAC row failed to intersect before the #236 fix.
+    private func hardenedProdKEXINIT(cookie: ByteBuffer) -> SSHMessage.KeyExchangeMessage {
+        SSHMessage.KeyExchangeMessage(
+            cookie: cookie,
+            keyExchangeAlgorithms: ["curve25519-sha256", "curve25519-sha256@libssh.org"],
+            serverHostKeyAlgorithms: ["ssh-ed25519", "rsa-sha2-512", "rsa-sha2-256"],
+            encryptionAlgorithmsClientToServer: ["chacha20-poly1305@openssh.com", "aes256-gcm@openssh.com"],
+            encryptionAlgorithmsServerToClient: ["chacha20-poly1305@openssh.com", "aes256-gcm@openssh.com"],
+            macAlgorithmsClientToServer: ["hmac-sha2-512-etm@openssh.com", "hmac-sha2-256-etm@openssh.com"],
+            macAlgorithmsServerToClient: ["hmac-sha2-512-etm@openssh.com", "hmac-sha2-256-etm@openssh.com"],
+            compressionAlgorithmsClientToServer: ["none"],
+            compressionAlgorithmsServerToClient: ["none"],
+            languagesClientToServer: [],
+            languagesServerToClient: [],
+            firstKexPacketFollows: false
+        )
+    }
+
+    /// THE regression test for #236: a hardened server that advertises ONLY encrypt-then-MAC
+    /// MAC names must still negotiate with an AEAD-only client. Before the fix the client
+    /// advertised only `["hmac-sha2-256"]`, the MAC lists did not intersect, and the client
+    /// threw `keyExchangeNegotiationFailure`. After the fix the client advertises the ETM
+    /// variants too, so negotiation succeeds and the client proceeds to the ECDH init.
+    func testMacNegotiationSucceedsAgainstHardenedProdServer() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = self.makeAEADClient(loop: loop, allocator: allocator)
+
+        let clientMessage = client.createKeyExchangeMessage()
+        client.send(keyExchange: clientMessage)
+
+        let serverMessage = self.hardenedProdKEXINIT(cookie: clientMessage.cookie)
+        // Negotiation happens here. Producing the ECDH init proves the MAC row intersected.
+        let ecdhInit = try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage))
+        XCTAssertGreaterThan(ecdhInit.publicKey.readableBytes, 0)
+    }
+
+    /// Regression guard: with the pre-#236 single-value fallback, this exact message threw.
+    /// Assert the ETM-only case does NOT throw a negotiation failure.
+    func testEtmOnlyMacDoesNotThrowNegotiationFailure() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = self.makeAEADClient(loop: loop, allocator: allocator)
+        let clientMessage = client.createKeyExchangeMessage()
+        client.send(keyExchange: clientMessage)
+
+        var serverMessage = self.hardenedProdKEXINIT(cookie: clientMessage.cookie)
+        serverMessage.macAlgorithmsClientToServer = ["hmac-sha2-256-etm@openssh.com"]
+        serverMessage.macAlgorithmsServerToClient = ["hmac-sha2-256-etm@openssh.com"]
+
+        XCTAssertNoThrow(try client.handle(keyExchange: serverMessage))
+    }
+
+    /// SSH negotiates client->server and server->client MACs separately, but NIOSSH only
+    /// supports a symmetric result (`clientMAC == serverMAC`, see `negotiatedAlgorithms`).
+    /// Both direction lists are consulted: a server that offers different ETM names per
+    /// direction has no symmetric solution and must be rejected cleanly. This guards against
+    /// a future MAC-list change accidentally allowing an asymmetric (unsupported) result.
+    func testAsymmetricMacDirectionsRejected() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = self.makeAEADClient(loop: loop, allocator: allocator)
+        let clientMessage = client.createKeyExchangeMessage()
+        client.send(keyExchange: clientMessage)
+
+        var serverMessage = self.hardenedProdKEXINIT(cookie: clientMessage.cookie)
+        serverMessage.macAlgorithmsClientToServer = ["hmac-sha2-256-etm@openssh.com"]
+        serverMessage.macAlgorithmsServerToClient = ["hmac-sha2-512-etm@openssh.com"]
+
+        XCTAssertThrowsError(try client.handle(keyExchange: serverMessage)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .keyExchangeNegotiationFailure)
+        }
+    }
+
+    /// Both directions ARE exercised: when the server offers a superset in one direction and a
+    /// single ETM name in the other, negotiation still succeeds as long as a symmetric MAC
+    /// exists in the intersection of both directions.
+    func testMacNegotiationConsultsBothDirections() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = self.makeAEADClient(loop: loop, allocator: allocator)
+        let clientMessage = client.createKeyExchangeMessage()
+        client.send(keyExchange: clientMessage)
+
+        var serverMessage = self.hardenedProdKEXINIT(cookie: clientMessage.cookie)
+        // c2s offers both ETM names; s2c offers only 256-etm. The only symmetric solution is
+        // 256-etm, which the patched client advertises.
+        serverMessage.macAlgorithmsClientToServer = ["hmac-sha2-512-etm@openssh.com", "hmac-sha2-256-etm@openssh.com"]
+        serverMessage.macAlgorithmsServerToClient = ["hmac-sha2-256-etm@openssh.com"]
+
+        XCTAssertNoThrow(try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage)))
+    }
+
+    /// Rekey uses the identical negotiation path (a fresh state machine per exchange), so a
+    /// server-initiated rekey against a hardened server must also succeed. Simulate by running
+    /// negotiation twice against the hardened proposal — a long-lived shell must not die on rekey.
+    func testMacNegotiationSucceedsOnRekey() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        for _ in 0..<2 {
+            var client = self.makeAEADClient(loop: loop, allocator: allocator)
+            let clientMessage = client.createKeyExchangeMessage()
+            client.send(keyExchange: clientMessage)
+            let serverMessage = self.hardenedProdKEXINIT(cookie: clientMessage.cookie)
+            XCTAssertNoThrow(try assertGeneratesECDHKeyExchangeInit(client.handle(keyExchange: serverMessage)))
+        }
+    }
+
+    /// Negative: the MAC lie must not paper over a genuinely incompatible cipher. No shared
+    /// encryption algorithm must still fail negotiation cleanly.
+    func testNegotiationFailsWithNoSharedCipher() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = self.makeAEADClient(loop: loop, allocator: allocator)
+        let clientMessage = client.createKeyExchangeMessage()
+        client.send(keyExchange: clientMessage)
+
+        var serverMessage = self.hardenedProdKEXINIT(cookie: clientMessage.cookie)
+        serverMessage.encryptionAlgorithmsClientToServer = ["nonexistent-cipher"]
+        serverMessage.encryptionAlgorithmsServerToClient = ["nonexistent-cipher"]
+
+        XCTAssertThrowsError(try client.handle(keyExchange: serverMessage)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .keyExchangeNegotiationFailure)
+        }
+    }
+
+    /// Negative: no shared key exchange algorithm must fail cleanly.
+    func testNegotiationFailsWithNoSharedKex() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = self.makeAEADClient(loop: loop, allocator: allocator)
+        let clientMessage = client.createKeyExchangeMessage()
+        client.send(keyExchange: clientMessage)
+
+        var serverMessage = self.hardenedProdKEXINIT(cookie: clientMessage.cookie)
+        serverMessage.keyExchangeAlgorithms = ["nonexistent-kex"]
+
+        XCTAssertThrowsError(try client.handle(keyExchange: serverMessage)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .keyExchangeNegotiationFailure)
+        }
+    }
+
+    /// Negative: no shared host key algorithm must fail cleanly.
+    func testNegotiationFailsWithNoSharedHostKey() throws {
+        let allocator = ByteBufferAllocator()
+        let loop = EmbeddedEventLoop()
+        var client = self.makeAEADClient(loop: loop, allocator: allocator)
+        let clientMessage = client.createKeyExchangeMessage()
+        client.send(keyExchange: clientMessage)
+
+        var serverMessage = self.hardenedProdKEXINIT(cookie: clientMessage.cookie)
+        serverMessage.serverHostKeyAlgorithms = ["nonexistent-hostkey"]
+
+        XCTAssertThrowsError(try client.handle(keyExchange: serverMessage)) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .keyExchangeNegotiationFailure)
+        }
+    }
+
     func testKeyExchangeWithInvalidGuess() throws {
         // This test verifies that the server will tolerate an invalid guessed negotiation. For this reason we only drive a server,
         // as our code never actually guesses.

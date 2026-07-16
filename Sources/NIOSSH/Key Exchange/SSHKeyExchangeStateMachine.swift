@@ -578,9 +578,20 @@ struct SSHKeyExchangeStateMachine {
 
         // We do a weird thing here: if there are no MAC schemes, we lie and put one in. This is
         // because some schemes (such as AES-GCM in OpenSSH mode) ignore the MAC negotiation.
-        // Worse case, we fail out later in the handshake because the peer actually wanted it.
+        //
+        // The negotiated MAC name is never used for these AEAD schemes (the scheme-selection
+        // predicate accepts any negotiated value when `macName == nil`), so this list is purely
+        // cosmetic — it exists only so the KEXINIT MAC-name lists intersect. A single value is
+        // not enough: hardened servers (e.g. NixOS-style OpenSSH) offer ONLY encrypt-then-MAC
+        // names, so we advertise both the plain and the -etm@openssh.com variants of SHA-256/512
+        // to intersect with both stock and hardened configurations. See apple/swift-nio-ssh#236.
         if schemes.isEmpty {
-            return ["hmac-sha2-256"]
+            return [
+                "hmac-sha2-256",
+                "hmac-sha2-512",
+                "hmac-sha2-256-etm@openssh.com",
+                "hmac-sha2-512-etm@openssh.com",
+            ]
         } else {
             return schemes
         }
