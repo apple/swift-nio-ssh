@@ -105,17 +105,14 @@ func runStreamingLargeMessageInSmallChunks(numberOfChunks: Int) throws {
             inboundChildChannelInitializer: nil
         )
     ).wait()
-
-    var config: SSHServerConfiguration = .init(
-        hostKeys: [hostKey],
-        userAuthDelegate: HardcodedServerPasswordDelegate()
-    )
-
-    config.maximumPacketSize = 1 << 24
-
     try serverChannel.pipeline.addHandler(
         NIOSSHHandler(
-            role: .server(config),
+            role: .server(
+                .init(
+                    hostKeys: [hostKey],
+                    userAuthDelegate: HardcodedServerPasswordDelegate()
+                )
+            ),
             allocator: serverChannel.allocator,
             inboundChildChannelInitializer: { channel, _ in
                 channel.pipeline.addHandler(ServerHandler())
