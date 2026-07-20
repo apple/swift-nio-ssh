@@ -206,7 +206,9 @@ extension SSHChannelMultiplexer {
             self.nextChannelID = 0
         }
 
-        var (windowsize, overflow) = Int(self.maximumPacketSize).multipliedReportingOverflow(by: Constants.channelWindowSizePacketMultiple)
+        var (windowsize, overflow) = Int(self.maximumPacketSize).multipliedReportingOverflow(
+            by: Constants.channelWindowSizePacketMultiple
+        )
         if overflow || windowsize > Int32.max {
             windowsize = Int(Int32.max)
         }

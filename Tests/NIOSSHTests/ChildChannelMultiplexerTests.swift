@@ -258,7 +258,10 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         switch message {
         case .some(.channelOpen(let message)):
             XCTAssertEqual(message.maximumPacketSize, UInt32(Constants.defaultMaximumChannelPacketSize))
-            XCTAssertEqual(message.initialWindowSize, UInt32(Constants.defaultMaximumChannelPacketSize) * UInt32(Constants.channelWindowSizePacketMultiple))
+            XCTAssertEqual(
+                message.initialWindowSize,
+                UInt32(Constants.defaultMaximumChannelPacketSize) * UInt32(Constants.channelWindowSizePacketMultiple)
+            )
             return message.senderChannel
 
         case let fallback:
@@ -273,7 +276,10 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         case .some(.channelOpenConfirmation(let message)):
             XCTAssertEqual(message.recipientChannel, recipientChannel)
             XCTAssertEqual(message.maximumPacketSize, UInt32(Constants.defaultMaximumChannelPacketSize))
-            XCTAssertEqual(message.initialWindowSize, UInt32(Constants.defaultMaximumChannelPacketSize) * UInt32(Constants.channelWindowSizePacketMultiple))
+            XCTAssertEqual(
+                message.initialWindowSize,
+                UInt32(Constants.defaultMaximumChannelPacketSize) * UInt32(Constants.channelWindowSizePacketMultiple)
+            )
             return message.senderChannel
 
         case let fallback:
@@ -1404,7 +1410,9 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         )
 
         // The default window size is based on the `Constants`. Sadly, we need a buffer that size.
-        let defaultWindowSize = UInt32(Constants.defaultMaximumChannelPacketSize * Constants.channelWindowSizePacketMultiple)
+        let defaultWindowSize = UInt32(
+            Constants.defaultMaximumChannelPacketSize * Constants.channelWindowSizePacketMultiple
+        )
         let defaultWindowSizeHalf = defaultWindowSize / 2
         let buffer = ByteBuffer.bigBuffer
 
