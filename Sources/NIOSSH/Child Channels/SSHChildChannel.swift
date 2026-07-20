@@ -490,8 +490,8 @@ extension SSHChildChannel: Channel, ChannelCore {
                 recipientChannel: self.state.remoteChannelIdentifier!,
                 senderChannel: self.state.localChannelIdentifier,
                 initialWindowSize: self.windowManager.targetWindowSize,
-                maximumPacketSize: 1 << 24
-            )  // This is a weirdly hard-coded choice.
+                maximumPacketSize: Constants.maximumChannelPacketSize
+            )
             self.processOutboundMessage(.channelOpenConfirmation(message), promise: nil)
             self.writePendingToMultiplexer()
         } else if !self.state.isClosed {
@@ -500,7 +500,7 @@ extension SSHChildChannel: Channel, ChannelCore {
                 type: .init(self.type!),
                 senderChannel: self.state.localChannelIdentifier,
                 initialWindowSize: self.windowManager.targetWindowSize,
-                maximumPacketSize: 1 << 24
+                maximumPacketSize: Constants.maximumChannelPacketSize
             )
             self.processOutboundMessage(.channelOpen(message), promise: nil)
             self.writePendingToMultiplexer()
