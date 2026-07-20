@@ -68,9 +68,9 @@ final class SSHPacketParserTests: XCTestCase {
 
         var buffer = ByteBufferAllocator().buffer(capacity: length)
 
-        var middlePartLength = length - 1 // minus one for LF
+        var middlePartLength = length - 1  // minus one for LF
         if withSSHPrefix {
-            middlePartLength -= 4 // "SSH-"
+            middlePartLength -= 4  // "SSH-"
             buffer.writeString("SSH-")
         }
         if withCR {
@@ -108,7 +108,7 @@ final class SSHPacketParserTests: XCTestCase {
         case .version(let string):
             XCTAssertEqual(0, parser.sequenceNumber)
             XCTAssert(string.starts(with: "SSH-"))
-            XCTAssertEqual(string.count, SSHPacketParser.maximumVersionStringLength - 1) // line feed
+            XCTAssertEqual(string.count, SSHPacketParser.maximumVersionStringLength - 1)  // line feed
         default:
             XCTFail("Expecting .version")
         }
@@ -128,7 +128,7 @@ final class SSHPacketParserTests: XCTestCase {
         case .version(let string):
             XCTAssertEqual(0, parser.sequenceNumber)
             XCTAssert(string.starts(with: "SSH-"))
-            XCTAssertEqual(string.count, SSHPacketParser.maximumVersionStringLength - 2) // CR, LF
+            XCTAssertEqual(string.count, SSHPacketParser.maximumVersionStringLength - 2)  // CR, LF
         default:
             XCTFail("Expecting .version")
         }
@@ -174,7 +174,7 @@ final class SSHPacketParserTests: XCTestCase {
         case .version(let string):
             XCTAssertEqual(0, parser.sequenceNumber)
             XCTAssert(string.starts(with: "SSH-"))
-            XCTAssertEqual(string.count, SSHPacketParser.maximumVersionStringLength - 1) // line feed
+            XCTAssertEqual(string.count, SSHPacketParser.maximumVersionStringLength - 1)  // line feed
         default:
             XCTFail("Expecting .version")
         }
@@ -194,7 +194,7 @@ final class SSHPacketParserTests: XCTestCase {
         case .version(let string):
             XCTAssertEqual(0, parser.sequenceNumber)
             XCTAssert(string.starts(with: "SSH-"))
-            XCTAssertEqual(string.count, SSHPacketParser.maximumVersionStringLength - 2) // CR, LF
+            XCTAssertEqual(string.count, SSHPacketParser.maximumVersionStringLength - 2)  // CR, LF
         default:
             XCTFail("Expecting .version")
         }

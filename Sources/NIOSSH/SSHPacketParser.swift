@@ -189,7 +189,7 @@ struct SSHPacketParser {
             if let lfIndex = slice.firstIndex(of: lineFeed), lfIndex < slice.endIndex {
                 // This must be the version: check the length. The version itself will be validated later.
                 try self.enforceIdentificationAndBannerLineLimit(
-                    length: slice.startIndex.distance(to: lfIndex) + 1, // add one for line feed
+                    length: slice.startIndex.distance(to: lfIndex) + 1,  // add one for line feed
                     isVersion: true
                 )
                 // Guard the `-1` lookup: when the LF is the very first byte of
@@ -216,7 +216,7 @@ struct SSHPacketParser {
                 let lineLength = slice.startIndex.distance(to: lfIndex)
                 let isVersion = slice.starts(with: sshPrefix)
                 try self.enforceIdentificationAndBannerLineLimit(
-                    length: lineLength + 1, // add one for line feed
+                    length: lineLength + 1,  // add one for line feed
                     isVersion: isVersion
                 )
 
@@ -246,7 +246,10 @@ struct SSHPacketParser {
 
         // Ensure the buffered data has not grown past the limit, e.g., if the peer sends data without an LF.
         let pending = self.buffer.readableBytesView
-        try self.enforceIdentificationAndBannerLineLimit(length: pending.count, isVersion: pending.starts(with: sshPrefix))
+        try self.enforceIdentificationAndBannerLineLimit(
+            length: pending.count,
+            isVersion: pending.starts(with: sshPrefix)
+        )
         return nil
     }
 
