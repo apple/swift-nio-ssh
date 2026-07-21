@@ -52,9 +52,9 @@ public enum SSHConnectionRole {
     internal var maximumPacketSize: UInt32 {
         switch self {
         case .client(let configuration):
-            return UInt32(configuration.maximumPacketSize)
+            return UInt32(truncatingIfNeeded: configuration.maximumPacketSize)
         case .server(let configuration):
-            return UInt32(configuration.maximumPacketSize)
+            return UInt32(truncatingIfNeeded: configuration.maximumPacketSize)
         }
     }
 }

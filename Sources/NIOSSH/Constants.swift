@@ -26,6 +26,10 @@ public enum Constants: Sendable {
     /// 32768 bytes, so advertising less than this would claim we cannot handle a spec-compliant peer.
     static let minimumChannelPacketSize: Int = 32768
 
+    /// The maximum configurable channel packet size. Include headroom in packets for SSH framing
+    /// and padding (RFC 4253 §6).
+    static let maximumChannelPacketSize = UInt32.max - 1024
+
     /// The per-channel receive window we advertise, as a multiple of the maximum packet size, so the
     /// two stay coupled. Matches the multiplier used by OpenSSH.
     static let channelWindowSizePacketMultiple = 64

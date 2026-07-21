@@ -64,6 +64,10 @@ struct SSHPacketParser {
             maximumPacketSize >= Constants.minimumChannelPacketSize,
             "maximumPacketSize must be at least \(Constants.minimumChannelPacketSize) bytes (RFC 4253 §6.1)"
         )
+        precondition(
+            maximumPacketSize <= Constants.maximumChannelPacketSize,
+            "maximumPacketSize must leave room for SSH framing and padding (RFC 4253 §6)."
+        )
         self.isServer = isServer
         self.buffer = allocator.buffer(capacity: 0)
         self.state = .initialized

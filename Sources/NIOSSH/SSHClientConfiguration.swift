@@ -42,6 +42,10 @@ public struct SSHClientConfiguration {
                 self.maximumPacketSize >= Constants.minimumChannelPacketSize,
                 "maximumPacketSize must be at least \(Constants.minimumChannelPacketSize) bytes (RFC 4253 §6.1)"
             )
+            precondition(
+                self.maximumPacketSize <= Constants.maximumChannelPacketSize,
+                "maximumPacketSize must leave room for SSH framing and padding (RFC 4253 §6)."
+            )
         }
     }
 
