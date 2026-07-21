@@ -36,6 +36,7 @@ public struct SSHClientConfiguration {
     ///
     /// - Precondition: Must be at least 32768 bytes, the uncompressed payload size
     ///   RFC 4253 §6.1 requires every implementation to support.
+    /// - Precondition: The packet size must leave 1024 bytes for headers and framing.
     public var maximumPacketSize: Int = Constants.defaultMaximumChannelPacketSize {
         didSet {
             precondition(
