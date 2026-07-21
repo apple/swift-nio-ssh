@@ -1550,7 +1550,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         )
         XCTAssertEqual(harness.flushedMessages.count, 1)
 
-        // The default window size is based on Constants. Sadly, we need a buffer that size.
+        // The default window size is 8 MB. Sadly, we need a buffer that size.
         let defaultWindowSize = Constants.defaultMaximumChannelPacketSize * Constants.channelWindowSizePacketMultiple
         let buffer = ByteBuffer.bigBuffer
 
