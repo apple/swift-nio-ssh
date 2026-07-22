@@ -53,6 +53,12 @@ public struct SSHServerConfiguration {
         }
     }
 
+    /// The maximum number of `SSH_MSG_USERAUTH_REQUEST` messages the server will process on a
+    /// single connection before disconnecting the client. Every request counts, including
+    /// authentication probes. Defaults to 1024; set to `Int.max` to effectively disable the limit.
+    /// Must be positive: a value of 0 or less disconnects every client on its first request.
+    public var maxAuthAttempts: Int? = nil
+
     public init(
         hostKeys: [NIOSSHPrivateKey],
         userAuthDelegate: NIOSSHServerUserAuthenticationDelegate,

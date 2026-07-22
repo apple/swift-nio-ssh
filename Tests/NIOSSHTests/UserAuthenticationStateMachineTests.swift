@@ -257,6 +257,8 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
                 XCTFail("Unexpected public key ok")
             case .success(.success):
                 XCTFail("Unexpected success")
+            case .success(.disconnect):
+                XCTFail("Unexpected disconnect")
             case .failure(let error):
                 XCTFail("Unexpected error: \(error)")
             }
@@ -285,6 +287,8 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
                 XCTFail("Unexpected public key ok")
             case .success(.failure):
                 XCTFail("Unexpected failure")
+            case .success(.disconnect):
+                XCTFail("Unexpected disconnect")
             case .failure(let error):
                 XCTFail("Unexpected error: \(error)")
             }
@@ -314,6 +318,8 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
                 XCTFail("Unexpected success")
             case .success(.failure):
                 XCTFail("Unexpected failure")
+            case .success(.disconnect):
+                XCTFail("Unexpected disconnect")
             case .failure(let error):
                 XCTFail("Unexpected error: \(error)")
             }
@@ -321,6 +327,37 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
         self.loop.run()
 
         XCTAssertEqual(message.value, expecting)
+    }
+
+    func expectAuthRequestToDisconnectSynchronously(
+        request: SSHMessage.UserAuthRequestMessage,
+        expectingDisconnect disconnect: SSHMessage.DisconnectMessage,
+        stateMachine: inout UserAuthenticationStateMachine
+    ) throws {
+        let future = try assertNoThrowWithValue(try stateMachine.receiveUserAuthRequest(request))
+        XCTAssertNotNil(future)
+        guard let future = future else {
+            return
+        }
+
+        let result = NIOLoopBoundBox<SSHMessage.DisconnectMessage?>(nil, eventLoop: future.eventLoop)
+        future.whenComplete {
+            switch $0 {
+            case .success(.disconnect(let d)):
+                result.value = d
+            case .success(.failure):
+                XCTFail("Unexpected plain failure")
+            case .success(.publicKeyOK):
+                XCTFail("Unexpected public key ok")
+            case .success(.success):
+                XCTFail("Unexpected success")
+            case .failure(let error):
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+        self.loop.run()
+
+        XCTAssertEqual(result.value, disconnect)
     }
 
     func testBasicHappyClientFlow() throws {
@@ -1173,5 +1210,225 @@ final class UserAuthenticationStateMachineTests: XCTestCase {
 
         // Let's say we got a success. Happy path!
         XCTAssertNoThrow(try stateMachine.receiveUserAuthSuccess())
+    }
+
+    func testServerDisconnectsAfterMaxAuthAttempts() throws {
+        let maxAttempts = 4
+        var config: SSHServerConfiguration = .init(
+            hostKeys: [self.hostKey],
+            userAuthDelegate: DenyAllServerAuthDelegate(),
+        )
+        config.maxAuthAttempts = maxAttempts
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .server(config),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
+        XCTAssertNoThrow(
+            try self.serviceRequested(service: "ssh-userauth", nextMessage: serviceAccept, stateMachine: &stateMachine)
+        )
+        stateMachine.sendServiceAccept(serviceAccept)
+
+        let authRequest = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .password("bar")
+        )
+        let failure = SSHMessage.UserAuthFailureMessage(
+            authentications: ["password", "publickey", "hostbased"],
+            partialSuccess: false
+        )
+
+        // The cap allows exactly `maxAttempts` requests; each is rejected one at a time.
+        for _ in 0..<maxAttempts {
+            try self.expectAuthRequestToFailSynchronously(
+                request: authRequest,
+                expecting: failure,
+                stateMachine: &stateMachine
+            )
+            stateMachine.sendUserAuthFailure(failure)
+        }
+
+        // The next request trips the cap and disconnects.
+        let disconnect = SSHMessage.DisconnectMessage(
+            reason: 11,
+            description: "Too many authentication failures",
+            tag: ""
+        )
+        try self.expectAuthRequestToDisconnectSynchronously(
+            request: authRequest,
+            expectingDisconnect: disconnect,
+            stateMachine: &stateMachine
+        )
+    }
+
+    func testServerIgnoresRequestsAfterDisconnect() throws {
+        let maxAttempts = 4
+        var config: SSHServerConfiguration = .init(
+            hostKeys: [self.hostKey],
+            userAuthDelegate: DenyAllServerAuthDelegate(),
+        )
+        config.maxAuthAttempts = maxAttempts
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .server(config),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
+        XCTAssertNoThrow(
+            try self.serviceRequested(service: "ssh-userauth", nextMessage: serviceAccept, stateMachine: &stateMachine)
+        )
+        stateMachine.sendServiceAccept(serviceAccept)
+
+        let authRequest = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .password("bar")
+        )
+        let failure = SSHMessage.UserAuthFailureMessage(
+            authentications: ["password", "publickey", "hostbased"],
+            partialSuccess: false
+        )
+
+        for _ in 0..<maxAttempts {
+            try self.expectAuthRequestToFailSynchronously(
+                request: authRequest,
+                expecting: failure,
+                stateMachine: &stateMachine
+            )
+            stateMachine.sendUserAuthFailure(failure)
+        }
+
+        // Trip the cap.
+        let disconnect = SSHMessage.DisconnectMessage(
+            reason: 11,
+            description: "Too many authentication failures",
+            tag: ""
+        )
+        try self.expectAuthRequestToDisconnectSynchronously(
+            request: authRequest,
+            expectingDisconnect: disconnect,
+            stateMachine: &stateMachine
+        )
+
+        // A late in-flight request must be ignored, not trapped.
+        XCTAssertNil(try stateMachine.receiveUserAuthRequest(authRequest))
+
+        // A late service request must also be ignored.
+        XCTAssertNil(try stateMachine.receiveServiceRequest(.init(service: "ssh-userauth")))
+    }
+
+    func testProbesCountTowardTheCap() throws {
+        let maxAttempts = 4
+        var config: SSHServerConfiguration = .init(
+            hostKeys: [self.hostKey],
+            userAuthDelegate: DenyAllServerAuthDelegate(),
+        )
+        config.maxAuthAttempts = maxAttempts
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .server(config),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
+        XCTAssertNoThrow(
+            try self.serviceRequested(service: "ssh-userauth", nextMessage: serviceAccept, stateMachine: &stateMachine)
+        )
+        stateMachine.sendServiceAccept(serviceAccept)
+
+        let password = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .password("bar")
+        )
+        let failure = SSHMessage.UserAuthFailureMessage(
+            authentications: ["password", "publickey", "hostbased"],
+            partialSuccess: false
+        )
+
+        // Use up all but one of the budget with rejected password attempts.
+        for _ in 0..<(maxAttempts - 1) {
+            try self.expectAuthRequestToFailSynchronously(
+                request: password,
+                expecting: failure,
+                stateMachine: &stateMachine
+            )
+            stateMachine.sendUserAuthFailure(failure)
+        }
+
+        // A public-key probe (no signature) returns PK_OK — and still consumes the last unit of budget.
+        let probeKey = NIOSSHPrivateKey(p256Key: .init()).publicKey
+        let probe = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .publicKey(.known(key: probeKey, signature: nil))
+        )
+        try self.expectAuthRequestToReturnPKOKSynchronously(
+            request: probe,
+            expecting: .init(key: probeKey),
+            stateMachine: &stateMachine
+        )
+        stateMachine.sendUserAuthPKOK(.init(key: probeKey))
+
+        // Budget is now exhausted: the next request — even another probe — disconnects.
+        let disconnect = SSHMessage.DisconnectMessage(
+            reason: 11,
+            description: "Too many authentication failures",
+            tag: ""
+        )
+        try self.expectAuthRequestToDisconnectSynchronously(
+            request: probe,
+            expectingDisconnect: disconnect,
+            stateMachine: &stateMachine
+        )
+    }
+
+    func testPipelinedRequestsCannotBypassTheCap() throws {
+        let maxAttempts = 4
+        var config: SSHServerConfiguration = .init(
+            hostKeys: [self.hostKey],
+            userAuthDelegate: DenyAllServerAuthDelegate(),
+        )
+        config.maxAuthAttempts = maxAttempts
+        var stateMachine = UserAuthenticationStateMachine(
+            role: .server(config),
+            loop: self.loop,
+            sessionID: self.sessionID
+        )
+
+        let serviceAccept = SSHMessage.ServiceAcceptMessage(service: "ssh-userauth")
+        XCTAssertNoThrow(
+            try self.serviceRequested(service: "ssh-userauth", nextMessage: serviceAccept, stateMachine: &stateMachine)
+        )
+        stateMachine.sendServiceAccept(serviceAccept)
+
+        let authRequest = SSHMessage.UserAuthRequestMessage(
+            username: "foo",
+            service: "ssh-connection",
+            method: .password("bar")
+        )
+
+        // Pipeline the entire budget WITHOUT answering any request, so each is counted on
+        // enqueue while all prior ones are still in flight (pending grows to the full budget).
+        // This proves the cap gates on the accumulated `attempts`, not on `pending`.
+        for _ in 0..<maxAttempts {
+            XCTAssertNotNil(try stateMachine.receiveUserAuthRequest(authRequest))
+        }
+
+        // The next enqueue trips the cap synchronously, even though nothing has been answered.
+        let disconnect = SSHMessage.DisconnectMessage(
+            reason: 11,
+            description: "Too many authentication failures",
+            tag: ""
+        )
+        try self.expectAuthRequestToDisconnectSynchronously(
+            request: authRequest,
+            expectingDisconnect: disconnect,
+            stateMachine: &stateMachine
+        )
     }
 }
