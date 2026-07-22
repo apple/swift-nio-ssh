@@ -37,6 +37,33 @@ func assertNoThrowWithValue<T>(
     }
 }
 
+func makeP256Certificate() throws -> (certificate: NIOSSHCertifiedPublicKey, subjectKey: NIOSSHPrivateKey) {
+    let subjectKey = NIOSSHPrivateKey(p256Key: .init())
+    let ca = P256.Signing.PrivateKey()
+
+    func caSignature(over bytes: ByteBuffer) throws -> NIOSSHSignature {
+        NIOSSHSignature(backingSignature: .ecdsaP256(try ca.signature(for: bytes.readableBytesView)))
+    }
+
+    var certificate = try NIOSSHCertifiedPublicKey(
+        nonce: ByteBuffer(),
+        serial: 0,
+        type: .user,
+        key: subjectKey.publicKey,
+        keyID: "test",
+        validPrincipals: [],
+        validAfter: 1_600_000_000,
+        validBefore: 4_000_000_000,
+        criticalOptions: [:],
+        extensions: [:],
+        signatureKey: NIOSSHPrivateKey(p256Key: ca).publicKey,
+        signature: try caSignature(over: ByteBuffer())
+    )
+    certificate.signature = try caSignature(over: certificate.signableBytes)
+
+    return (certificate, subjectKey)
+}
+
 // This algorithm is not secure, used only for testing purposes
 struct InsecureEncryptionAlgorithm {
     static func encrypt(key: ByteBuffer, plaintext: ByteBuffer) -> ByteBuffer {

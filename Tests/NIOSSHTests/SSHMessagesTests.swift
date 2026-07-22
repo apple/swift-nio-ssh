@@ -247,6 +247,25 @@ final class SSHMessagesTests: XCTestCase {
         try self.assertCorrectlyManagesPartialRead(message)
     }
 
+    func testUserAuthRequestWithCertifiedKeyAndSignature() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let (certificate, subjectKey) = try makeP256Certificate()
+        let key = NIOSSHPublicKey(certificate)
+        let signature = try subjectKey.sign(digest: SHA256.hash(data: Array("hello world!".utf8)))
+
+        let message = SSHMessage.userAuthRequest(
+            .init(
+                username: "test",
+                service: "ssh-connection",
+                method: .publicKey(.known(key: key, signature: signature))
+            )
+        )
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
+    }
+
     func testUserAuthRequestWithMismatchedKeyAndAlgorithm() throws {
         // This is a SSHMessage.userAuthRequest that has been tweaked to have an ed25519 key claiming to be a P256 key.
         let message: [UInt8] = [
@@ -362,6 +381,17 @@ final class SSHMessagesTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         let key = NIOSSHPrivateKey(p521Key: .init())
         let message = SSHMessage.userAuthPKOK(.init(key: key.publicKey))
+
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+
+        try self.assertCorrectlyManagesPartialRead(message)
+    }
+
+    func testUserAuthPKOKCertifiedKey() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let (certificate, _) = try makeP256Certificate()
+        let message = SSHMessage.userAuthPKOK(.init(key: NIOSSHPublicKey(certificate)))
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)

@@ -191,6 +191,10 @@ extension NIOSSHPublicKey {
         [
             Self.ed25519PublicKeyPrefix, Self.ecdsaP384PublicKeyPrefix, Self.ecdsaP256PublicKeyPrefix,
             Self.ecdsaP521PublicKeyPrefix,
+            // Accept OpenSSH certificate user keys in userauth so the server hands certified
+            // keys to its authentication delegate for validation.
+            NIOSSHCertifiedPublicKey.ed25519KeyPrefix, NIOSSHCertifiedPublicKey.p256KeyPrefix,
+            NIOSSHCertifiedPublicKey.p384KeyPrefix, NIOSSHCertifiedPublicKey.p521KeyPrefix,
         ]
     }
 }
