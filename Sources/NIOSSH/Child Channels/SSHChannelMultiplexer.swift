@@ -34,10 +34,14 @@ final class SSHChannelMultiplexer {
     /// Whether new channels are allowed. Set to `false` once the parent channel is shut down at the TCP level.
     private var canCreateNewChannels: Bool
 
+    /// The maximum channel data payload size we advertise to peers when opening channels.
+    private let maximumPacketSize: UInt32
+
     init(
         delegate: SSHMultiplexerDelegate,
         allocator: ByteBufferAllocator,
-        childChannelInitializer: SSHChildChannel.Initializer?
+        childChannelInitializer: SSHChildChannel.Initializer?,
+        maximumPacketSize: UInt32
     ) {
         self.channels = [:]
         self.channels.reserveCapacity(8)
@@ -47,6 +51,7 @@ final class SSHChannelMultiplexer {
         self.allocator = allocator
         self.childChannelInitializer = childChannelInitializer
         self.canCreateNewChannels = true
+        self.maximumPacketSize = maximumPacketSize
     }
 
     // Time to clean up. We drop references to things that may be keeping us alive.
@@ -201,15 +206,22 @@ extension SSHChannelMultiplexer {
             self.nextChannelID = 0
         }
 
-        // TODO: Make the window management parameters configurable
+        var (windowsize, overflow) = Int(self.maximumPacketSize).multipliedReportingOverflow(
+            by: Constants.channelWindowSizePacketMultiple
+        )
+        if overflow || windowsize > Int32.max {
+            windowsize = Int(Int32.max)
+        }
+
         let channel = SSHChildChannel(
             allocator: self.allocator,
             parent: parentChannel,
             multiplexer: self,
             initializer: initializer,
             localChannelID: channelID,
-            targetWindowSize: 1 << 24,
-            initialOutboundWindowSize: 0
+            targetWindowSize: Int32(windowsize),
+            initialOutboundWindowSize: 0,
+            maximumPacketSize: self.maximumPacketSize
         )  // The initial outbound window size is presumed to be 0 until we're told otherwise.
 
         self.channels[channelID] = channel

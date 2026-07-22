@@ -46,6 +46,17 @@ public enum SSHConnectionRole {
             return configuration.transportProtectionSchemes
         }
     }
+
+    /// The maximum size of a channel data payload this peer advertises it is willing to receive,
+    /// and against which inbound encrypted packets are bounded.
+    internal var maximumPacketSize: UInt32 {
+        switch self {
+        case .client(let configuration):
+            return UInt32(truncatingIfNeeded: configuration.maximumPacketSize)
+        case .server(let configuration):
+            return UInt32(truncatingIfNeeded: configuration.maximumPacketSize)
+        }
+    }
 }
 
 @available(*, unavailable)

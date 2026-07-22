@@ -375,6 +375,66 @@ final class SSHPacketParserTests: XCTestCase {
         XCTAssertThrowsError(try parser.nextPacket())
     }
 
+    func testEncryptedPacketCapTracksConfiguredMaximumPacketSize() throws {
+        func feedFirstBlock(maximumPacketSize: UInt32, injectedPacketSize: UInt32) throws -> SSHMessage? {
+            var parser = SSHPacketParser(
+                isServer: false,
+                allocator: ByteBufferAllocator(),
+                maximumPacketSize: maximumPacketSize
+            )
+            self.feedVersion(to: &parser)
+
+            let inboundEncryptionKey = SymmetricKey(size: .bits128)
+            let protection = TestTransportProtection(
+                initialKeys: .init(
+                    initialInboundIV: [],
+                    initialOutboundIV: [],
+                    inboundEncryptionKey: inboundEncryptionKey,
+                    outboundEncryptionKey: inboundEncryptionKey,
+                    inboundMACKey: SymmetricKey(size: .bits128),
+                    outboundMACKey: SymmetricKey(size: .bits128)
+                )
+            )
+            parser.addEncryption(protection)
+
+            // One cipher block whose first 4 (big-endian) bytes decode to `length`. We only feed the
+            // first block, so once the length is accepted the parser parks waiting for the body.
+            var plaintextBlock = ByteBufferAllocator().buffer(capacity: 128)
+            plaintextBlock.writeInteger(injectedPacketSize)
+            plaintextBlock.writeBytes([UInt8](repeating: 0, count: 124))
+            let keyBuffer = inboundEncryptionKey.withUnsafeBytes { ByteBuffer(bytes: $0) }
+            var ciphertext = InsecureEncryptionAlgorithm.encrypt(key: keyBuffer, plaintext: plaintextBlock)
+            parser.append(bytes: &ciphertext)
+
+            return try parser.nextPacket()
+        }
+
+        // Setting the RFC minimum is a valid configuration.
+        XCTAssertNoThrow(
+            try feedFirstBlock(
+                maximumPacketSize: UInt32(Constants.minimumChannelPacketSize),
+                injectedPacketSize: UInt32(Constants.minimumChannelPacketSize)
+            )
+        )
+
+        // The default is greater than the minimum and a packet of its size is not accepted when using the minimum.
+        XCTAssertGreaterThan(Constants.defaultMaximumChannelPacketSize, Constants.minimumChannelPacketSize)
+        XCTAssertThrowsError(
+            try feedFirstBlock(
+                maximumPacketSize: UInt32(Constants.minimumChannelPacketSize),
+                injectedPacketSize: UInt32(Constants.defaultMaximumChannelPacketSize)
+            )
+        )
+
+        // The default is also a valid configuration.
+        XCTAssertNoThrow(
+            try feedFirstBlock(
+                maximumPacketSize: UInt32(Constants.defaultMaximumChannelPacketSize),
+                injectedPacketSize: UInt32(Constants.defaultMaximumChannelPacketSize)
+            )
+        )
+    }
+
     func testReadVersionWithExtraLinesOnClient() throws {
         var parser = SSHPacketParser(isServer: false, allocator: ByteBufferAllocator())
 
