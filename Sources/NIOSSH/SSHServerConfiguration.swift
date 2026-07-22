@@ -31,7 +31,7 @@ public struct SSHServerConfiguration {
 
     /// The maximum size, in bytes, of a channel data payload this peer is willing to receive (the
     /// "maximum packet size" of an SSH channel, RFC 4254 §5.1). It is advertised to the remote peer
-    /// when opening channels and bounds inbound encrypted packets. Defaults to `1 << 17`.
+    /// when opening channels and bounds inbound encrypted packets. Defaults to `1 << 17`  (128 KiB).
     ///
     /// The per-channel receive window we advertise is a fixed multiple of this value (64x), so raising
     /// this value raises the window proportionally. The window is stored as an `Int32`, meaning
