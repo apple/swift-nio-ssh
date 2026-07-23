@@ -557,6 +557,13 @@ final class SSHMessagesTests: XCTestCase {
         XCTAssertEqual(try buffer.readSSHMessage(), message)
         try self.assertCorrectlyManagesPartialRead(message)
 
+        message = SSHMessage.channelOpen(
+            .init(type: .authAgent, senderChannel: 0, initialWindowSize: 42, maximumPacketSize: 24)
+        )
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+        try self.assertCorrectlyManagesPartialRead(message)
+
         func writeBadMessage(into buffer: inout ByteBuffer, type: String, firstPort: UInt32, secondPort: UInt32) {
             buffer.writeInteger(SSHMessage.ChannelOpenMessage.id)
             buffer.writeSSHString(type.utf8)
@@ -713,6 +720,16 @@ final class SSHMessagesTests: XCTestCase {
         XCTAssertEqual(try buffer.readSSHMessage(), message)
         try self.assertCorrectlyManagesPartialRead(message)
 
+        message = SSHMessage.channelRequest(.init(recipientChannel: 0, type: .agentForwarding, wantReply: true))
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+        try self.assertCorrectlyManagesPartialRead(message)
+
+        message = SSHMessage.channelRequest(.init(recipientChannel: 0, type: .agentForwarding, wantReply: false))
+        buffer.writeSSHMessage(message)
+        XCTAssertEqual(try buffer.readSSHMessage(), message)
+        try self.assertCorrectlyManagesPartialRead(message)
+
         buffer.writeBytes([SSHMessage.ChannelRequestMessage.id, 0, 0])
         XCTAssertNil(try buffer.readSSHMessage())
     }
@@ -728,6 +745,24 @@ final class SSHMessagesTests: XCTestCase {
         XCTAssertNil(try buffer.readSSHMessage())
 
         try self.assertCorrectlyManagesPartialRead(message)
+    }
+
+    func testAgentForwardingChannelRequestEvent() throws {
+        let wantReplyMessage = SSHMessage.ChannelRequestMessage(
+            recipientChannel: 0,
+            type: .agentForwarding,
+            wantReply: true
+        )
+        let event = SSHChannelRequestEvent.fromMessage(wantReplyMessage)
+        XCTAssertEqual(event as? SSHChannelRequestEvent.AgentForwardingRequest, .init(wantReply: true))
+
+        let noReplyMessage = SSHMessage.ChannelRequestMessage(
+            recipientChannel: 0,
+            type: .agentForwarding,
+            wantReply: false
+        )
+        let noReplyEvent = SSHChannelRequestEvent.fromMessage(noReplyMessage)
+        XCTAssertEqual(noReplyEvent as? SSHChannelRequestEvent.AgentForwardingRequest, .init(wantReply: false))
     }
 
     func testChannelFailure() throws {
