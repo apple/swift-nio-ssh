@@ -384,26 +384,17 @@ struct SSHKeyExchangeStateMachine {
             peerKeyExchangeAlgorithms: message.keyExchangeAlgorithms,
             peerHostKeyAlgorithms: message.serverHostKeyAlgorithms
         )
-        let (clientEncryption, clientMAC) = try self.negotiatedTransportProtection(
+        let clientProtection = try self.negotiatedTransportProtection(
             peerEncryptionAlgorithms: message.encryptionAlgorithmsClientToServer,
             peerMacAlgorithms: message.macAlgorithmsClientToServer
         )
-        let (serverEncryption, serverMAC) = try self.negotiatedTransportProtection(
+        let serverProtection = try self.negotiatedTransportProtection(
             peerEncryptionAlgorithms: message.encryptionAlgorithmsServerToClient,
             peerMacAlgorithms: message.macAlgorithmsServerToClient
         )
 
         // We only support symmetrical negotiation results.
-        guard clientEncryption == serverEncryption, clientMAC == serverMAC else {
-            throw NIOSSHError.keyExchangeNegotiationFailure
-        }
-
-        // Ok, now we need to find the right transport protection scheme. This can technically fail.
-        guard
-            let scheme = self.protectionSchemes.first(where: {
-                $0.cipherName == clientEncryption && ($0.macName == nil || $0.macName! == clientMAC)
-            })
-        else {
+        guard ObjectIdentifier(clientProtection) == ObjectIdentifier(serverProtection) else {
             throw NIOSSHError.keyExchangeNegotiationFailure
         }
 
@@ -411,7 +402,7 @@ struct SSHKeyExchangeStateMachine {
         return NegotiationResult(
             negotiatedKeyExchangeAlgorithm: keyExchange,
             negotiatedHostKeyAlgorithm: hostKey,
-            negotiatedProtection: scheme
+            negotiatedProtection: clientProtection
         )
     }
 
@@ -487,7 +478,7 @@ struct SSHKeyExchangeStateMachine {
     private func negotiatedTransportProtection(
         peerEncryptionAlgorithms: [Substring],
         peerMacAlgorithms: [Substring]
-    ) throws -> (encryption: Substring, mac: Substring) {
+    ) throws -> NIOSSHTransportProtection.Type {
         // Ok, rephrase as client and server instead of us and them.
         let clientEncryptionAlgorithms: [Substring]
         let serverEncryptionAlgorithms: [Substring]
@@ -507,19 +498,38 @@ struct SSHKeyExchangeStateMachine {
             serverMACAlgorithms = self.supportedMacAlgorithms
         }
 
-        // Ok, the algorithm is that we choose the first encryption and MAC algorithm in the client's list that
-        // is in the server's list as well.
-        guard let encryption = clientEncryptionAlgorithms.first(where: { serverEncryptionAlgorithms.contains($0) })
-        else {
-            throw NIOSSHError.keyExchangeNegotiationFailure
+        // Ok, the algorithm is that we choose the first encryption algorithm in the client's list that
+        // is in the server's list as well. For OpenSSH-style AEAD ciphers the MAC negotiation is ignored.
+        // Otherwise, we choose the first mutually-supported MAC and then check that we have a scheme for
+        // that cipher/MAC pair.
+        for encryption in clientEncryptionAlgorithms {
+            guard serverEncryptionAlgorithms.contains(encryption) else {
+                continue
+            }
+
+            if let aeadScheme = self.protectionSchemes.first(where: {
+                $0.cipherName == encryption && $0.macName == nil
+            }) {
+                return aeadScheme
+            }
+
+            guard let mac = clientMACAlgorithms.first(where: { serverMACAlgorithms.contains($0) }) else {
+                throw NIOSSHError.keyExchangeNegotiationFailure
+            }
+
+            // MAC negotiation is independent in RFC 4253. Once the first mutual MAC is selected, both
+            // peers will use it, so do not skip ahead to a later MAC just because this side lacks a
+            // registered scheme for the selected cipher/MAC pair.
+            guard let scheme = self.protectionSchemes.first(where: {
+                $0.cipherName == encryption && $0.macName == String(mac)
+            }) else {
+                throw NIOSSHError.keyExchangeNegotiationFailure
+            }
+
+            return scheme
         }
 
-        // Ok great, now work out what we negotiated as a MAC.
-        guard let mac = clientMACAlgorithms.first(where: { serverMACAlgorithms.contains($0) }) else {
-            throw NIOSSHError.keyExchangeNegotiationFailure
-        }
-
-        return (encryption, mac)
+        throw NIOSSHError.keyExchangeNegotiationFailure
     }
 
     private mutating func addKeyExchangeInitMessagesToExchangeBytes(
@@ -576,9 +586,8 @@ struct SSHKeyExchangeStateMachine {
     private var supportedMacAlgorithms: [Substring] {
         let schemes = self.protectionSchemes.compactMap { $0.macName.map { Substring($0) } }
 
-        // We do a weird thing here: if there are no MAC schemes, we lie and put one in. This is
-        // because some schemes (such as AES-GCM in OpenSSH mode) ignore the MAC negotiation.
-        // Worse case, we fail out later in the handshake because the peer actually wanted it.
+        // RFC 4253 requires KEXINIT algorithm name-lists to contain at least one algorithm name.
+        // OpenSSH-style AEAD ciphers ignore MAC negotiation, but still need a compatibility MAC proposal.
         if schemes.isEmpty {
             return ["hmac-sha2-256"]
         } else {
