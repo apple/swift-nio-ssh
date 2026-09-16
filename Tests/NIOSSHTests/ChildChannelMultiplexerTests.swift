@@ -1914,6 +1914,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
                     originatorAddress: try! .init(ipAddress: "fe80::1", port: 70)
                 )
             ),
+            SSHChannelType.authAgent,
         ]
 
         for channelType in channelTypes {
@@ -1961,6 +1962,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
                     originatorAddress: try! .init(ipAddress: "fe80::1", port: 70)
                 )
             ),
+            SSHChannelType.authAgent,
         ]
 
         for (channelID, channelType) in channelTypes.enumerated() {

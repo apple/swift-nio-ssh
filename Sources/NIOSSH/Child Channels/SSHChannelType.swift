@@ -35,6 +35,9 @@ public enum SSHChannelType: Equatable, Sendable {
 
     /// "Forwarded TCP/IP" is a connection that was accepted from a listening socket and is being forwarded to the client.
     case forwardedTCPIP(ForwardedTCPIP)
+
+    /// "Auth Agent" is a channel for forwarding SSH agent requests to the client's agent.
+    case authAgent
 }
 
 extension SSHChannelType {
@@ -129,6 +132,8 @@ extension SSHChannelType {
                     originatorAddress: message.originatorAddress
                 )
             )
+        case .authAgent:
+            self = .authAgent
         }
     }
 }
@@ -154,6 +159,8 @@ extension SSHMessage.ChannelOpenMessage.ChannelType {
                     originatorAddress: data.originatorAddress
                 )
             )
+        case .authAgent:
+            self = .authAgent
         }
     }
 }
