@@ -509,7 +509,13 @@ extension ByteBuffer {
                 }
                 return .channelFailure(message)
             default:
-                throw SSHMessage.ParsingError.unknownType(type)
+                // Unknown SSH message type - consume remaining bytes and return as ignore.
+                // This prevents parser state corruption when encountering extension messages
+                // (e.g. hostkeys-00@openssh.com) that NIOSSH doesn't support. Without this,
+                // the parser would throw, rewind the buffer reader over already-decrypted data,
+                // and skip incrementing the sequence number, causing cascading MAC failures.
+                self.moveReaderIndex(to: self.writerIndex)
+                return .ignore(.init(data: ByteBuffer()))
             }
         }
     }
