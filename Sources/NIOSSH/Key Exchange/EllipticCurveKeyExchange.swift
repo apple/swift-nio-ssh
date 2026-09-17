@@ -27,7 +27,7 @@ import Foundation
 protocol EllipticCurveKeyExchangeProtocol: _NIOSSHSendableMetatype {
     init(ourRole: SSHConnectionRole, previousSessionIdentifier: ByteBuffer?)
 
-    func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage
+    mutating func initiateKeyExchangeClientSide(allocator: ByteBufferAllocator) -> SSHMessage.KeyExchangeECDHInitMessage
 
     mutating func completeKeyExchangeServerSide(
         clientKeyExchangeMessage message: SSHMessage.KeyExchangeECDHInitMessage,
