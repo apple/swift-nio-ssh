@@ -167,6 +167,11 @@ extension NIOSSHHandler: ChannelDuplexHandler {
         self.multiplexer?.parentChannelInactive()
     }
 
+    public func channelWritabilityChanged(context: ChannelHandlerContext) {
+        self.multiplexer?.parentChannelWritabilityChanged(newValue: context.channel.isWritable)
+        context.fireChannelWritabilityChanged()
+    }
+
     public func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         self.expectingChannelReadComplete = true
 
