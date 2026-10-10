@@ -215,6 +215,17 @@ final class ExpectPublicKeyAuth: NIOSSHServerUserAuthenticationDelegate {
     }
 }
 
+/// Records every inbound message of one type.
+final class ReadRecorder<Message>: ChannelInboundHandler {
+    typealias InboundIn = Message
+    var reads: [Message] = []
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        self.reads.append(self.unwrapInboundIn(data))
+        context.fireChannelRead(data)
+    }
+}
+
 class EndToEndTests: XCTestCase {
     var channel: BackToBackEmbeddedChannel!
 
@@ -535,6 +546,40 @@ class EndToEndTests: XCTestCase {
         self.channel.clientSSHHandler?.createChannel(nil, nil)
         XCTAssertNoThrow(try self.channel.interactInMemory())
         XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+    }
+
+    func testChannelDataWrittenDuringRekeyIsDeliveredAfterwards() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        let clientChannel = try self.channel.createNewChannel()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(self.channel.activeServerChannels.count, 1)
+        let serverChannel = self.channel.activeServerChannels[0]
+        let received = ReadRecorder<SSHChannelData>()
+        XCTAssertNoThrow(try serverChannel.pipeline.syncOperations.addHandler(received))
+
+        // The client is now mid-rekey: it has sent KEXINIT and must not send channel data until its NEWKEYS.
+        XCTAssertNoThrow(try self.channel.clientSSHHandler!._rekey())
+        XCTAssertTrue(received.reads.isEmpty)
+
+        // A child channel write during the rekey must be held, not rejected.
+        var buffer = clientChannel.allocator.buffer(capacity: 32)
+        buffer.writeString("written during rekey")
+        let writePromise = clientChannel.eventLoop.makePromise(of: Void.self)
+        clientChannel.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(buffer)), promise: writePromise)
+        XCTAssertTrue(received.reads.isEmpty)
+
+        // Finish the rekey; the write goes out afterwards and the server sees it.
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertNoThrow(try writePromise.futureResult.wait())
+        XCTAssertEqual(received.reads.count, 1)
+        if case .byteBuffer(let delivered) = received.reads.first?.data {
+            XCTAssertEqual(String(buffer: delivered), "written during rekey")
+        } else {
+            XCTFail("expected a byte buffer")
+        }
     }
 
     func testDelayedHostKeyValidation() throws {

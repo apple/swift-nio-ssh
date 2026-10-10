@@ -1250,6 +1250,21 @@ extension SSHConnectionStateMachine {
         }
     }
 
+    /// Whether channel-layer messages (data, window adjustments, opens…) may be sent right now.
+    ///
+    /// RFC 4253 §7.1 forbids sending anything but key-exchange messages after our KEXINIT until our NEWKEYS. During
+    /// a rekey those messages must be held back and sent once the new keys are in place, not rejected.
+    var canSendChannelMessages: Bool {
+        switch self.state {
+        case .active, .rekeyingSentNewKeysState:
+            return true
+        case .idle, .sentVersion, .keyExchange, .receivedNewKeys, .sentNewKeys, .userAuthentication,
+            .receivedKexInitWhenActive, .sentKexInitWhenActive, .rekeying, .rekeyingReceivedNewKeysState,
+            .receivedDisconnect, .sentDisconnect:
+            return false
+        }
+    }
+
     var disconnected: Bool {
         switch self.state {
         case .receivedDisconnect, .sentDisconnect:

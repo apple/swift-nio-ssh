@@ -63,6 +63,10 @@ public final class NIOSSHHandler {
 
     private var pendingGlobalRequestResponses: CircularBuffer<PendingGlobalRequestResponse?>
 
+    /// Child channel messages that arrived while a key exchange was in progress. They are written, in order, as
+    /// soon as the state machine allows channel messages again (after our NEWKEYS during a rekey).
+    private var pendingChildWrites: CircularBuffer<(SSHMessage, EventLoopPromise<Void>?)>
+
     /// Construct a new ``NIOSSHHandler``.
     ///
     /// - parameters:
@@ -80,6 +84,7 @@ public final class NIOSSHHandler {
         self.pendingChannelInitializations = CircularBuffer(initialCapacity: 4)
         self.pendingGlobalRequests = CircularBuffer(initialCapacity: 4)
         self.pendingGlobalRequestResponses = CircularBuffer(initialCapacity: 4)
+        self.pendingChildWrites = CircularBuffer(initialCapacity: 4)
         self.multiplexer = SSHChannelMultiplexer(
             delegate: self,
             allocator: allocator,
@@ -140,6 +145,7 @@ extension NIOSSHHandler: ChannelDuplexHandler {
 
         self.dropAllPendingGlobalRequests(ChannelError.eof)
         self.dropUnsatisfiedGlobalRequests(ChannelError.eof)
+        self.dropPendingChildWrites(ChannelError.ioOnClosedChannel)
         while let next = self.pendingChannelInitializations.popFirst() {
             next.promise?.fail(ChannelError.eof)
         }
@@ -180,6 +186,7 @@ extension NIOSSHHandler: ChannelDuplexHandler {
             ) {
                 try self.processInboundMessageResult(result, context: context)
             }
+            try self.drainPendingChildWritesIfPossible(context: context)
         } catch {
             context.fireErrorCaught(error)
         }
@@ -234,6 +241,7 @@ extension NIOSSHHandler: ChannelDuplexHandler {
                 case .success(.some(let message)):
                     do {
                         try self.writeMessage(message, context: context)
+                        try self.drainPendingChildWritesIfPossible(context: context)
                         self.pendingWrite = false
                         context.flush()
                     } catch {
@@ -541,9 +549,41 @@ extension NIOSSHHandler: SSHMultiplexerDelegate {
             return
         }
 
+        guard self.stateMachine.canSendChannelMessages else {
+            // Mid-rekey: hold the message until our NEWKEYS is out, in order.
+            self.pendingChildWrites.append((message, promise))
+            return
+        }
+
         do {
             try self.writeMessage(SSHMultiMessage(message), context: context, promise: promise)
         } catch {
+            promise?.fail(error)
+        }
+    }
+
+    /// Writes any child channel messages held back during a key exchange. Called whenever inbound processing may
+    /// have moved the state machine into a state that allows channel messages again.
+    private func drainPendingChildWritesIfPossible(context: ChannelHandlerContext) throws {
+        guard self.stateMachine.canSendChannelMessages, self.pendingChildWrites.count > 0 else {
+            return
+        }
+        while let (message, promise) = self.pendingChildWrites.popFirst() {
+            do {
+                try self.writeMessage(SSHMultiMessage(message), context: context, promise: promise)
+            } catch {
+                promise?.fail(error)
+                throw error
+            }
+        }
+        if !self.expectingChannelReadComplete {
+            self.pendingWrite = false
+            context.flush()
+        }
+    }
+
+    private func dropPendingChildWrites(_ error: Error) {
+        while let (_, promise) = self.pendingChildWrites.popFirst() {
             promise?.fail(error)
         }
     }
