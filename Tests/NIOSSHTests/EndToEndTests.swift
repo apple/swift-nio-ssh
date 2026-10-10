@@ -395,6 +395,28 @@ class EndToEndTests: XCTestCase {
         XCTAssertNil(try secondReply.futureResult.wait())
     }
 
+    func testPublicSendGlobalRequestKeepalive() throws {
+        // `keepalive@openssh.com` is what OpenSSH uses for ServerAliveInterval: the peer answers with
+        // REQUEST_FAILURE (it is unknown to it), and that answer is the liveness signal.
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        let answered = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
+        self.channel.clientSSHHandler!.sendGlobalRequest(
+            name: "keepalive@openssh.com",
+            wantReply: true,
+            promise: answered
+        )
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertThrowsError(try answered.futureResult.wait())
+
+        let sent = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
+        self.channel.clientSSHHandler!.sendGlobalRequest(name: "keepalive@openssh.com", wantReply: false, promise: sent)
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertNil(try sent.futureResult.wait())
+    }
+
     func testGlobalRequestTooEarlyIsDelayed() throws {
         let completed = NIOLoopBoundBox(false, eventLoop: self.channel.client.eventLoop)
         let promise = self.channel.client.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
