@@ -127,15 +127,15 @@ class TestTransportProtection: NIOSSHTransportProtection {
         true
     }
 
-    static var cipherName: String {
+    class var cipherName: String {
         "insecure-tiny-encription-cipher"
     }
 
-    static var macName: String? {
+    class var macName: String? {
         nil
     }
 
-    static var keySizes: ExpectedKeySizes {
+    class var keySizes: ExpectedKeySizes {
         .init(ivSize: 12, encryptionKeySize: 16, macKeySize: 16)
     }
 
