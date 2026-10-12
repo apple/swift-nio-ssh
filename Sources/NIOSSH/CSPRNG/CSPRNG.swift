@@ -25,13 +25,15 @@
 /// for more details.
 ///
 /// We feel confident that the `SystemRandomNumberGenerator` will remain a CSPRNG on all Apple platforms
-/// and on Linux for the foreseeable future. This CSPRNG therefore wraps the `SystemRandomNumberGenerator`
+/// and on Linux for the foreseeable future. On Windows the standard library documents and implements
+/// `SystemRandomNumberGenerator` on top of `BCryptGenRandom` with `BCRYPT_USE_SYSTEM_PREFERRED_RNG`,
+/// the system-preferred CSPRNG. This CSPRNG therefore wraps the `SystemRandomNumberGenerator`
 /// on those platforms, and traps on all others.
 struct CSPRNG: RandomNumberGenerator {
     private var baseRNG: SystemRandomNumberGenerator
 
     init() {
-        #if canImport(Darwin) || os(Linux) || os(Android)
+        #if canImport(Darwin) || os(Linux) || os(Android) || os(Windows)
         self.baseRNG = SystemRandomNumberGenerator()
         #else
         fatalError("Platform does not have a supported CSPRNG")
