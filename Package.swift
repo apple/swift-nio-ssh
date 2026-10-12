@@ -38,7 +38,10 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0"),
-        .package(url: "https://github.com/apple/swift-crypto.git", "1.0.0"..<"5.0.0"),
+        // 4.5.0 is the first release with the public `MLKEM768` API
+        // (`Sources/Crypto/KEM/MLKEM.swift`), used by
+        // `MLKEM768X25519KeyExchange` for the post-quantum hybrid KEX.
+        .package(url: "https://github.com/apple/swift-crypto.git", "4.5.0"..<"5.0.0"),
         .package(url: "https://github.com/apple/swift-atomics.git", from: "1.0.2"),
     ],
     targets: [
