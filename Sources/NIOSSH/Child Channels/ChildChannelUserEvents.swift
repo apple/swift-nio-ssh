@@ -309,6 +309,16 @@ public enum SSHChannelRequestEvent: Sendable {
             self.signal = signal
         }
     }
+
+    /// A request from the client to enable SSH agent forwarding for this session.
+    public struct AgentForwardingRequest: Hashable, Sendable {
+        /// Whether a reply to this request is desired.
+        public var wantReply: Bool
+
+        public init(wantReply: Bool) {
+            self.wantReply = wantReply
+        }
+    }
 }
 
 extension SSHChannelRequestEvent {
@@ -350,6 +360,8 @@ extension SSHChannelRequestEvent {
             return LocalFlowControlRequest(clientCanDo: clientCanDo)
         case .signal(let signalName):
             return SignalRequest(signal: signalName)
+        case .agentForwarding:
+            return AgentForwardingRequest(wantReply: message.wantReply)
         case .unknown:
             return nil
         }
