@@ -325,9 +325,11 @@ extension NIOSSHHandler {
     /// or other vendor extensions (RFC 4254 §4).
     ///
     /// If `wantReply` is true, `promise` is succeeded with the peer's `SSH_MSG_REQUEST_SUCCESS` payload
-    /// (possibly empty) or failed when the peer answers `SSH_MSG_REQUEST_FAILURE`. Either completion
-    /// proves the peer processed the request, which is what a keep-alive needs. If `wantReply` is false,
-    /// `promise` is succeeded with `nil` once the request has been sent.
+    /// (possibly empty) when the peer accepts the request. It is failed with a ``NIOSSHError`` of type
+    /// ``NIOSSHError/ErrorType/globalRequestRefused`` when the peer answers `SSH_MSG_REQUEST_FAILURE`; only
+    /// that error means the peer answered. The promise is also failed, with some other error, if the request
+    /// cannot be written or the handler is removed before the peer answers. If `wantReply` is false, `promise`
+    /// is succeeded with `nil` once the request has been sent.
     ///
     /// This function is **not** thread-safe: it may only be called from on the channel.
     ///
@@ -348,7 +350,7 @@ extension NIOSSHHandler {
     /// Sends a global request of any kind. This is commonly used for TCP forwarding requests, but can be used to extend the protocol.
     ///
     /// This function is **not** thread-safe: it may only be called from on the channel.
-    func sendGlobalRequestMessage(
+    private func sendGlobalRequestMessage(
         _ message: SSHMessage.GlobalRequestMessage,
         promise: EventLoopPromise<ByteBuffer?>? = nil
     ) {

@@ -377,44 +377,18 @@ class EndToEndTests: XCTestCase {
         randomPayload.writeBytes(Array(randomBytes: 12))
 
         let firstReply = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
-        clientSSHHandler.sendGlobalRequestMessage(
-            .init(wantReply: true, type: .unknown("test", randomPayload)),
-            promise: firstReply
-        )
+        clientSSHHandler.sendGlobalRequest(name: "test", wantReply: true, data: randomPayload, promise: firstReply)
 
         XCTAssertNoThrow(try self.channel.interactInMemory())
-        XCTAssertThrowsError(try firstReply.futureResult.wait())
+        XCTAssertThrowsError(try firstReply.futureResult.wait()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .globalRequestRefused)
+        }
 
         let secondReply = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
-        clientSSHHandler.sendGlobalRequestMessage(
-            .init(wantReply: false, type: .unknown("test", randomPayload)),
-            promise: secondReply
-        )
+        clientSSHHandler.sendGlobalRequest(name: "test", wantReply: false, data: randomPayload, promise: secondReply)
 
         XCTAssertNoThrow(try self.channel.interactInMemory())
         XCTAssertNil(try secondReply.futureResult.wait())
-    }
-
-    func testPublicSendGlobalRequestKeepalive() throws {
-        // `keepalive@openssh.com` is what OpenSSH uses for ServerAliveInterval: the peer answers with
-        // REQUEST_FAILURE (it is unknown to it), and that answer is the liveness signal.
-        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
-        XCTAssertNoThrow(try self.channel.activate())
-        XCTAssertNoThrow(try self.channel.interactInMemory())
-
-        let answered = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
-        self.channel.clientSSHHandler!.sendGlobalRequest(
-            name: "keepalive@openssh.com",
-            wantReply: true,
-            promise: answered
-        )
-        XCTAssertNoThrow(try self.channel.interactInMemory())
-        XCTAssertThrowsError(try answered.futureResult.wait())
-
-        let sent = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
-        self.channel.clientSSHHandler!.sendGlobalRequest(name: "keepalive@openssh.com", wantReply: false, promise: sent)
-        XCTAssertNoThrow(try self.channel.interactInMemory())
-        XCTAssertNil(try sent.futureResult.wait())
     }
 
     func testGlobalRequestTooEarlyIsDelayed() throws {
