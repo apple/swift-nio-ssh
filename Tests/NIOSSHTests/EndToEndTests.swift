@@ -215,17 +215,6 @@ final class ExpectPublicKeyAuth: NIOSSHServerUserAuthenticationDelegate {
     }
 }
 
-/// Records every inbound message of one type.
-final class ReadRecorder<Message>: ChannelInboundHandler {
-    typealias InboundIn = Message
-    var reads: [Message] = []
-
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        self.reads.append(self.unwrapInboundIn(data))
-        context.fireChannelRead(data)
-    }
-}
-
 class EndToEndTests: XCTestCase {
     var channel: BackToBackEmbeddedChannel!
 
@@ -548,7 +537,8 @@ class EndToEndTests: XCTestCase {
         XCTAssertEqual(self.channel.activeServerChannels.count, 1)
     }
 
-    func testChannelDataWrittenDuringRekeyIsDeliveredAfterwards() throws {
+    /// Establishes a connection with one child channel on each side and returns them.
+    private func establishChildChannel() throws -> (client: Channel, server: Channel) {
         XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
         XCTAssertNoThrow(try self.channel.activate())
         XCTAssertNoThrow(try self.channel.interactInMemory())
@@ -556,22 +546,32 @@ class EndToEndTests: XCTestCase {
         let clientChannel = try self.channel.createNewChannel()
         XCTAssertNoThrow(try self.channel.interactInMemory())
         XCTAssertEqual(self.channel.activeServerChannels.count, 1)
-        let serverChannel = self.channel.activeServerChannels[0]
-        let received = ReadRecorder<SSHChannelData>()
-        XCTAssertNoThrow(try serverChannel.pipeline.syncOperations.addHandler(received))
+        return (clientChannel, self.channel.activeServerChannels[0])
+    }
 
-        // The client is now mid-rekey: it has sent KEXINIT and must not send channel data until its NEWKEYS.
-        XCTAssertNoThrow(try self.channel.clientSSHHandler!._rekey())
-        XCTAssertTrue(received.reads.isEmpty)
+    /// Writes `text` on `writer` while `rekeyer` is mid-rekey, and checks the write is held until the rekey
+    /// completes and then delivered to `reader`.
+    private func assertChannelDataWrittenDuringRekeyIsDelivered(
+        rekeyer: NIOSSHHandler,
+        writer: Channel,
+        reader: Channel
+    ) throws {
+        let received = ReadRecordingHandler()
+        XCTAssertNoThrow(try reader.pipeline.syncOperations.addHandler(received))
+
+        // The rekeyer has now sent KEXINIT and must not send channel data until its NEWKEYS.
+        XCTAssertNoThrow(try rekeyer._rekey())
 
         // A child channel write during the rekey must be held, not rejected.
-        var buffer = clientChannel.allocator.buffer(capacity: 32)
+        var buffer = writer.allocator.buffer(capacity: 32)
         buffer.writeString("written during rekey")
-        let writePromise = clientChannel.eventLoop.makePromise(of: Void.self)
-        clientChannel.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(buffer)), promise: writePromise)
-        XCTAssertTrue(received.reads.isEmpty)
+        let writePromise = writer.eventLoop.makePromise(of: Void.self)
+        let writeCompleted = NIOLoopBoundBox(false, eventLoop: writer.eventLoop)
+        writePromise.futureResult.whenComplete { _ in writeCompleted.value = true }
+        writer.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(buffer)), promise: writePromise)
+        XCTAssertFalse(writeCompleted.value)
 
-        // Finish the rekey; the write goes out afterwards and the server sees it.
+        // Finish the rekey; the write goes out afterwards and the peer sees it.
         XCTAssertNoThrow(try self.channel.interactInMemory())
         XCTAssertNoThrow(try writePromise.futureResult.wait())
         XCTAssertEqual(received.reads.count, 1)
@@ -580,6 +580,45 @@ class EndToEndTests: XCTestCase {
         } else {
             XCTFail("expected a byte buffer")
         }
+    }
+
+    func testClientChannelDataWrittenDuringRekeyIsDeliveredAfterwards() throws {
+        let (clientChannel, serverChannel) = try self.establishChildChannel()
+        // The client sends its NEWKEYS from the key exchange future, so this exercises that drain path.
+        try self.assertChannelDataWrittenDuringRekeyIsDelivered(
+            rekeyer: self.channel.clientSSHHandler!,
+            writer: clientChannel,
+            reader: serverChannel
+        )
+    }
+
+    func testServerChannelDataWrittenDuringRekeyIsDeliveredAfterwards() throws {
+        let (clientChannel, serverChannel) = try self.establishChildChannel()
+        // The server sends its NEWKEYS from channelRead, so this exercises that drain path.
+        try self.assertChannelDataWrittenDuringRekeyIsDelivered(
+            rekeyer: self.channel.serverSSHHandler!,
+            writer: serverChannel,
+            reader: clientChannel
+        )
+    }
+
+    func testChannelDataWrittenDuringRekeyFailsIfConnectionCloses() throws {
+        let (clientChannel, _) = try self.establishChildChannel()
+
+        XCTAssertNoThrow(try self.channel.clientSSHHandler!._rekey())
+
+        var buffer = clientChannel.allocator.buffer(capacity: 32)
+        buffer.writeString("written during rekey")
+        let writePromise = clientChannel.eventLoop.makePromise(of: Void.self)
+        let writeError = NIOLoopBoundBox<Error?>(nil, eventLoop: clientChannel.eventLoop)
+        writePromise.futureResult.whenFailure { writeError.value = $0 }
+        clientChannel.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(buffer)), promise: writePromise)
+        XCTAssertNil(writeError.value)
+
+        // Close the connection before the rekey completes: the held write must fail.
+        self.channel.client.close(promise: nil)
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(writeError.value as? ChannelError, .ioOnClosedChannel)
     }
 
     func testDelayedHostKeyValidation() throws {

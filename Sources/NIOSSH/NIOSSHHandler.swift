@@ -186,7 +186,7 @@ extension NIOSSHHandler: ChannelDuplexHandler {
             ) {
                 try self.processInboundMessageResult(result, context: context)
             }
-            try self.drainPendingChildWritesIfPossible(context: context)
+            self.drainPendingChildWritesIfPossible(context: context)
         } catch {
             context.fireErrorCaught(error)
         }
@@ -241,7 +241,7 @@ extension NIOSSHHandler: ChannelDuplexHandler {
                 case .success(.some(let message)):
                     do {
                         try self.writeMessage(message, context: context)
-                        try self.drainPendingChildWritesIfPossible(context: context)
+                        self.drainPendingChildWritesIfPossible(context: context)
                         self.pendingWrite = false
                         context.flush()
                     } catch {
@@ -549,8 +549,9 @@ extension NIOSSHHandler: SSHMultiplexerDelegate {
             return
         }
 
-        guard self.stateMachine.canSendChannelMessages else {
-            // Mid-rekey: hold the message until our NEWKEYS is out, in order.
+        // Mid-rekey: hold the message until our NEWKEYS is out. If writes are already queued, this one must go
+        // behind them to keep ordering, even if the rekey has just finished: draining can re-enter here.
+        if self.pendingChildWrites.count > 0 || self.stateMachine.isRekeyingBeforeNewKeys {
             self.pendingChildWrites.append((message, promise))
             return
         }
@@ -563,17 +564,17 @@ extension NIOSSHHandler: SSHMultiplexerDelegate {
     }
 
     /// Writes any child channel messages held back during a key exchange. Called whenever inbound processing may
-    /// have moved the state machine into a state that allows channel messages again.
-    private func drainPendingChildWritesIfPossible(context: ChannelHandlerContext) throws {
-        guard self.stateMachine.canSendChannelMessages, self.pendingChildWrites.count > 0 else {
+    /// have moved the state machine out of the rekeying states.
+    private func drainPendingChildWritesIfPossible(context: ChannelHandlerContext) {
+        guard self.pendingChildWrites.count > 0, !self.stateMachine.isRekeyingBeforeNewKeys else {
             return
         }
         while let (message, promise) = self.pendingChildWrites.popFirst() {
             do {
                 try self.writeMessage(SSHMultiMessage(message), context: context, promise: promise)
             } catch {
+                // Fail this write only; the rest of the queue and the caller's flush must still happen.
                 promise?.fail(error)
-                throw error
             }
         }
         if !self.expectingChannelReadComplete {
