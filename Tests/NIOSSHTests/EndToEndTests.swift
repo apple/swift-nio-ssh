@@ -537,6 +537,92 @@ class EndToEndTests: XCTestCase {
         XCTAssertEqual(self.channel.activeServerChannels.count, 1)
     }
 
+    /// A child channel credits its window increment before it writes the CHANNEL_WINDOW_ADJUST. While a key
+    /// exchange is in progress the connection refuses channel messages, so that adjust never reaches the peer.
+    /// If the increment stays credited, we believe the peer still has a full window, so we never send another
+    /// adjust, while the peer runs out of window: the channel stalls forever. The refused adjust must instead be
+    /// re-issued once the exchange is over, so the peer can keep sending beyond its initial window.
+    ///
+    /// The rekey here is client-initiated; a server-initiated one (e.g. OpenSSH's RekeyLimit) refuses the adjust
+    /// the same way, as the refusal does not depend on which side started the exchange.
+    func testWindowAdjustRefusedDuringKeyExchangeIsReissuedAfterwards() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // The client channel only reads when asked to, so that we control when it emits its window adjust.
+        let readRecorder = ReadRecordingHandler()
+        var clientChannel = Optional<Channel>.none
+        self.channel.clientSSHHandler?.createChannel { channel, _ in
+            clientChannel = channel
+            do {
+                try channel.pipeline.syncOperations.addHandler(readRecorder)
+            } catch {
+                return channel.eventLoop.makeFailedFuture(error)
+            }
+            return channel.setOption(ChannelOptions.autoRead, value: false)
+        }
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        guard let clientChannel = clientChannel, let serverChannel = self.channel.activeServerChannels.first else {
+            XCTFail("Channels not created")
+            return
+        }
+
+        func bytesRead() -> Int {
+            readRecorder.reads.reduce(0) { total, read in
+                guard case .byteBuffer(let buffer) = read.data else {
+                    return total
+                }
+                return total + buffer.readableBytes
+            }
+        }
+
+        let targetWindowSize = Constants.defaultMaximumChannelPacketSize * Constants.channelWindowSizePacketMultiple
+
+        // The server uses most of the client's window, and the client buffers it all without reading. As with most
+        // real traffic, the messages don't divide the window evenly, so the increment the client emits once it
+        // has read half the window is a little larger than half the window.
+        let messageSize = 100_000
+        let firstBurstSize = messageSize * 60
+        XCTAssertLessThan(firstBurstSize, targetWindowSize)
+        XCTAssertNotEqual((targetWindowSize / 2) % messageSize, 0)
+        for _ in 0..<(firstBurstSize / messageSize) {
+            serverChannel.write(
+                SSHChannelData(type: .channel, data: .byteBuffer(ByteBuffer(repeating: 1, count: messageSize))),
+                promise: nil
+            )
+        }
+        serverChannel.flush()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertEqual(bytesRead(), 0)
+
+        // The client starts a key exchange, then reads. Reading crosses the half-window threshold, so the client
+        // emits a window adjust, which the connection refuses because the key exchange is in progress.
+        XCTAssertNoThrow(try self.channel.clientSSHHandler!._rekey())
+        clientChannel.read()
+        XCTAssertEqual(bytesRead(), firstBurstSize)
+
+        // Complete the key exchange.
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // The server now sends a full window more. Only the rest of the initial window is left, so everything
+        // beyond it can only arrive if the client re-issues the adjust it lost during the key exchange.
+        let secondBurstSize = targetWindowSize
+        serverChannel.writeAndFlush(
+            SSHChannelData(type: .channel, data: .byteBuffer(ByteBuffer(repeating: 2, count: secondBurstSize))),
+            promise: nil
+        )
+        XCTAssertNoThrow(try clientChannel.setOption(ChannelOptions.autoRead, value: true).wait())
+        clientChannel.read()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        XCTAssertEqual(
+            bytesRead(),
+            firstBurstSize + secondBurstSize,
+            "The peer's window was lost with the adjust refused during the key exchange: the channel stalled"
+        )
+    }
+
     func testDelayedHostKeyValidation() throws {
         class DelayedValidationDelegate: NIOSSHClientServerAuthenticationDelegate {
             var validationCount = 0
