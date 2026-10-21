@@ -123,7 +123,7 @@ extension UserAuthenticationStateMachine {
 
             // Cool, we can begin the auth dance.
             self.state = .awaitingNextRequest(attempts: 0)
-            return self.requestNextAuthRequest(methods: .all, delegate: delegate)
+            return self.requestNextAuthRequest(methods: .all, partialSuccess: false, delegate: delegate)
         case (.client, .authenticationSucceeded):
             // We should ignore all further auth messages in this state.
             return nil
@@ -241,7 +241,11 @@ extension UserAuthenticationStateMachine {
             // Ok, the server didn't like that much. Let's try another one.
             self.state = .awaitingNextRequest(attempts: attempts)
             precondition(responseCount == 1, "We don't support parallel authentication attempts yet!")
-            return self.requestNextAuthRequest(methods: .init(message), delegate: delegate)
+            return self.requestNextAuthRequest(
+                methods: .init(message),
+                partialSuccess: message.partialSuccess,
+                delegate: delegate
+            )
         case (.client, .authenticationSucceeded):
             // We should ignore all further auth messages in this state.
             return nil
@@ -465,10 +469,15 @@ extension UserAuthenticationStateMachine {
 extension UserAuthenticationStateMachine {
     fileprivate func requestNextAuthRequest(
         methods: NIOSSHAvailableUserAuthenticationMethods,
+        partialSuccess: Bool,
         delegate: NIOSSHClientUserAuthenticationDelegate
     ) -> EventLoopFuture<SSHMessage.UserAuthRequestMessage?> {
         let promise = self.loop.makePromise(of: NIOSSHUserAuthenticationOffer?.self)
-        delegate.nextAuthenticationType(availableMethods: methods, nextChallengePromise: promise)
+        delegate.nextAuthenticationType(
+            availableMethods: methods,
+            partialSuccess: partialSuccess,
+            nextChallengePromise: promise
+        )
 
         // The explicit capture list is here to force a copy of the buffer, rather than capturing self.
         return promise.futureResult.flatMapThrowing { [sessionID = self.sessionID] request in
