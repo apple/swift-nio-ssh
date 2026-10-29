@@ -62,16 +62,16 @@ public struct NIOSSHPrivateKey: Sendable {
     internal var hostKeyAlgorithms: [Substring] {
         switch self.backingKey {
         case .ed25519:
-            return ["ssh-ed25519"]
+            return ["ssh-ed25519-cert-v01@openssh.com", "ssh-ed25519"]
         case .ecdsaP256:
-            return ["ecdsa-sha2-nistp256"]
+            return ["ecdsa-sha2-nistp256-cert-v01@openssh.com", "ecdsa-sha2-nistp256"]
         case .ecdsaP384:
-            return ["ecdsa-sha2-nistp384"]
+            return ["ecdsa-sha2-nistp384-cert-v01@openssh.com", "ecdsa-sha2-nistp384"]
         case .ecdsaP521:
-            return ["ecdsa-sha2-nistp521"]
+            return ["ecdsa-sha2-nistp521-cert-v01@openssh.com", "ecdsa-sha2-nistp521"]
         #if canImport(Darwin)
         case .secureEnclaveP256:
-            return ["ecdsa-sha2-nistp256"]
+            return ["ecdsa-sha2-nistp256-cert-v01@openssh.com", "ecdsa-sha2-nistp256"]
         #endif
         }
     }
