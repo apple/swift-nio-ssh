@@ -685,7 +685,15 @@ extension SSHChildChannel {
                     recipientChannel: self.state.remoteChannelIdentifier!,
                     bytesToAdd: UInt32(increment)
                 )
-                self.processOutboundMessage(.channelWindowAdjust(update), promise: nil)
+
+                // The window manager has already credited this increment. If the write fails (for example,
+                // because a key exchange is in progress) the peer never gets it, and we would never send
+                // another: un-credit it so that the next read issues it again.
+                let promise = self.eventLoop.makePromise(of: Void.self)
+                promise.futureResult.whenFailure { _ in
+                    self.windowManager.incrementNotSent(increment)
+                }
+                self.processOutboundMessage(.channelWindowAdjust(update), promise: promise)
             }
             self.pipeline.syncOperations.fireChannelRead(NIOAny(data))
 
