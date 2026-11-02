@@ -161,6 +161,11 @@ extension NIOSSHError {
     internal static func invalidCertificate(diagnostics: String) -> NIOSSHError {
         NIOSSHError(type: .invalidCertificate, diagnostics: diagnostics)
     }
+
+    internal static let externalSignerDigestUnsupported = NIOSSHError(
+        type: .externalSignerDigestUnsupported,
+        diagnostics: nil
+    )
 }
 
 // MARK: - NIOSSHError CustomStringConvertible conformance.
@@ -207,6 +212,7 @@ extension NIOSSHError {
             case invalidHostKeyForKeyExchange
             case invalidOpenSSHPublicKey
             case invalidCertificate
+            case externalSignerDigestUnsupported
         }
 
         private var base: Base
@@ -304,6 +310,9 @@ extension NIOSSHError {
 
         /// A certificate failed validation.
         public static let invalidCertificate: ErrorType = .init(.invalidCertificate)
+
+        /// An external signer does not support digest-based signing.
+        public static let externalSignerDigestUnsupported: ErrorType = .init(.externalSignerDigestUnsupported)
     }
 }
 
