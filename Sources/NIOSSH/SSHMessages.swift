@@ -1128,6 +1128,10 @@ extension ByteBuffer {
                 }
                 type = .signal(signalName)
             default:
+                // Unknown channel request type - consume remaining bytes to prevent
+                // parser state corruption. Without this, leftover bytes cause
+                // invalidPacketFormat errors that corrupt the encryption state.
+                self.moveReaderIndex(to: self.writerIndex)
                 type = .unknown
             }
 
