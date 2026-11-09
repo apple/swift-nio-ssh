@@ -2181,6 +2181,37 @@ final class ChildChannelMultiplexerTests: XCTestCase {
 
         XCTAssertEqual(try channel.getOption(SSHChildChannelOptions.peerMaximumMessageLength).wait(), 4247)
     }
+
+    func testChildChannelContextReportsParentChannelAddresses() throws {
+        let harness = self.harnessForbiddingInboundChannels()
+        defer {
+            harness.finish()
+        }
+
+        let localAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 22)
+        let remoteAddress = try SocketAddress(ipAddress: "127.0.0.2", port: 2222)
+        harness.delegate._channel.localAddress = localAddress
+        harness.delegate._channel.remoteAddress = remoteAddress
+
+        var childChannel: Channel?
+        harness.multiplexer.createChildChannel(channelType: .session) { channel, _ in
+            childChannel = channel
+            return channel.eventLoop.makeSucceededFuture(())
+        }
+
+        guard let channel = childChannel else {
+            XCTFail("Did not create child channel")
+            return
+        }
+
+        // ChannelHandlerContext reads the addresses from the ChannelCore, not from the Channel.
+        let handler = ErrorLoggingHandler()
+        try channel.pipeline.syncOperations.addHandler(handler)
+        let context = try channel.pipeline.syncOperations.context(handler: handler)
+
+        XCTAssertEqual(context.localAddress, localAddress)
+        XCTAssertEqual(context.remoteAddress, remoteAddress)
+    }
 }
 
 extension ByteBuffer {
