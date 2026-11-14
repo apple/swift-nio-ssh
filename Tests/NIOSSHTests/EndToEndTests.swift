@@ -640,6 +640,43 @@ class EndToEndTests: XCTestCase {
         XCTAssertEqual(err.value as? ChannelError?, .eof)
     }
 
+    func testChildChannelCreatedWhileParentUnwritableBecomesWritable() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        // The parent stops being writable (say, a burst of writes is queued),
+        // and a child channel is created while it is.
+        self.channel.client.isWritable = false
+        self.channel.client.pipeline.fireChannelWritabilityChanged()
+        let childChannel = try self.channel.createNewChannel()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertFalse(childChannel.isWritable)
+
+        // The parent becomes writable again: so should the child.
+        self.channel.client.isWritable = true
+        self.channel.client.pipeline.fireChannelWritabilityChanged()
+        XCTAssertTrue(childChannel.isWritable)
+    }
+
+    func testChildChannelFollowsParentWritability() throws {
+        XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        let childChannel = try self.channel.createNewChannel()
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        XCTAssertTrue(childChannel.isWritable)
+
+        self.channel.client.isWritable = false
+        self.channel.client.pipeline.fireChannelWritabilityChanged()
+        XCTAssertFalse(childChannel.isWritable)
+
+        self.channel.client.isWritable = true
+        self.channel.client.pipeline.fireChannelWritabilityChanged()
+        XCTAssertTrue(childChannel.isWritable)
+    }
+
     func testCreateChannelAfterDisconnectFailsWithEventLoopTick() throws {
         XCTAssertNoThrow(try self.channel.configureWithHarness(TestHarness()))
         XCTAssertNoThrow(try self.channel.activate())
