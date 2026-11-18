@@ -2182,7 +2182,7 @@ final class ChildChannelMultiplexerTests: XCTestCase {
         XCTAssertEqual(try channel.getOption(SSHChildChannelOptions.peerMaximumMessageLength).wait(), 4247)
     }
 
-    func testChildChannelContextReportsParentChannelAddresses() throws {
+    func testChildChannelReportsParentChannelAddresses() throws {
         let harness = self.harnessForbiddingInboundChannels()
         defer {
             harness.finish()
@@ -2204,13 +2204,10 @@ final class ChildChannelMultiplexerTests: XCTestCase {
             return
         }
 
-        // ChannelHandlerContext reads the addresses from the ChannelCore, not from the Channel.
-        let handler = ErrorLoggingHandler()
-        try channel.pipeline.syncOperations.addHandler(handler)
-        let context = try channel.pipeline.syncOperations.context(handler: handler)
-
-        XCTAssertEqual(context.localAddress, localAddress)
-        XCTAssertEqual(context.remoteAddress, remoteAddress)
+        XCTAssertEqual(channel.localAddress, localAddress)
+        XCTAssertEqual(channel.remoteAddress, remoteAddress)
+        XCTAssertEqual(try channel._channelCore.localAddress0(), localAddress)
+        XCTAssertEqual(try channel._channelCore.remoteAddress0(), remoteAddress)
     }
 }
 
