@@ -52,6 +52,19 @@ public struct NIOSSHPrivateKey: Sendable {
         self.backingKey = .ecdsaP521(key)
     }
 
+    /// Create a private key backed by an external signer (e.g. ssh-agent).
+    /// 
+    /// Use this when private-key material is held outside NIOSSH. The signer receives raw
+    /// `UserAuthSignablePayload` bytes and returns algorithm-specific signature bytes.
+    /// 
+    /// - Parameter signer: External signer implementation that provides signatures for `publicKey` using raw SSH user-auth payload bytes.
+    /// - SeeAlso: ``NIOSSHExternalSigner`` for payload/signature format and threading requirements.
+    /// - Important: `sign(payload:)` is called synchronously on NIO event-loop threads. Do not block or perform
+    ///   long-running work inside the signer.
+    public init(externalSigner signer: any NIOSSHExternalSigner) {
+        self.backingKey = .external(signer)
+    }
+    
     #if canImport(Darwin)
     public init(secureEnclaveP256Key key: SecureEnclave.P256.Signing.PrivateKey) {
         self.backingKey = .secureEnclaveP256(key)
@@ -69,6 +82,8 @@ public struct NIOSSHPrivateKey: Sendable {
             return ["ecdsa-sha2-nistp384"]
         case .ecdsaP521:
             return ["ecdsa-sha2-nistp521"]
+        case .external(let signer):
+            return [Substring(String(decoding: signer.publicKey.keyPrefix, as: UTF8.self))]
         #if canImport(Darwin)
         case .secureEnclaveP256:
             return ["ecdsa-sha2-nistp256"]
@@ -84,6 +99,7 @@ extension NIOSSHPrivateKey {
         case ecdsaP256(P256.Signing.PrivateKey)
         case ecdsaP384(P384.Signing.PrivateKey)
         case ecdsaP521(P521.Signing.PrivateKey)
+        case external(any NIOSSHExternalSigner)
 
         #if canImport(Darwin)
         case secureEnclaveP256(SecureEnclave.P256.Signing.PrivateKey)
@@ -114,6 +130,8 @@ extension NIOSSHPrivateKey {
                 try key.signature(for: ptr)
             }
             return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
+        case .external:
+            throw NIOSSHError.externalSignerDigestUnsupported
 
         #if canImport(Darwin)
         case .secureEnclaveP256(let key):
@@ -139,6 +157,33 @@ extension NIOSSHPrivateKey {
         case .ecdsaP521(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
             return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
+        case .external(let signer):
+            let signatureBytes = try signer.sign(payload: payload.bytes)
+            let keyPrefix = signer.publicKey.keyPrefix
+
+            if keyPrefix.elementsEqual(NIOSSHPublicKey.ed25519PublicKeyPrefix) {
+                // Ed25519 remains wrapped as a ByteBuffer
+                return NIOSSHSignature(backingSignature: .ed25519(.byteBuffer(signatureBytes)))
+            }
+            if keyPrefix.elementsEqual(NIOSSHPublicKey.ecdsaP256PublicKeyPrefix) {
+                // ECDSA initializers use readableBytesView (DataProtocol)
+                return try NIOSSHSignature(
+                    backingSignature: .ecdsaP256(.init(rawRepresentation: signatureBytes.readableBytesView))
+                )
+            }
+            if keyPrefix.elementsEqual(NIOSSHPublicKey.ecdsaP384PublicKeyPrefix) {
+                return try NIOSSHSignature(
+                    backingSignature: .ecdsaP384(.init(rawRepresentation: signatureBytes.readableBytesView))
+                )
+            }
+            if keyPrefix.elementsEqual(NIOSSHPublicKey.ecdsaP521PublicKeyPrefix) {
+                return try NIOSSHSignature(
+                    backingSignature: .ecdsaP521(.init(rawRepresentation: signatureBytes.readableBytesView))
+                )
+            }
+            throw NIOSSHError.unknownSignature(
+                algorithm: String(decoding: keyPrefix, as: UTF8.self)
+            )
         #if canImport(Darwin)
         case .secureEnclaveP256(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
@@ -160,10 +205,32 @@ extension NIOSSHPrivateKey {
             return NIOSSHPublicKey(backingKey: .ecdsaP384(privateKey.publicKey))
         case .ecdsaP521(let privateKey):
             return NIOSSHPublicKey(backingKey: .ecdsaP521(privateKey.publicKey))
+        case .external(let signer):
+            return signer.publicKey
         #if canImport(Darwin)
         case .secureEnclaveP256(let privateKey):
             return NIOSSHPublicKey(backingKey: .ecdsaP256(privateKey.publicKey))
         #endif
         }
     }
+}
+
+/// External signer interface for SSH public-key authentication.
+public protocol NIOSSHExternalSigner: Sendable {
+    var publicKey: NIOSSHPublicKey { get }
+
+    /// Signs the raw SSH user-auth payload.
+    ///
+    /// - Parameter payload: Raw `UserAuthSignablePayload` bytes
+    ///   (session identifier + `SSH_MSG_USERAUTH_REQUEST` fields). The payload is **not** pre-hashed.
+    /// - Returns: Signature bytes compatible with `publicKey`.
+    ///
+    /// Supported external signature encodings:
+    /// - `ssh-ed25519`: raw Ed25519 signature bytes.
+    /// - `ecdsa-sha2-nistp256`: CryptoKit P-256 `rawRepresentation` (`r || s`, fixed-width, 64 bytes).
+    /// - `ecdsa-sha2-nistp384`: CryptoKit P-384 `rawRepresentation` (`r || s`, fixed-width, 96 bytes).
+    /// - `ecdsa-sha2-nistp521`: CryptoKit P-521 `rawRepresentation` (`r || s`, fixed-width, 132 bytes).
+    ///
+    /// - Important: This is called synchronously on NIO event-loop threads. Implementations must not block.
+    func sign(payload: ByteBuffer) throws -> ByteBuffer
 }

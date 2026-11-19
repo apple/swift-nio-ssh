@@ -127,6 +127,26 @@ The client protocol is straightforward: SwiftNIO SSH will invoke the method ``NI
 
 The server protocol is more complex. The delegate must provide a ``NIOSSHServerUserAuthenticationDelegate/supportedAuthenticationMethods`` property that communicates which authentication methods are supported by the delegate. Then, each time the client sends a user auth request, the ``NIOSSHServerUserAuthenticationDelegate/requestReceived(request:responsePromise:)`` method will be invoked. This may be invoked multiple times in parallel, as clients are allowed to issue auth requests in parallel. The `responsePromise` should be succeeded with the result of the authentication. There are three results: ``NIOSSHUserAuthenticationOutcome/success`` and ``NIOSSHUserAuthenticationOutcome/failure`` are straightforward, but in principle the server can require multiple challenges using ``NIOSSHUserAuthenticationOutcome/partialSuccess(remainingMethods:)``.
 
+##### External signer (advanced)
+
+SwiftNIO SSH also supports external signing for public‑key authentication via ``NIOSSHExternalSigner``.
+This example is intentionally OS‑agnostic and does **not** use ssh‑agent directly.
+
+```swift
+struct FakeSigner: NIOSSHExternalSigner {
+    let publicKey: NIOSSHPublicKey
+
+    func sign(payload: ByteBuffer) throws -> ByteBuffer {
+        var buffer = ByteBufferAllocator().buffer(capacity: 3)
+        buffer.writeBytes([0x01, 0x02, 0x03]) // example signature bytes
+        return buffer
+    }
+}
+
+let signer = FakeSigner(publicKey: somePublicKey)
+let key = NIOSSHPrivateKey(externalSigner: signer)
+```
+
 #### Direct Port Forwarding
 
 Direct port forwarding is port forwarding from client to server. In this mode traditionally the client will listen on a local port, and will forward inbound connections to the server. It will ask that the server forward these connections as outbound connections to a specific host and port.
