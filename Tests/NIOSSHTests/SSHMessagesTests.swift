@@ -797,4 +797,64 @@ final class SSHMessagesTests: XCTestCase {
 
         try self.assertCorrectlyManagesPartialRead(message)
     }
+
+    func testUnknownChannelRequestWithPayload() throws {
+        // This test verifies that unknown channel request types with payloads
+        // are handled correctly without corrupting the parser state.
+        var buffer = ByteBufferAllocator().buffer(capacity: 100)
+
+        // Build a channel request with unknown type and payload
+        buffer.writeInteger(SSHMessage.ChannelRequestMessage.id)
+        buffer.writeInteger(UInt32(0))  // Recipient channel
+        buffer.writeSSHString("custom-extension@example.com".utf8)  // Unknown type
+        buffer.writeSSHBoolean(false)  // Want reply
+        buffer.writeSSHString("extension-payload-data".utf8)  // Payload
+
+        let message = try buffer.readSSHMessage()
+
+        guard case .some(.channelRequest(let request)) = message else {
+            XCTFail("Expected channelRequest message")
+            return
+        }
+
+        XCTAssertEqual(request.recipientChannel, 0)
+        XCTAssertEqual(request.type, .unknown)
+        XCTAssertFalse(request.wantReply)
+
+        // Verify buffer is fully consumed (no leftover bytes that would corrupt next read)
+        XCTAssertEqual(buffer.readableBytes, 0, "Parser should consume all bytes for unknown channel request")
+    }
+
+    func testParserContinuesAfterUnknownChannelRequest() throws {
+        // This test verifies that the parser can continue reading valid messages
+        // after encountering an unknown channel request type.
+        var buffer = ByteBufferAllocator().buffer(capacity: 200)
+
+        // Write unknown channel request
+        buffer.writeInteger(SSHMessage.ChannelRequestMessage.id)
+        buffer.writeInteger(UInt32(0))
+        buffer.writeSSHString("unknown-request@example.com".utf8)
+        buffer.writeSSHBoolean(false)
+        buffer.writeSSHString("payload-data".utf8)
+
+        // Read first message
+        let message1 = try buffer.readSSHMessage()
+        XCTAssertNotNil(message1)
+        guard case .some(.channelRequest(let request)) = message1 else {
+            XCTFail("Expected channelRequest")
+            return
+        }
+        XCTAssertEqual(request.type, .unknown)
+
+        // Write a known message after
+        buffer.writeInteger(SSHMessage.ChannelSuccessMessage.id)
+        buffer.writeInteger(UInt32(0))
+
+        // Verify parser can continue
+        let message2 = try buffer.readSSHMessage()
+        guard case .some(.channelSuccess) = message2 else {
+            XCTFail("Expected channelSuccess after unknown channel request - parser state may be corrupted")
+            return
+        }
+    }
 }
