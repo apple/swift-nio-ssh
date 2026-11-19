@@ -493,7 +493,16 @@ extension ChildChannelStateMachine {
             // In the idle state we haven't either sent a channel open or received one. This is not really possible.
             preconditionFailure("Somehow received channel EOF for idle channel")
 
-        case .requestedLocally, .requestedRemotely, .closedLocally, .closedRemotely, .closed:
+        case .closedLocally, .closedRemotely, .closed:
+            // A read can be delivered from the multiplexer's pending-read queue
+            // after the channel was closed; the resulting window adjust must not
+            // crash the process. Surface it as a protocol error instead.
+            throw NIOSSHError.protocolViolation(
+                protocolName: "channel",
+                violation: "Sent channel window adjust on closed channel."
+            )
+
+        case .requestedLocally, .requestedRemotely:
             preconditionFailure("Sent channel window adjust on channel in invalid state")
         }
     }
