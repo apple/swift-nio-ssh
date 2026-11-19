@@ -67,6 +67,19 @@ extension ChildChannelWindowManager {
             return Increment(rawValue: increment)
         }
     }
+
+    /// Takes back an increment returned by `unbufferBytes` whose window adjust message never reached the
+    /// remote peer.
+    ///
+    /// `unbufferBytes` credits the increment to the window as soon as it creates it. If the message is then
+    /// not sent (for example, because a key exchange is in progress), the peer's window is smaller than
+    /// we believe. Taking the increment back makes the next call to `unbufferBytes` emit it again.
+    mutating func incrementNotSent(_ increment: Increment) {
+        // A conforming peer never received this increment, so it cannot have used it. Saturate rather
+        // than trap in case the connection is failing; bytes already accepted are not re-checked.
+        let (newWindowSize, overflow) = self.currentWindowSize.subtractingReportingOverflow(increment.rawValue)
+        self.currentWindowSize = overflow ? 0 : newWindowSize
+    }
 }
 
 extension ChildChannelWindowManager {
