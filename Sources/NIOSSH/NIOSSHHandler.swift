@@ -321,10 +321,36 @@ extension NIOSSHHandler {
         self.sendGlobalRequestsIfPossible()
     }
 
+    /// Sends a global request that NIOSSH does not model itself, such as `keepalive@openssh.com`
+    /// or other vendor extensions (RFC 4254 §4).
+    ///
+    /// If `wantReply` is true, `promise` is succeeded with the peer's `SSH_MSG_REQUEST_SUCCESS` payload
+    /// (possibly empty) when the peer accepts the request. It is failed with a ``NIOSSHError`` of type
+    /// ``NIOSSHError/ErrorType/globalRequestRefused`` when the peer answers `SSH_MSG_REQUEST_FAILURE`; only
+    /// that error means the peer answered. The promise is also failed, with some other error, if the request
+    /// cannot be written or the handler is removed before the peer answers. If `wantReply` is false, `promise`
+    /// is succeeded with `nil` once the request has been sent.
+    ///
+    /// This function is **not** thread-safe: it may only be called from on the channel.
+    ///
+    /// - parameters:
+    ///     - name: The request name, e.g. `keepalive@openssh.com`.
+    ///     - wantReply: Whether the peer must answer.
+    ///     - data: Request-specific data appended after the name; empty by default.
+    ///     - promise: Completed as described above.
+    public func sendGlobalRequest(
+        name: String,
+        wantReply: Bool,
+        data: ByteBuffer = ByteBuffer(),
+        promise: EventLoopPromise<ByteBuffer?>? = nil
+    ) {
+        self.sendGlobalRequestMessage(.init(wantReply: wantReply, type: .unknown(name, data)), promise: promise)
+    }
+
     /// Sends a global request of any kind. This is commonly used for TCP forwarding requests, but can be used to extend the protocol.
     ///
     /// This function is **not** thread-safe: it may only be called from on the channel.
-    func sendGlobalRequestMessage(
+    private func sendGlobalRequestMessage(
         _ message: SSHMessage.GlobalRequestMessage,
         promise: EventLoopPromise<ByteBuffer?>? = nil
     ) {

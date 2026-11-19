@@ -377,19 +377,15 @@ class EndToEndTests: XCTestCase {
         randomPayload.writeBytes(Array(randomBytes: 12))
 
         let firstReply = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
-        clientSSHHandler.sendGlobalRequestMessage(
-            .init(wantReply: true, type: .unknown("test", randomPayload)),
-            promise: firstReply
-        )
+        clientSSHHandler.sendGlobalRequest(name: "test", wantReply: true, data: randomPayload, promise: firstReply)
 
         XCTAssertNoThrow(try self.channel.interactInMemory())
-        XCTAssertThrowsError(try firstReply.futureResult.wait())
+        XCTAssertThrowsError(try firstReply.futureResult.wait()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .globalRequestRefused)
+        }
 
         let secondReply = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
-        clientSSHHandler.sendGlobalRequestMessage(
-            .init(wantReply: false, type: .unknown("test", randomPayload)),
-            promise: secondReply
-        )
+        clientSSHHandler.sendGlobalRequest(name: "test", wantReply: false, data: randomPayload, promise: secondReply)
 
         XCTAssertNoThrow(try self.channel.interactInMemory())
         XCTAssertNil(try secondReply.futureResult.wait())
