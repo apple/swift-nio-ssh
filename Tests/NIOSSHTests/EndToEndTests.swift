@@ -215,6 +215,19 @@ final class ExpectPublicKeyAuth: NIOSSHServerUserAuthenticationDelegate {
     }
 }
 
+/// A global request delegate that holds on to the promises so that a test can complete them later.
+final class DeferringGlobalRequestDelegate: GlobalRequestDelegate {
+    var promises: [EventLoopPromise<GlobalRequest.TCPForwardingResponse>] = []
+
+    func tcpForwardingRequest(
+        _ request: GlobalRequest.TCPForwardingRequest,
+        handler: NIOSSHHandler,
+        promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>
+    ) {
+        self.promises.append(promise)
+    }
+}
+
 class EndToEndTests: XCTestCase {
     var channel: BackToBackEmbeddedChannel!
 
@@ -393,6 +406,81 @@ class EndToEndTests: XCTestCase {
 
         XCTAssertNoThrow(try self.channel.interactInMemory())
         XCTAssertNil(try secondReply.futureResult.wait())
+    }
+
+    func testGlobalRequestRepliesAreSentInRequestOrder() throws {
+        // RFC 4254 § 4: replies to global requests must be sent in the order the requests were received,
+        // even if the delegate completes them in a different order.
+        let delegate = DeferringGlobalRequestDelegate()
+        var harness = TestHarness()
+        harness.serverGlobalRequestDelegate = delegate
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        let firstReply = self.channel.client.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
+        let secondReply = self.channel.client.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
+        self.channel.clientSSHHandler?.sendTCPForwardingRequest(
+            .listen(host: "localhost", port: 0),
+            promise: firstReply
+        )
+        self.channel.clientSSHHandler?.sendTCPForwardingRequest(
+            .listen(host: "localhost", port: 0),
+            promise: secondReply
+        )
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        guard delegate.promises.count == 2 else {
+            XCTFail("Unexpected number of forwarding requests: \(delegate.promises.count)")
+            return
+        }
+
+        // Complete the second request first.
+        delegate.promises[1].succeed(.init(boundPort: 2222))
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+        delegate.promises[0].succeed(.init(boundPort: 1111))
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        XCTAssertEqual(try firstReply.futureResult.wait(), GlobalRequest.TCPForwardingResponse(boundPort: 1111))
+        XCTAssertEqual(try secondReply.futureResult.wait(), GlobalRequest.TCPForwardingResponse(boundPort: 2222))
+    }
+
+    func testUnknownGlobalRequestReplyWaitsForEarlierReplies() throws {
+        // The reply to an unknown global request must not overtake the reply to an earlier request
+        // that the delegate has not answered yet.
+        let delegate = DeferringGlobalRequestDelegate()
+        var harness = TestHarness()
+        harness.serverGlobalRequestDelegate = delegate
+
+        XCTAssertNoThrow(try self.channel.configureWithHarness(harness))
+        XCTAssertNoThrow(try self.channel.activate())
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        let forwardingReply = self.channel.client.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
+        let unknownReply = self.channel.client.eventLoop.makePromise(of: ByteBuffer?.self)
+        self.channel.clientSSHHandler?.sendTCPForwardingRequest(
+            .listen(host: "localhost", port: 0),
+            promise: forwardingReply
+        )
+        self.channel.clientSSHHandler?.sendGlobalRequestMessage(
+            .init(wantReply: true, type: .unknown("test", ByteBuffer())),
+            promise: unknownReply
+        )
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        guard delegate.promises.count == 1 else {
+            XCTFail("Unexpected number of forwarding requests: \(delegate.promises.count)")
+            return
+        }
+
+        delegate.promises[0].succeed(.init(boundPort: 1111))
+        XCTAssertNoThrow(try self.channel.interactInMemory())
+
+        XCTAssertEqual(try forwardingReply.futureResult.wait(), GlobalRequest.TCPForwardingResponse(boundPort: 1111))
+        XCTAssertThrowsError(try unknownReply.futureResult.wait()) { error in
+            XCTAssertEqual((error as? NIOSSHError)?.type, .globalRequestRefused)
+        }
     }
 
     func testGlobalRequestTooEarlyIsDelayed() throws {
