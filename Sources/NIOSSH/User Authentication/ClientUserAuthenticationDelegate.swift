@@ -38,4 +38,38 @@ public protocol NIOSSHClientUserAuthenticationDelegate {
         availableMethods: NIOSSHAvailableUserAuthenticationMethods,
         nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
     )
+
+    /// Called when ``NIOSSH`` would like to attempt to offer a new authentication method, saying
+    /// whether the previous offer was accepted as one of several required steps.
+    ///
+    /// Servers that require more than one authentication method (OpenSSH's `AuthenticationMethods`)
+    /// answer an accepted offer with a failure message whose "partial success" flag is set and whose
+    /// method list names only what is still required. Without the flag a delegate cannot tell that
+    /// reply apart from a plain rejection, and so cannot tell a key that was accepted as a first factor
+    /// from a key the server refused.
+    ///
+    /// The default implementation ignores the flag and calls
+    /// ``nextAuthenticationType(availableMethods:nextChallengePromise:)``, so existing delegates keep
+    /// working unchanged.
+    ///
+    /// - parameters:
+    ///     - availableMethods: The authentication methods the server is willing to accept.
+    ///     - partialSuccess: Whether the previous offer was accepted but further authentication is
+    ///       required. Always `false` for the first call on a connection.
+    ///     - nextChallengePromise: An `EventLoopPromise` to be fulfilled with the next authentication offer.
+    func nextAuthenticationType(
+        availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+        partialSuccess: Bool,
+        nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+    )
+}
+
+extension NIOSSHClientUserAuthenticationDelegate {
+    public func nextAuthenticationType(
+        availableMethods: NIOSSHAvailableUserAuthenticationMethods,
+        partialSuccess: Bool,
+        nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
+    ) {
+        self.nextAuthenticationType(availableMethods: availableMethods, nextChallengePromise: nextChallengePromise)
+    }
 }
