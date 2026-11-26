@@ -38,4 +38,9 @@ public enum Constants: Sendable {
         [
             AES256GCMOpenSSHTransportProtection.self, AES128GCMOpenSSHTransportProtection.self,
         ]
+
+    /// The default value for `SSHServerConfiguration.maxAuthAttempts`: the maximum number of
+    /// `SSH_MSG_USERAUTH_REQUEST` messages a server processes on a single connection before
+    /// disconnecting the client.
+    static let defaultMaxAuthAttempts = 1024
 }
