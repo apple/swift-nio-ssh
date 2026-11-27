@@ -48,6 +48,11 @@ public final class NIOSSHHandler {
     // Whether we're expecting a channelReadComplete.
     private var expectingChannelReadComplete: Bool = false
 
+    // Whether an error has escaped inbound message processing. Such errors are fatal to the connection: in
+    // particular, the packet parser cannot make progress past a malformed or oversized frame. Once set, all
+    // further inbound data is dropped rather than buffered.
+    private var inboundProcessingFailed: Bool = false
+
     // A buffer of pending channel initializations. A channel initialization is pending if
     // we're attempting to initialize a channel before user auth is complete.
     private var pendingChannelInitializations:
@@ -168,6 +173,11 @@ extension NIOSSHHandler: ChannelDuplexHandler {
     }
 
     public func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        // Once inbound processing has failed the connection is unusable, so don't accumulate any more data.
+        guard !self.inboundProcessingFailed else {
+            return
+        }
+
         self.expectingChannelReadComplete = true
 
         var data = self.unwrapInboundIn(data)
@@ -181,6 +191,10 @@ extension NIOSSHHandler: ChannelDuplexHandler {
                 try self.processInboundMessageResult(result, context: context)
             }
         } catch {
+            // Errors here are protocol violations from the peer and are fatal to the connection. Report the
+            // error and stop processing inbound data, so that a peer cannot keep sending data that we would
+            // buffer without bound. Closing the connection is left to the user's pipeline.
+            self.inboundProcessingFailed = true
             context.fireErrorCaught(error)
         }
     }
@@ -518,6 +532,15 @@ extension NIOSSHHandler {
             loop: self.context!.eventLoop
         )
         self.context!.writeAndFlush(self.wrapOutboundOut(buffer), promise: nil)
+    }
+}
+
+// MARK: Test-only inspection
+
+extension NIOSSHHandler {
+    /// Testing only: the number of inbound bytes currently buffered awaiting parsing.
+    internal var __testOnly_inboundBufferedByteCount: Int {
+        self.stateMachine.__testOnly_inboundBufferedByteCount
     }
 }
 
