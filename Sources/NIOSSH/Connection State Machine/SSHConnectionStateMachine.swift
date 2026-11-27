@@ -1272,6 +1272,36 @@ extension SSHConnectionStateMachine {
         }
     }
 
+    /// Testing only: the number of inbound bytes buffered in the packet parser, awaiting parsing.
+    var __testOnly_inboundBufferedByteCount: Int {
+        switch self.state {
+        case .idle, .receivedDisconnect, .sentDisconnect:
+            return 0
+        case .sentVersion(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .keyExchange(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .receivedNewKeys(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .sentNewKeys(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .userAuthentication(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .active(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .receivedKexInitWhenActive(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .sentKexInitWhenActive(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .rekeying(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .rekeyingReceivedNewKeysState(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        case .rekeyingSentNewKeysState(let state):
+            return state.parser.__testOnly_bufferedByteCount
+        }
+    }
+
     var role: SSHConnectionRole {
         switch self.state {
         case .idle(let state):

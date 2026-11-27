@@ -55,6 +55,11 @@ struct SSHPacketParser {
         self.buffer.readerIndex
     }
 
+    /// Testing only: the number of bytes buffered awaiting parsing.
+    internal var __testOnly_bufferedByteCount: Int {
+        self.buffer.readableBytes
+    }
+
     init(
         isServer: Bool,
         allocator: ByteBufferAllocator,
